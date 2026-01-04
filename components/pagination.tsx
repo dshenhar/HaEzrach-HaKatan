@@ -51,7 +51,8 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "center",
         alignItems: "center",
-        marginVertical: 7,
+        // marginVertical: 2,
+        // borderWidth: 1,
         gap: 10,
     },
     dotButton: {

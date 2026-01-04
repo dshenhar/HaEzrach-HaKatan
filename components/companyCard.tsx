@@ -9,45 +9,35 @@ type props = {
     item: CompanyItem;
     index: number;
     scrollX: SharedValue<number>;
-    scrollY: SharedValue<number>;
     carouselLen: number;
 }
-const width = Dimensions.get("screen").width + 10;
+const width = Dimensions.get("screen").width;
 const height = Dimensions.get("screen").height;
 console.log("width: ", width);
 console.log("height: ", height);
 
-const CompanyCard = ({ item, index, scrollX, scrollY, carouselLen } : props) => {
+const CompanyCard = ({ item, index, scrollX, carouselLen } : props) => {
+    const angleStep = (2 * Math.PI) / 10;
+    const currentAngle = scrollX.value + 1.2 * angleStep;
+    const RADIUS = width * 0.8
+
     const rnAnimatedStyle = useAnimatedStyle(() => {
         const inputRange = [
-            (index-7) * width, 
-            (index-6) * width, 
-            (index-5) * width, 
-            (index-4) * width, 
-            (index-3) * width, 
-            (index-2) * width, 
             (index-1) * width, 
             index * width, 
-            (index+1) * width, 
-            (index+2) * width, 
-            (index+3) * width, 
-            (index+4) * width, 
-            (index+5) * width, 
-            (index+6) * width, 
-            (index+7) * width, 
-            (index+8) * width, 
-            (index+9) * width]
+            (index+1) * width]
+
         const zIndexFloat = interpolate (
             scrollX.value,
             inputRange,
-            [8, 6, 4, 2, 4, 6, 8, 10, 8, 6, 4, 2, 4, 6, 8, 6, 4],
+            [-1, 0, -1],
             Extrapolation.CLAMP
         );
 
         // console.log("zindexFloat: ", zIndexFloat);
         const zIndex = Math.round(zIndexFloat);
         // console.log("zindex: ", zIndex);
-
+        const x = RADIUS * Math.sin(currentAngle)
         return {
             transform: [
                 {
@@ -55,56 +45,26 @@ const CompanyCard = ({ item, index, scrollX, scrollY, carouselLen } : props) => 
                         scrollX.value,
                         inputRange,
                         [
-                            -width * 7.2, 
-                            -width * 6.4, 
-                            -width * 5.2, 
-                            -width * 4, 
-                            -width * 2.8, 
-                            -width * 1.6, 
-                            -width * 0.8, 
+                            -width * 0.574, 
                             0, 
-                            width * 0.8, 
-                            width * 1.6, 
-                            width * 2.8, 
-                            width * 4, 
-                            width * 5.2, 
-                            width * 6.4, 
-                            width * 7.2,
-                            width * 8,
-                            width * 8.8],
+                            width * 0.574], 
                         Extrapolation.CLAMP
                     )
                 },
                 {
-                    translateY: interpolate (
+                    rotateY: `${interpolate (
                         scrollX.value,
                         inputRange,
-                        [
-                            scrollY.value-30, 
-                            scrollY.value-60, 
-                            scrollY.value-90, 
-                            scrollY.value-120, 
-                            scrollY.value-90, 
-                            scrollY.value-60, 
-                            scrollY.value-30, 
-                            scrollY.value, 
-                            scrollY.value-30, 
-                            scrollY.value-60, 
-                            scrollY.value-90, 
-                            scrollY.value-120, 
-                            scrollY.value-90, 
-                            scrollY.value-60, 
-                            scrollY.value-30,
-                            scrollY.value-30,
-                            scrollY.value-30],
+                        [-currentAngle, 0, currentAngle],
                         Extrapolation.CLAMP
-                    )
+                    )}rad`
+                    // rotateY: `${currentAngle}rad`
                 },
                 {
                     scale: interpolate (
                         scrollX.value,
                         inputRange,
-                        [0.9, 0.8, 0.7, 0.6, 0.7, 0.8, 0.9, 1, 0.9, 0.8, 0.7, 0.6, 0.7, 0.8, 0.9, 0.8, 0.7],
+                        [0.9, 1, 0.9],
                         Extrapolation.CLAMP
                     ),
                 },
@@ -155,7 +115,7 @@ const styles = StyleSheet.create({
         height: 400,
         borderWidth: 1,
         borderRadius: 15,
-        backgroundColor: "#d6d3d3ff",
+        backgroundColor: "#d6bebeff",
         // justifyContent: "center",
         alignItems: "center",
     },

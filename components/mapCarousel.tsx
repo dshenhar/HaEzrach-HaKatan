@@ -1,4 +1,4 @@
-import React, { Dispatch, SetStateAction, useMemo, useRef, useState } from 'react';
+import React, { Dispatch, SetStateAction, useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, FlatList, StyleSheet, View, ViewToken } from 'react-native';
 import Pagination from './pagination';
 import CompanyCard from './companyCard';
@@ -14,14 +14,11 @@ const MapCarousel = ({ data }  : props ) => {
     const [carouselData, setCarouselData] = useState<CompanyItem[]>(data);
     const carouselRef = useRef<FlatList>(null)
     const scrollX = useSharedValue(0);
-    const scrollY = useSharedValue(0);
 
     const onScrollHendeler = useAnimatedScrollHandler({
         onScroll: (e) => {
             scrollX.value = e.contentOffset.x;
-            scrollY.value = e.contentOffset.y;
             // console.log("X", scrollX);
-            // console.log("Y", e.contentSize.height / 2);
         }
     })
 
@@ -42,12 +39,16 @@ const MapCarousel = ({ data }  : props ) => {
         return Math.floor(Math.random() * data.length);
     }, [data]);
 
+    const renderer = useCallback(({ item, index } : { item: CompanyItem, index: number }) => {
+        return <CompanyCard item={item} index={index} scrollX={scrollX} carouselLen={data.length} />
+    }, []);
+
     return (
         <View style={styles.card}>
             <Animated.FlatList
                 data={carouselData}
                 renderItem={({ item, index }) => (
-                    <CompanyCard item={item} index={index} scrollX={scrollX} scrollY={scrollY} carouselLen={data.length} />
+                    <CompanyCard item={item} index={index} scrollX={scrollX} carouselLen={data.length} />
                 )}
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -56,13 +57,16 @@ const MapCarousel = ({ data }  : props ) => {
                 onViewableItemsChanged={onViewableItemsChanged}
                 ref={carouselRef}
                 removeClippedSubviews={false}
-                onEndReached={() => {
-                    carouselRef.current?.scrollToIndex({
-                        index: 0,
-                        animated: false
-                    })
-                }}
-                onEndReachedThreshold={100}
+                scrollEventThrottle={1000 / 60}
+                // CellRendererComponent={renderer}
+                // onEndReached={() => {
+                //     this
+                //     carouselRef.current?.scrollToIndex({
+                //         index: 0,
+                //         animated: false
+                //     })
+                // }}
+                // onEndReachedThreshold={100}
                 // viewabilityConfig={viewabilityConfig}
                 // initialScrollIndex={randomInitialIndex}
                 // getItemLayout={(data, index) => ({

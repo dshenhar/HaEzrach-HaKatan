@@ -85,13 +85,13 @@ export default NewsCarousel
 const styles = StyleSheet.create({
     card: {
         width: "100%",
-        marginBottom: 10,
+        marginBottom: 20,
         borderRadius: 12,
         // shadowColor: "#000",
         // shadowOpacity: 0.1,
         // shadowRadius: 6,
         // elevation: 3,
-        // borderWidth: 1,
+        // borderWidth: 2,
         // backgroundColor: "white",
         // borderColor: "#eaeaeaff",
     }

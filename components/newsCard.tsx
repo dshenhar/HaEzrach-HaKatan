@@ -3,6 +3,9 @@ import { NewsItem, URL_BASE } from '@/state/engagement';
 import { Bookmark, ExternalLink, Share2 } from "lucide-react-native";
 import React, { Dispatch, SetStateAction } from 'react';
 import { Alert, Dimensions, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import RateBar from './ui/rateBar';
+import { Background } from '@react-navigation/elements';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 type props = {
     slide: NewsItem;
@@ -79,98 +82,109 @@ const NewsCard = ({slide, index, expanded, setExpanded, setViewerOpen, setViewer
 	};
       
 	return (
-		<View style={{height: !expanded ? 170 : "auto", top: 10}}>
-			<View style={[styles.backSlide, { backgroundColor: slideItemColors["thirdBackground"][slide.category], transform: [{ rotate: "-2.62deg" }] }]}></View>
-			<View style={[styles.backSlide, { backgroundColor: slideItemColors["secondBackground"][slide.category], transform: [{ rotate: "0.43deg" }], left: 14, top: 10 }]}></View>
-			<View style={[styles.slide, {width: width, backgroundColor: slideItemColors["background"][slide.category], height: !expanded ? 140 : "auto" }]}>
-				<TouchableOpacity onPress={() => setExpanded(!expanded)} onLongPress={handleLongPress} activeOpacity={0.9}>
-					<Text style={styles.time}>{timeFormat(slide.time)}</Text>
-					<View style={styles.titleWrapper}>
-						<View style={styles.titleContainer}>
-							<Text style={styles.title} numberOfLines={!expanded ? 3 : undefined}>
+		// <View style={{height: !expanded ? 170 : "auto", top: 10}}>
+			// {/* <View style={[styles.backSlide, { backgroundColor: slideItemColors["thirdBackground"][slide.category], transform: [{ rotate: "-2.62deg" }] }]}></View> */}
+			// {/* <View style={[styles.backSlide, { backgroundColor: slideItemColors["secondBackground"][slide.category], transform: [{ rotate: "0.43deg" }], left: 14, top: 10 }]}></View> */}
+		<View style={[styles.slide, { width: width, height: !expanded  ? 185 : "auto"}]}>
+			<TouchableOpacity onPress={() => setExpanded(!expanded)} onLongPress={handleLongPress} activeOpacity={0.9}>
+				<View style={[{ flexDirection: "row", width: "100%", justifyContent: "space-between"}]}>
+					<TouchableOpacity style={styles.iconButton}>
+						<Bookmark size={22} color="#6b7280" />
+					</TouchableOpacity>
+					<Text style={[styles.time, {position: "absolute", top: 0, right: 0}]}>{timeFormat(slide.time)}</Text>
+				</View>
+				<View style={styles.titleWrapper}>
+					<View style={styles.titleContainer}>
+						<Text style={styles.title} numberOfLines={!expanded ? 3 : undefined}>
 							{slide.title}
-							</Text>
-						</View>
-						<TouchableOpacity style={styles.iconButton}>
-							<Bookmark size={22} color="#6b7280" />
-						</TouchableOpacity>
+						</Text>
 					</View>
-				</TouchableOpacity>
+				</View>
+			</TouchableOpacity>
 
-				{!expanded ? (
-					<View style={styles.rowBetween}>
-						{/* <View style={styles.row}>
+			{!expanded ? (
+				<View style={[styles.rowBetween, { position: "absolute", bottom: 45, alignSelf: "center" }]}>
+					{/* <View style={styles.row}>
+						<View
+						style={[
+							styles.dot,
+							{ backgroundColor: getBiasColor(slide.siteBiasScore) },
+						]}
+						/>
+						<Text style={styles.source}>{slide.source}</Text>
+					</View> */}
+					<View style={[styles.row, { width: "100%", justifyContent: "flex-end" }]}>
+						<View style={{ width: "25%", alignSelf: "center", height: 20, justifyContent: "center" }}>
+							<RateBar rate={(slide.biasScore * 10) + 50} />
+						</View>
+						<View style={[styles.badge ]}>
+							<Text style={ styles.badgeText }>{slide.topic}</Text>
+						</View>
+						{/* <View style={[styles.badge, {backgroundColor: "#d5d5d5ff"}]}>
+							<Text style={ styles.badgeText }>{slide.category}</Text>
+						</View> */}
+						{/* <View style={[styles.badge, styles.badgeSecondary]}>
+							<Text style={styles.badgeText}>{slide.category}</Text>
+						</View> */}
+					</View>
+				</View>
+			) : (
+				<View style={{ flex: 1, justifyContent: "space-between" }}>
+					<View>
+						<View style={styles.rowBetween}>
+							<View style={styles.row}>
+							</View>
+							<View style={styles.row}>
+							<Text style={styles.source}>{slide.source}</Text>
 							<View
-							style={[
+								style={[
 								styles.dot,
 								{ backgroundColor: getBiasColor(slide.siteBiasScore) },
-							]}
+								]}
 							/>
-							<Text style={styles.source}>{slide.source}</Text>
-						</View> */}
-						<View style={[styles.row, {width: "100%", justifyContent: "flex-end" }]}>
-							<View style={[styles.badge]}>
-								<Text style={styles.badgeText}>{slide.topic}</Text>
 							</View>
-							{/* <View style={[styles.badge, styles.badgeSecondary]}>
-								<Text style={styles.badgeText}>{slide.category}</Text>
-							</View> */}
 						</View>
+						<Text style={styles.summary}>{slide.summary}</Text>
 					</View>
-				) : (
-					<View style={{ flex: 1, justifyContent: "space-between" }}>
-						<View>
-							<View style={styles.rowBetween}>
-								<View style={styles.row}>
-								</View>
-								<View style={styles.row}>
-								<Text style={styles.source}>{slide.source}</Text>
+					<View>
+						<View style={styles.rowBetween}>
+							{/* <View style={styles.row} /> */}
+							<View style={[styles.row, { flex: 1, justifyContent: "space-between"}]}>
 								<View
-									style={[
-									styles.dot,
-									{ backgroundColor: getBiasColor(slide.siteBiasScore) },
-									]}
-								/>
-								</View>
-							</View>
-							<Text style={styles.summary}>{slide.summary}</Text>
-						</View>
-						<View>
-							<View style={styles.rowBetween}>
-								{/* <View style={styles.row} /> */}
-								<View style={[styles.row, { flex: 1, justifyContent: "space-between"}]}>
-									<View
-										style={[styles.badge, { backgroundColor: getBiasColor(slide.biasScore) }]}
-									>
-										<Text style={styles.badgeText}>{slide.topic}</Text>
-									</View>
-									<View style={[styles.badge, styles.badgeSecondary]}>
-										<Text style={styles.badgeText}>{slide.category}</Text>
-									</View>
-								</View>
-							</View>
-							<View style={[styles.rowBetween, { paddingTop: 12, borderTopWidth: 1, borderTopColor: "#d9d9dbff" }]}>
-								<TouchableOpacity
-								style={styles.readButton}
-								onPress={() => openArticle(slide)}
+									style={[styles.badge, { backgroundColor: getBiasColor(slide.biasScore) }]}
 								>
-									<ExternalLink size={16} color="#fff" />
-									<Text style={styles.readText}>לקריאה</Text>
-								</TouchableOpacity>
-								<View style={styles.row}>
-									<TouchableOpacity style={styles.iconButton}>
-										<Share2 size={18} color="#6b7280" />
-									</TouchableOpacity>
-									<TouchableOpacity style={styles.iconButton}>
-										<Bookmark size={18} color="#6b7280" />
-									</TouchableOpacity>
+									<Text style={styles.badgeText}>{slide.category + "/ " + slide.topic}</Text>
 								</View>
+								<View style={[styles.badge, styles.badgeSecondary]}>
+									<Text style={styles.badgeText}>{slide.category}</Text>
+								</View>
+							</View>
+						</View>
+						<View style={[styles.rowBetween, { paddingTop: 12, borderTopWidth: 1, borderTopColor: "#d9d9dbff" }]}>
+							<TouchableOpacity
+							style={styles.readButton}
+							onPress={() => openArticle(slide)}
+							>
+								<ExternalLink size={16} color="#fff" />
+								<Text style={styles.readText}>לקריאה</Text>
+							</TouchableOpacity>
+							<View style={styles.row}>
+								<TouchableOpacity style={styles.iconButton}>
+									<Share2 size={18} color="#6b7280" />
+								</TouchableOpacity>
+								<TouchableOpacity style={styles.iconButton}>
+									<Bookmark size={18} color="#6b7280" />
+								</TouchableOpacity>
 							</View>
 						</View>
 					</View>
-				)}
+				</View>
+			)}
+			<View style={{borderTopWidth: 0.5, width: "100%", alignItems: "center", position: "absolute", bottom: -1, alignSelf: "center", borderColor: "#d8d8d8ff"}}>
+				<Ionicons style={{padding: 5}} name={'chevron-down-outline'} color={"#d8d8d8ff"} size={20}/>
 			</View>
 		</View>
+		// </View>
     )
 }
 
@@ -179,12 +193,13 @@ export default NewsCard
 const styles = StyleSheet.create({
 	slide: {
 		// flex: 1,
-		top: 3,
+		// top: 3,
 		padding: 15,
 		borderRadius: 8,
 		marginHorizontal: 9,
-		marginBottom: 15,
-		// height: 150
+		backgroundColor: '#ebebebff',
+		// marginBottom: 15,
+		height: 145,
 		// borderWidth: 1
 	},
 	backSlide: {
@@ -265,7 +280,7 @@ const styles = StyleSheet.create({
 	},
 	badge: {
 		borderRadius: 12,
-		paddingHorizontal: 6,
+		paddingLeft: 5,
 		paddingVertical: 5,
 		marginLeft: 4,
 	},
@@ -290,6 +305,6 @@ const styles = StyleSheet.create({
 		marginLeft: 4,
 	},
 	iconButton: {
-		marginLeft: 8,
+		marginLeft: 0,
 	},
 });

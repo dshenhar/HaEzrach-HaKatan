@@ -61,8 +61,8 @@ export const fetchArticles = async (setArticles: React.Dispatch<React.SetStateAc
 				source: "SERVER",
 				time: "time",
 				summary: "nothing to see here",
-				biasScore: 5, // -10 to 10 scale
-				siteBiasScore: 4,
+				biasScore: -1, // -5 to 5 scale
+				siteBiasScore: 5,
 				category: "fail",
 				topic: "fail",
 				link: "",
@@ -108,34 +108,42 @@ export async function saveWatch(e: WatchingEvent) {
 
 export async function saveRating(e: RatingEvent) {
 	try {
-		const events: RatingEvent[] = JSON.parse(await AsyncStorage.getItem(RATINGS_KEY) || "[]");
-		console.log("rating before:", events);
-		let found = false;
-		let prevRate = 0;
-		for (let i = 0; i < events.length; i++) {
-			if (events[i].id === e.id) {
-				prevRate = events[i].value;
-				events[i] = e;
-				found = true;
-				break;
-			}
-		}
-		if (!found) {
-			events.push(e);
-		}
-		console.log("rating after:", events);
-		await AsyncStorage.setItem(RATINGS_KEY, JSON.stringify(events));
+		// const events: RatingEvent[] = JSON.parse(await AsyncStorage.getItem(RATINGS_KEY) || "[]");
+		// console.log("rating before:", events);
+		// let found = false;
+		// let prevRate = 0;
+		// for (let i = 0; i < events.length; i++) {
+		// 	if (events[i].id === e.id) {
+		// 		prevRate = events[i].value;
+		// 		events[i] = e;
+		// 		found = true;
+		// 		break;
+		// 	}
+		// }
+		// if (!found) {
+		// 	events.push(e);
+		// }
+		// console.log("rating after:", events);
+		// await AsyncStorage.setItem(RATINGS_KEY, JSON.stringify(events));
 
-		const agg = JSON.parse(await AsyncStorage.getItem(AGG_KEY) || "{}");
-		const bySource = agg[e.source] || {};
-		const curr = bySource[e.topic] || { sum: 0, count: 0, avg: 0 };
-		const sum = curr.sum + e.value - prevRate;
-		const count = found ? curr.count : curr.count + 1;
-		bySource[e.topic] = { sum, count, avg: sum / count };
-		agg[e.source] = bySource;
-		AsyncStorage.setItem(AGG_KEY, JSON.stringify(agg))
-		console.log("aggs:", agg)
-		// localStorage.clear()
+		// const agg = JSON.parse(await AsyncStorage.getItem(AGG_KEY) || "{}");
+		// const bySource = agg[e.source] || {};
+		// const curr = bySource[e.topic] || { sum: 0, count: 0, avg: 0 };
+		// const sum = curr.sum + e.value - prevRate;
+		// const count = found ? curr.count : curr.count + 1;
+		// bySource[e.topic] = { sum, count, avg: sum / count };
+		// agg[e.source] = bySource;
+		// AsyncStorage.setItem(AGG_KEY, JSON.stringify(agg))
+		// console.log("aggs:", agg)
+		// // localStorage.clear()
+		const id = e.id.split("-")[1];
+		console.log("id:", id)
+		const res = fetch(`${URL_BASE}/articles/${id}/vote`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ value: e.value })
+		})
+		console.log(res)
 	} catch(err) {
 		console.log(err)
 	}

@@ -57,8 +57,8 @@ const styles = StyleSheet.create({
     },
     badge: {
         borderRadius: 999,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
         marginRight: 1,
     },
     badgeSelected: {
