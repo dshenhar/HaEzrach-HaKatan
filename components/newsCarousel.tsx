@@ -42,7 +42,7 @@ const NewsCarousel = ({ data, setRatingOpen, setRatingTarget }  : props ) => {
             <FlatList
                 data={data}
                 renderItem={({ item, index }) => (
-                    <NewsCard slide={item} index={index} expanded={expanded} setExpanded={setExpanded} 
+                    <NewsCard key={index} slide={item} index={index} expanded={expanded} setExpanded={setExpanded} 
                     setViewerOpen={setViewerOpen} setViewerUrl={setViewerUrl} setViewerTitle={setViewerTitle} 
                     setViewerSource={setViewerSource} setRatingOpen={setRatingOpen} setRatingTarget={setRatingTarget} />
                 )}

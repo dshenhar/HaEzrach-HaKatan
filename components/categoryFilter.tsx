@@ -15,11 +15,11 @@ export function CategoryFilter({ categories, selectedCategories, onCategoryToggl
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             >
-                {[...categories].map((category) => {
+                {[...categories].map((category, index) => {
                     const selected = selectedCategories.includes(category);
                     return (
                         <TouchableOpacity
-                            key={category}
+                            key={index}
                             style={[
                             styles.badge,
                             selected ? styles.badgeSelected : styles.badgeUnselected,

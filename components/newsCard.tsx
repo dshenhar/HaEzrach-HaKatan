@@ -115,7 +115,7 @@ const NewsCard = ({slide, index, expanded, setExpanded, setViewerOpen, setViewer
 					</View> */}
 					<View style={[styles.row, { width: "100%", justifyContent: "flex-end" }]}>
 						<View style={{ width: "25%", alignSelf: "center", height: 20, justifyContent: "center" }}>
-							<RateBar rate={(slide.biasScore * 10) + 50} />
+							<RateBar rate={(slide.biasScore * 10) + 50} showPrecents={false} style={{ padding: 3 }} />
 						</View>
 						<View style={[styles.badge ]}>
 							<Text style={ styles.badgeText }>{slide.topic}</Text>

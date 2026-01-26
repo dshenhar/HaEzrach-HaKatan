@@ -12,6 +12,7 @@ type props = {
 const Pagination = ({ items, paginationIndex, setPaginationIndex, carouselRef } : props) => {
     
     const getSourceAbbr = (source: string) => {
+        if (!source) return "";
         const clean = source.replace(/[^א-תA-Za-z]/g, "");
         return clean.slice(0, 2).toUpperCase();
     };
@@ -33,7 +34,7 @@ const Pagination = ({ items, paginationIndex, setPaginationIndex, carouselRef } 
                         }}
                         style={[
                             styles.dotButton, 
-                            styles.dotActive,
+                            // styles.dotActive,
                             paginationIndex === index ? styles.dotActive : styles.dotInactive
                         ]}>
                         <Text style={paginationIndex === index ? styles.dotLabelActive : styles.dotLabelInactive}>{getSourceAbbr(item.source)}</Text>
@@ -58,12 +59,13 @@ const styles = StyleSheet.create({
     dotButton: {
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 999,
+        borderRadius: 1,
     },
     dotActive: {
         // backgroundColor: "#2563eb",
         width: 28,
         height: 28,
+        borderBottomWidth: 2,
     },
     dotInactive: {
         // backgroundColor: "#d1d5db",
@@ -73,7 +75,7 @@ const styles = StyleSheet.create({
     dotLabelActive: {
         color: "#000000ff",
         fontSize: 13,
-        textDecorationLine: "underline",
+        // textDecorationLine: "underline",
         fontWeight: "500",
     },
     dotLabelInactive: {

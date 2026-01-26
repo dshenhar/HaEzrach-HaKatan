@@ -7,10 +7,6 @@ import RatingSheet from "./ratingSheet";
 import { fetchArticles } from "@/state/engagement";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Force RTL layout once (you can move this to App.tsx)
-I18nManager.allowRTL(true);
-I18nManager.forceRTL(true);
-
 
 interface NewsItem {
 	id: string;
