@@ -8,9 +8,10 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 type props = {
     data: CompanyItem[];
     topic: string;
+    setDetailSource: (site: string) => void;
 }
 
-const MapCarousel = ({ data, topic }  : props ) => {
+const MapCarousel = ({ data, topic, setDetailSource }  : props ) => {
     const [paginationIndex, setPaginationIndex] = useState<number>(0);
     const carouselRef = useRef<FlatList>(null)
     const scrollX = useSharedValue(0);
@@ -40,7 +41,7 @@ const MapCarousel = ({ data, topic }  : props ) => {
     }, [data]);
 
     const renderer = useCallback(({ item, index } : { item: CompanyItem, index: number }) => {
-        return <CompanyCard item={item} index={index} scrollX={scrollX} carouselLen={data.length} />
+        return <CompanyCard item={item} index={index} scrollX={scrollX} carouselLen={data.length} setDetailSource={setDetailSource} />
     }, []);
 
 
@@ -52,7 +53,7 @@ const MapCarousel = ({ data, topic }  : props ) => {
             <Animated.FlatList
                 data={data}
                 renderItem={({ item, index }) => (
-                    <CompanyCard item={item} index={index} scrollX={scrollX} carouselLen={data.length} />
+                    <CompanyCard item={item} index={index} scrollX={scrollX} carouselLen={data.length} setDetailSource={setDetailSource} />
                 )}
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -81,5 +82,5 @@ export default MapCarousel
 const styles = StyleSheet.create({
     card: {
         marginTop: 20,
-    }
+    },
 })

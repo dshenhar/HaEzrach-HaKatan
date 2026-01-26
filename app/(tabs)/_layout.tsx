@@ -39,7 +39,7 @@ export default function TabLayout() {
 				),
 			}}
 			/>
-			<Tabs.Screen
+			{/* <Tabs.Screen
 			name="profilePage"
 			options={{
 				title: 'Profile',
@@ -47,7 +47,7 @@ export default function TabLayout() {
 				<Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={24} />
 				),
 			}}
-			/>
+			/> */}
 		</Tabs>
 	);
 }

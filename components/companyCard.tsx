@@ -11,14 +11,19 @@ type props = {
     index: number;
     scrollX: SharedValue<number>;
     carouselLen: number;
+    setDetailSource: (site: string) => void;
 }
 const width = Dimensions.get("window").width;
 const height = Dimensions.get("screen").height;
 
-const CompanyCard = ({ item, index, scrollX, carouselLen } : props) => {
+const CompanyCard = ({ item, index, scrollX, carouselLen, setDetailSource } : props) => {
     const angleStep = (2 * Math.PI) / 10;
     const currentAngle = scrollX.value + 1.2 * angleStep;
     const RADIUS = width * 0.8
+
+    const handleDetailPress = () => {
+        setDetailSource(item.source);
+    }
 
     const rnAnimatedStyle = useAnimatedStyle(() => {
         const inputRange = [
@@ -78,9 +83,9 @@ const CompanyCard = ({ item, index, scrollX, carouselLen } : props) => {
     return (
         <Animated.View style={[styles.companyCard]}>
             <View style={styles.innerCard}>
-                <View style={styles.headerContainer}>
+                <TouchableOpacity style={styles.headerContainer} onPress={handleDetailPress}>
                     <Text style={styles.headerText}>{item.source}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={styles.rateContainer}>
                     <RateBar rate={(item.bias * 10) + 50} showPrecents={true} style={styles.rateBar} />
                 </View>

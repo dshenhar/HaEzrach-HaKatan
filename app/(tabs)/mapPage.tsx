@@ -1,4 +1,5 @@
 import CompaniesFilter from '@/components/companiesFilter';
+import CompanyDetail from '@/components/companyDetail';
 import MapCarousel from '@/components/mapCarousel';
 import { CompanyItem, getTopics, getSites, getRanks } from '@/state/engagement';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -11,11 +12,12 @@ I18nManager.forceRTL(true);
 
 export default function MapPage() {
     const [topics, setTopics] = useState<string[]>();
-    const [sites, setSites] = useState<CompanyItem[]>({} as CompanyItem[]);
+    const [sites, setSites] = useState<string[]>();
     const [carouselData, setCarouselData] = useState<Map<string, CompanyItem[]>>(new Map());
     const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set([]));
     const [open, setOpen] = useState<boolean>(false);
-
+    const [detailSource, setDetailSource] = useState<string>("");
+    
     useEffect(() => {
         const fetchTopics = async () => {
             const topicsData = await getTopics();
@@ -62,10 +64,14 @@ export default function MapPage() {
                 {selectedTopics.size == 0 ? <Text style={{textAlign: "center", marginTop: 20, fontSize: 16}}>לחץ על הפלוס כדי לבחור נושאים להצגה</Text> : null}
             {
                 Array.from(carouselData.entries()).map(([topic, data], index) => (
-                    <MapCarousel key={index} data={data} topic={topic} />
+                    <MapCarousel key={index} data={data} topic={topic} setDetailSource={setDetailSource} />
                 ))
             }
             </ScrollView>
+            {
+                detailSource != "" &&
+                <CompanyDetail source={detailSource} setDetailSource={setDetailSource} />
+            }
         </SafeAreaView>
     );
 }
@@ -100,5 +106,5 @@ const styles = StyleSheet.create({
     text: {
         color: '#fff',
         margin: 20
-    }
+    },
 });
