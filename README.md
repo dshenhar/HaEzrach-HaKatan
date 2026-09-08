@@ -6,7 +6,16 @@
 
 2. expo go app on your Iphone
 
+3. git
+
 ## Get started
+
+1. Clone the repo
+
+   ```bash
+   git clone https://github.com/shenhars/360News.git
+   cd 360News
+   ```
 
 1. Install dependencies
 
@@ -20,4 +29,4 @@
    npx expo start
    ```
 
-3. scan the QR code with your phone
+3. Scan the QR code with your phone
