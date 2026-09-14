@@ -10,6 +10,8 @@ const { height } = Dimensions.get("window");
 interface ArticleViewerProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** fires once the sheet has finished dismissing - safe to present another */
+	onClosed?: () => void;
 	url: string;
 	title?: string;
 	source: string;
@@ -17,8 +19,12 @@ interface ArticleViewerProps {
 	topic: string;
 }
 
-export function ArticleViewer({ open, onOpenChange, url, title, source, id, topic }: ArticleViewerProps) {
+export function ArticleViewer({ open, onOpenChange, onClosed, url, title, source, id, topic }: ArticleViewerProps) {
 	const [loading, setLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		if (open) setLoading(true);
+	}, [open]);
 
 	// WebView is native-only; callers should send web readers straight to the site
 	React.useEffect(() => {
@@ -50,6 +56,7 @@ export function ArticleViewer({ open, onOpenChange, url, title, source, id, topi
 		swipeDirection="down"
 		style={styles.modal}
 		propagateSwipe
+		onModalHide={onClosed}
 	>
 		<View style={styles.sheet}>
 		{/* Header */}

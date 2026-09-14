@@ -1,3 +1,4 @@
+import SwipeTabs from '@/components/swipeTabs';
 import { fetchArticles, getSitePositions, NewsItem, SitePosition } from "@/state/engagement";
 import { buildInsights, Insights } from "@/state/insights";
 import { getProfile, ReaderProfile } from "@/state/profile";
@@ -57,181 +58,183 @@ export default function AnalyticsPage() {
 	const captivePct = Math.round(insights.captive * 100);
 
 	return (
-		<SafeAreaView style={styles.container}>
-			<ScrollView
-				contentContainerStyle={styles.scroll}
-				showsVerticalScrollIndicator={false}
-				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-			>
-				<Text style={styles.title}>נתונים וניתוחים</Text>
-				<Text style={styles.subtitle}>ניתוח נתוני הצפיות שלך</Text>
+		<SwipeTabs>
+			<SafeAreaView style={styles.container}>
+				<ScrollView
+					contentContainerStyle={styles.scroll}
+					showsVerticalScrollIndicator={false}
+					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+				>
+					<Text style={styles.title}>נתונים וניתוחים</Text>
+					<Text style={styles.subtitle}>ניתוח נתוני הצפיות שלך</Text>
 
-				{insights.totalRead === 0 ? (
-					<View style={styles.card}>
-						<Text style={styles.cardTitle}>עוד לא קראת כתבות</Text>
-						<Text style={styles.note}>
-							הנתונים כאן נבנים מהכתבות שאתה פותח. תקרא כמה כתבות ותחזור.
-						</Text>
-					</View>
-				) : (
-					<>
+					{insights.totalRead === 0 ? (
 						<View style={styles.card}>
-							<Text style={styles.cardTitle}>כמה אתה שבוי בקונספציה</Text>
-							<View style={styles.bigRow}>
-								<Text style={styles.big}>{captivePct}%</Text>
-								<Text style={styles.note}>
-									מהקריאה שלך הגיעה מגופים בגוש {ownLabel} — הגוש שהצהרת עליו
+							<Text style={styles.cardTitle}>עוד לא קראת כתבות</Text>
+							<Text style={styles.note}>
+								הנתונים כאן נבנים מהכתבות שאתה פותח. תקרא כמה כתבות ותחזור.
+							</Text>
+						</View>
+					) : (
+						<>
+							<View style={styles.card}>
+								<Text style={styles.cardTitle}>כמה אתה שבוי בקונספציה</Text>
+								<View style={styles.bigRow}>
+									<Text style={styles.big}>{captivePct}%</Text>
+									<Text style={styles.note}>
+										מהקריאה שלך הגיעה מגופים בגוש {ownLabel} — הגוש שהצהרת עליו
+									</Text>
+								</View>
+								<View style={styles.track}>
+									<View style={[styles.fill, { width: `${captivePct}%`, backgroundColor: ownColour }]} />
+								</View>
+								<Text style={styles.footnote}>
+									{insights.inOwnBloc} כתבות מ{ownLabel} · {insights.inOtherBloc} מ{otherLabel}
 								</Text>
 							</View>
-							<View style={styles.track}>
-								<View style={[styles.fill, { width: `${captivePct}%`, backgroundColor: ownColour }]} />
-							</View>
-							<Text style={styles.footnote}>
-								{insights.inOwnBloc} כתבות מ{ownLabel} · {insights.inOtherBloc} מ{otherLabel}
-							</Text>
-						</View>
 
-						<View style={styles.card}>
-							<Text style={styles.cardTitle}>פילוח סוגי העמדות אותן קראת</Text>
-							<View style={styles.legend}>
-								<Text style={[styles.legendItem, { color: RIGHT }]}>● עמדות ימין</Text>
-								<Text style={[styles.legendItem, { color: LEFT }]}>● עמדות שמאל</Text>
+							<View style={styles.card}>
+								<Text style={styles.cardTitle}>פילוח סוגי העמדות אותן קראת</Text>
+								<View style={styles.legend}>
+									<Text style={[styles.legendItem, { color: RIGHT }]}>● עמדות ימין</Text>
+									<Text style={[styles.legendItem, { color: LEFT }]}>● עמדות שמאל</Text>
+								</View>
+								{(() => {
+									const total = insights.byBloc.right + insights.byBloc.left || 1;
+									// area, not diameter, carries the share - a bubble sized by
+									// diameter exaggerates the bigger side
+									const size = (n: number) => 42 + Math.sqrt(n / total) * 78;
+									const bubbles = [
+										{ n: insights.byBloc.right, colour: RIGHT, key: "r" },
+										{ n: insights.byBloc.left, colour: LEFT, key: "l" },
+									].filter((b) => b.n > 0).sort((a, b) => b.n - a.n);
+									return (
+										<View style={styles.bubbles}>
+											{bubbles.map((b) => (
+												<View key={b.key} style={[styles.bubble, {
+													width: size(b.n), height: size(b.n),
+													borderRadius: size(b.n) / 2, backgroundColor: b.colour,
+												}]}>
+													<Text style={styles.bubbleText}>
+														{Math.round((b.n / total) * 100)}%
+													</Text>
+												</View>
+											))}
+										</View>
+									);
+								})()}
 							</View>
-							{(() => {
-								const total = insights.byBloc.right + insights.byBloc.left || 1;
-								// area, not diameter, carries the share - a bubble sized by
-								// diameter exaggerates the bigger side
-								const size = (n: number) => 42 + Math.sqrt(n / total) * 78;
-								const bubbles = [
-									{ n: insights.byBloc.right, colour: RIGHT, key: "r" },
-									{ n: insights.byBloc.left, colour: LEFT, key: "l" },
-								].filter((b) => b.n > 0).sort((a, b) => b.n - a.n);
-								return (
-									<View style={styles.bubbles}>
-										{bubbles.map((b) => (
-											<View key={b.key} style={[styles.bubble, {
-												width: size(b.n), height: size(b.n),
-												borderRadius: size(b.n) / 2, backgroundColor: b.colour,
+
+							<View style={styles.card}>
+								<Text style={styles.cardTitle}>מידת גיוון הקריאה ביחס לעמדתך</Text>
+								<View style={styles.track}>
+									<View style={[styles.fill, {
+										width: `${Math.round((1 - insights.captive) * 100)}%`, backgroundColor: BRAND,
+									}]} />
+								</View>
+								<Text style={styles.note}>
+									{insights.captive < 0.5
+										? "אתה קורא יותר מהגוש השני מאשר משלך. זה נדיר."
+										: insights.captive < 0.8
+										? "אתה יוצא מהגוש שלך לא מעט."
+										: "כמעט כל הקריאה שלך בתוך הגוש שלך."}
+								</Text>
+							</View>
+
+							<Text style={styles.sectionTitle}>Blind Spots</Text>
+
+							{insights.oneSidedTopics.length > 0 && (
+								<View style={styles.card}>
+									<Text style={styles.cardTitle}>נושאים ששמעת בהם צד אחד בלבד</Text>
+									{insights.oneSidedTopics.slice(0, 5).map((t) => (
+										<View key={t.topic} style={styles.row}>
+											<Text style={styles.rowLabel}>{t.topic}</Text>
+											<Text style={[styles.rowValue, {
+												color: t.onlyBloc === "right" ? RIGHT : LEFT,
 											}]}>
-												<Text style={styles.bubbleText}>
-													{Math.round((b.n / total) * 100)}%
-												</Text>
-											</View>
-										))}
-									</View>
-								);
-							})()}
-						</View>
+												רק {t.onlyBloc === "right" ? "ימין" : "שמאל"} · {t.count}
+											</Text>
+										</View>
+									))}
+								</View>
+							)}
 
-						<View style={styles.card}>
-							<Text style={styles.cardTitle}>מידת גיוון הקריאה ביחס לעמדתך</Text>
-							<View style={styles.track}>
-								<View style={[styles.fill, {
-									width: `${Math.round((1 - insights.captive) * 100)}%`, backgroundColor: BRAND,
-								}]} />
-							</View>
-							<Text style={styles.note}>
-								{insights.captive < 0.5
-									? "אתה קורא יותר מהגוש השני מאשר משלך. זה נדיר."
-									: insights.captive < 0.8
-									? "אתה יוצא מהגוש שלך לא מעט."
-									: "כמעט כל הקריאה שלך בתוך הגוש שלך."}
-							</Text>
-						</View>
-
-						<Text style={styles.sectionTitle}>Blind Spots</Text>
-
-						{insights.oneSidedTopics.length > 0 && (
 							<View style={styles.card}>
-								<Text style={styles.cardTitle}>נושאים ששמעת בהם צד אחד בלבד</Text>
-								{insights.oneSidedTopics.slice(0, 5).map((t) => (
-									<View key={t.topic} style={styles.row}>
-										<Text style={styles.rowLabel}>{t.topic}</Text>
-										<Text style={[styles.rowValue, {
-											color: t.onlyBloc === "right" ? RIGHT : LEFT,
-										}]}>
-											רק {t.onlyBloc === "right" ? "ימין" : "שמאל"} · {t.count}
-										</Text>
-									</View>
-								))}
-							</View>
-						)}
-
-						<View style={styles.card}>
-							<Text style={styles.cardTitle}>העיתונים שלא קראת בהם מעל חודש</Text>
-							<View style={styles.avatars}>
-								{insights.unreadOutlets.slice(0, 8).map((name) => (
-									<View key={name} style={styles.avatar}>
-										<Text style={styles.avatarText} numberOfLines={2}>{shortLabel(name)}</Text>
-									</View>
-								))}
-							</View>
-						</View>
-
-						{insights.untouchedTopics.length > 0 && (
-							<View style={styles.card}>
-								<Text style={styles.cardTitle}>נושאים שלא נגעת בהם בכלל</Text>
-								<View style={styles.chips}>
-									{insights.untouchedTopics.slice(0, 8).map((topic) => (
-										<View key={topic} style={styles.chip}>
-											<Text style={styles.chipText}>{topic}</Text>
+								<Text style={styles.cardTitle}>העיתונים שלא קראת בהם מעל חודש</Text>
+								<View style={styles.avatars}>
+									{insights.unreadOutlets.slice(0, 8).map((name) => (
+										<View key={name} style={styles.avatar}>
+											<Text style={styles.avatarText} numberOfLines={2}>{shortLabel(name)}</Text>
 										</View>
 									))}
 								</View>
 							</View>
-						)}
 
-						{insights.missedStories.length > 0 && (
-							<View style={styles.card}>
-								<Text style={styles.cardTitle}>האירועים שפספסת</Text>
-								{insights.missedStories.slice(0, 3).map((story, i) => (
-									<View key={i} style={styles.missed}>
-										<View style={styles.missedHead}>
-											<View style={[styles.avatar, styles.avatarSm]}>
-												<Text style={styles.avatarText} numberOfLines={2}>{shortLabel(story.source)}</Text>
+							{insights.untouchedTopics.length > 0 && (
+								<View style={styles.card}>
+									<Text style={styles.cardTitle}>נושאים שלא נגעת בהם בכלל</Text>
+									<View style={styles.chips}>
+										{insights.untouchedTopics.slice(0, 8).map((topic) => (
+											<View key={topic} style={styles.chip}>
+												<Text style={styles.chipText}>{topic}</Text>
 											</View>
-											{!!story.topic && (
-												<View style={styles.chip}>
-													<Text style={styles.chipText}>{story.topic}</Text>
-												</View>
-											)}
-										</View>
-										<Text style={styles.missedTitle} numberOfLines={2}>{story.title}</Text>
+										))}
 									</View>
-								))}
-								<Text style={styles.footnote}>
-									{insights.missedStories.length} סיפורים שלא פתחת — המוצגים כאן מהגוש שאתה פחות קורא
+								</View>
+							)}
+
+							{insights.missedStories.length > 0 && (
+								<View style={styles.card}>
+									<Text style={styles.cardTitle}>האירועים שפספסת</Text>
+									{insights.missedStories.slice(0, 3).map((story, i) => (
+										<View key={i} style={styles.missed}>
+											<View style={styles.missedHead}>
+												<View style={[styles.avatar, styles.avatarSm]}>
+													<Text style={styles.avatarText} numberOfLines={2}>{shortLabel(story.source)}</Text>
+												</View>
+												{!!story.topic && (
+													<View style={styles.chip}>
+														<Text style={styles.chipText}>{story.topic}</Text>
+													</View>
+												)}
+											</View>
+											<Text style={styles.missedTitle} numberOfLines={2}>{story.title}</Text>
+										</View>
+									))}
+									<Text style={styles.footnote}>
+										{insights.missedStories.length} סיפורים שלא פתחת — המוצגים כאן מהגוש שאתה פחות קורא
+									</Text>
+								</View>
+							)}
+						</>
+					)}
+
+					<View style={styles.card}>
+						<TouchableOpacity
+							style={styles.cardHead}
+							onPress={() => setPositionsOpen(!positionsOpen)}
+							activeOpacity={0.7}
+						>
+							<Text style={styles.cardTitle}>העמדה שהצהרת עליה</Text>
+							<Ionicons
+								name={positionsOpen ? "chevron-up" : "chevron-down"}
+								size={18}
+								color="#6B7280"
+							/>
+						</TouchableOpacity>
+
+						{positionsOpen && Object.entries(profile.positions).map(([topic, score]) => (
+							<View key={topic} style={styles.row}>
+								<Text style={styles.rowLabel}>{topic}</Text>
+								<Text style={[styles.rowValue, { color: score >= 0 ? RIGHT : LEFT }]}>
+									{score > 0 ? "+" : ""}{score}
 								</Text>
 							</View>
-						)}
-					</>
-				)}
-
-				<View style={styles.card}>
-					<TouchableOpacity
-						style={styles.cardHead}
-						onPress={() => setPositionsOpen(!positionsOpen)}
-						activeOpacity={0.7}
-					>
-						<Text style={styles.cardTitle}>העמדה שהצהרת עליה</Text>
-						<Ionicons
-							name={positionsOpen ? "chevron-up" : "chevron-down"}
-							size={18}
-							color="#6B7280"
-						/>
-					</TouchableOpacity>
-
-					{positionsOpen && Object.entries(profile.positions).map(([topic, score]) => (
-						<View key={topic} style={styles.row}>
-							<Text style={styles.rowLabel}>{topic}</Text>
-							<Text style={[styles.rowValue, { color: score >= 0 ? RIGHT : LEFT }]}>
-								{score > 0 ? "+" : ""}{score}
-							</Text>
-						</View>
-					))}
-				</View>
-			</ScrollView>
-		</SafeAreaView>
+						))}
+					</View>
+				</ScrollView>
+			</SafeAreaView>
+		</SwipeTabs>
 	);
 }
 

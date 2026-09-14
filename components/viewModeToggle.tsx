@@ -128,8 +128,8 @@ const ViewModeToggle = ({ mode, onChange }: Props) => {
 export default ViewModeToggle;
 
 const styles = StyleSheet.create({
-    wrap: { paddingHorizontal: 12, paddingTop: 4 },
-    rail: { flexDirection: "row-reverse", borderRadius: 999, padding: PAD, gap: GAP },
+    wrap: { width: "100%", alignSelf: "stretch", paddingHorizontal: 12, paddingTop: 4 },
+    rail: { width: "100%", flexDirection: "row-reverse", borderRadius: 999, padding: PAD, gap: GAP },
     thumb: { position: "absolute", top: PAD, bottom: PAD, borderRadius: 999 },
     seg: {
         // minWidth 0 lets a flex child shrink below its content width; without it

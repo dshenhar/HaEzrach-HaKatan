@@ -12,6 +12,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useState } from 'react';
 import { I18nManager, Platform, StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
@@ -54,7 +55,15 @@ export default function RootLayout() {
 		</Stack>
 	);
 
-	if (Platform.OS !== 'web') return <ThemeProvider>{app}</ThemeProvider>;
+	// gestures anywhere in the tree need this at the root, and swipe-between-tabs
+	// is the first thing in the app that uses one
+	if (Platform.OS !== 'web') {
+		return (
+			<GestureHandlerRootView style={styles.root}>
+				<ThemeProvider>{app}</ThemeProvider>
+			</GestureHandlerRootView>
+		);
+	}
 
 	return (
 		<ThemeProvider>
@@ -74,6 +83,7 @@ function WebFrame({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
+	root: { flex: 1 },
 	web: {
 		flex: 1,
 		alignItems: 'center',

@@ -1,3 +1,4 @@
+import SwipeTabs from '@/components/swipeTabs';
 import CompaniesFilter from '@/components/companiesFilter';
 import OutletDetail from '@/components/outletDetail';
 import TopicAxis from '@/components/topicAxis';
@@ -76,47 +77,49 @@ export default function MapPage() {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
-            {open && <CompaniesFilter topics={topics || []} selectedTopics={selectedTopics} setSelectedTopics={setSelectedTopics} setOpen={setOpen} />}
-            <View style={styles.header}>
-                <View style={styles.headerTop}>
-                    <Text style={styles.title}>אנחנו על המפה</Text>
-                    <TouchableOpacity onPress={handleOpenFilter} hitSlop={10}>
-                        <Ionicons name="search-circle-outline" size={30} color="#111827" />
-                    </TouchableOpacity>
+        <SwipeTabs>
+            <SafeAreaView style={styles.container}>
+                {open && <CompaniesFilter topics={topics || []} selectedTopics={selectedTopics} setSelectedTopics={setSelectedTopics} setOpen={setOpen} />}
+                <View style={styles.header}>
+                    <View style={styles.headerTop}>
+                        <Text style={styles.title}>אנחנו על המפה</Text>
+                        <TouchableOpacity onPress={handleOpenFilter} hitSlop={10}>
+                            <Ionicons name="search-circle-outline" size={30} color="#111827" />
+                        </TouchableOpacity>
+                    </View>
+                    <Text style={styles.subtitle}>
+                        כאן תוכלו לראות את העיתונות השונה ועמדותיה לגבי נושאים שונים.{"\n"}
+                        לבחירת נושאים לחצו על אייקון החיפוש (🔍)
+                    </Text>
                 </View>
-                <Text style={styles.subtitle}>
-                    כאן תוכלו לראות את העיתונות השונה ועמדותיה לגבי נושאים שונים.{"\n"}
-                    לבחירת נושאים לחצו על אייקון החיפוש (🔍)
-                </Text>
-            </View>
 
-            <View style={styles.chartArea}>
-                {selectedTopics.size == 0 ? <Text style={{textAlign: "center", marginTop: 20, fontSize: 15, fontFamily: "Heebo_400Regular", color: "#6B7280"}}>לא נבחרו נושאים</Text> : null}
-            {
-                (() => {
-                    const entries = Array.from(carouselData.entries());
-                    // two topics become a plane; one stays a single axis
-                    if (entries.length === 2) {
-                        const [[topicX, dataX], [topicY, dataY]] = entries;
-                        return <TopicQuadrant poles={poles} topicX={topicX} dataX={dataX}
-                            topicY={topicY} dataY={dataY} setDetailSource={setDetailSource}
-                            selected={detailSource} />;
-                    }
-                    return entries.map(([topic, data], index) => (
-                        <TopicAxis key={index} poles={poles} topic={topic} data={data}
-                            setDetailSource={setDetailSource} selected={detailSource} />
-                    ));
-                })()
-            }
-            </View>
-
-            {!!detailSource && (
-                <View style={styles.detailArea}>
-                    <OutletDetail source={detailSource} poles={poles} />
+                <View style={styles.chartArea}>
+                    {selectedTopics.size == 0 ? <Text style={{textAlign: "center", marginTop: 20, fontSize: 15, fontFamily: "Heebo_400Regular", color: "#6B7280"}}>לא נבחרו נושאים</Text> : null}
+                {
+                    (() => {
+                        const entries = Array.from(carouselData.entries());
+                        // two topics become a plane; one stays a single axis
+                        if (entries.length === 2) {
+                            const [[topicX, dataX], [topicY, dataY]] = entries;
+                            return <TopicQuadrant poles={poles} topicX={topicX} dataX={dataX}
+                                topicY={topicY} dataY={dataY} setDetailSource={setDetailSource}
+                                selected={detailSource} />;
+                        }
+                        return entries.map(([topic, data], index) => (
+                            <TopicAxis key={index} poles={poles} topic={topic} data={data}
+                                setDetailSource={setDetailSource} selected={detailSource} />
+                        ));
+                    })()
+                }
                 </View>
-            )}
-        </SafeAreaView>
+
+                {!!detailSource && (
+                    <View style={styles.detailArea}>
+                        <OutletDetail source={detailSource} poles={poles} />
+                    </View>
+                )}
+            </SafeAreaView>
+        </SwipeTabs>
     );
 }
 

@@ -7,6 +7,10 @@ export default function TabLayout() {
 		<Tabs
 			screenOptions={{
 			tabBarActiveTintColor: '#f5f5f5ff',
+			// no inactive colour was set, so it fell back to the default dark grey -
+			// which on a #3E3E3E bar is all but invisible. This reads clearly and is
+			// still plainly dimmer than the active icon.
+			tabBarInactiveTintColor: '#A6A6A6',
 			headerShown: false,
 			tabBarShowLabel: false,
 			tabBarStyle: { paddingTop: 10, backgroundColor: "#3E3E3E" }

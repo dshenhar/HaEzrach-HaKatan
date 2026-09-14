@@ -1,14 +1,17 @@
+import SwipeTabs from '@/components/swipeTabs';
 import { View, StyleSheet } from 'react-native';
 import NewsFeed from '@/components/newsFeed';
 import ToastManager from "toastify-react-native";
 
 export default function Index() {
 	return (
-		<View style={styles.container}>
-			<NewsFeed />
-			<ToastManager />
-		</View>
-  );
+		<SwipeTabs>
+			<View style={styles.container}>
+				<NewsFeed />
+				<ToastManager />
+			</View>
+		</SwipeTabs>
+	);
 }
 
 const styles = StyleSheet.create({

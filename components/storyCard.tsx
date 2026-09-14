@@ -74,11 +74,13 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     };
 
     const handleViewerChange = (isOpen: boolean) => {
-        if (!isOpen) {
-            setViewerItem(null);
-            setRatingOpen(true);   // ask for a stance the moment they finish reading
-        }
+        if (!isOpen) setViewerItem(null);
     };
+
+    // iOS presents one modal at a time, so the rating sheet waits for the viewer
+    // to finish dismissing. Opening it immediately deadlocked both and left the
+    // card unable to open any further article.
+    const handleViewerClosed = () => setRatingOpen(true);
 
     return (
         <View style={[styles.card, { backgroundColor: t.surfaceAlt },
@@ -140,6 +142,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
             <ArticleViewer
                 open={viewerItem !== null}
                 onOpenChange={handleViewerChange}
+                onClosed={handleViewerClosed}
                 url={viewerItem?.link || ''}
                 title={viewerItem?.title}
                 source={viewerItem?.source || ''}
