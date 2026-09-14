@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	loading: {
-		...StyleSheet.absoluteFillObject,
+		...StyleSheet.absoluteFill as object,
 		justifyContent: "center",
 		alignItems: "center",
 		backgroundColor: "#fff",
