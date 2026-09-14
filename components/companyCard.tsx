@@ -147,6 +147,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     headerText: {
+        fontFamily: "Heebo_700Bold",
         fontSize: 20,
         // fontWeight: "bold",
     },
@@ -170,6 +171,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     articleText: {
+        fontFamily: "Heebo_400Regular",
         padding: 10, 
         fontSize: 15, 
         textAlign: "right",

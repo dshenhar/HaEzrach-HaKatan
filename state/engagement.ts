@@ -2,8 +2,24 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 
 export type CompanyItem =  {
 	source: string;
+	bias: number;
+	latest_article_header: string;
 	text?: string;
 	ranks?: number[];
+}
+
+export type Bloc = "right" | "left" | "center" | "unknown";
+
+export type SitePosition = {
+	source: string;
+	bias: number | null;
+	bloc: Bloc;
+	topics_scored: number;
+}
+
+export type CompanyDetailType = {
+	topic: string;
+	bias: number;
 }
 
 export type NewsItem = {
@@ -168,6 +184,125 @@ export async function getRanks() {
 	} catch (err) {
 		console.log("Error fetching ranks:", err);
 		return {}
+	}
+}
+
+export async function getSitePositions(): Promise<Record<string, SitePosition>> {
+	try {
+		const res = await fetch(`${URL_BASE}/sites/bias`);
+		const data: SitePosition[] = await res.json();
+		return Object.fromEntries(data.map((s) => [s.source, s]));
+	} catch (err) {
+		console.log("Error fetching site positions:", err);
+		return {};
+	}
+}
+
+export async function getBlocSummary(clusterId: string | number, bloc: "right" | "left"): Promise<string | null> {
+	try {
+		const res = await fetch(`${URL_BASE}/clusters/${clusterId}/summary/${bloc}`);
+		const data: { summary: string | null } = await res.json();
+		return data.summary;
+	} catch (err) {
+		console.log("Error fetching bloc summary:", err);
+		return null;
+	}
+}
+
+export async function setClusterTopic(clusterId: string | number, topic: string): Promise<boolean> {
+	try {
+		const res = await fetch(`${URL_BASE}/clusters/${clusterId}/topic`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ topic }),
+		});
+		return res.ok;
+	} catch (err) {
+		console.log("Error setting cluster topic:", err);
+		return false;
+	}
+}
+
+export async function mergeClusters(keep: string | number, merge: string | number): Promise<boolean> {
+	try {
+		const res = await fetch(`${URL_BASE}/clusters/merge`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ keep: Number(keep), merge: Number(merge) }),
+		});
+		return res.ok;
+	} catch (err) {
+		console.log("Error merging clusters:", err);
+		return false;
+	}
+}
+
+export type LearningStats = {
+	topic_corrections: number;
+	cluster_merges: number;
+	lowest_merged_similarity: number | null;
+}
+
+export async function getLearningStats(): Promise<LearningStats | null> {
+	try {
+		const res = await fetch(`${URL_BASE}/dev/learning`);
+		return await res.json();
+	} catch {
+		return null;
+	}
+}
+
+export type TopicPoles = Record<string, { right: string; left: string }>;
+
+/** what each end of a topic's axis means - +5 is the right bloc's position, which
+ *  for many topics is opposition to the thing the topic is named after */
+export async function getTopicPoles(): Promise<TopicPoles> {
+	try {
+		const res = await fetch(`${URL_BASE}/topics/poles`);
+		return await res.json();
+	} catch {
+		return {};
+	}
+}
+
+/** includeGeneral adds "חדשות כלליות" - a correction target, never a map axis */
+export async function getTopics(includeGeneral = false): Promise<string[]> {
+	try {
+		const res = await fetch(`${URL_BASE}/topics${includeGeneral ? "?include_general=true" : ""}`);
+		return await res.json();
+	} catch (err) {
+		console.log("Error fetching topics:", err);
+		return [];
+	}
+}
+
+export async function getSites(): Promise<string[]> {
+	try {
+		const res = await fetch(`${URL_BASE}/sites`);
+		return await res.json();
+	} catch (err) {
+		console.log("Error fetching sites:", err);
+		return [];
+	}
+}
+
+export async function getRanksByTopic(topic: string): Promise<CompanyItem[]> {
+	try {
+		const res = await fetch(`${URL_BASE}/ranks/${encodeURIComponent(topic)}`);
+		return await res.json();
+	} catch (err) {
+		console.log("Error fetching ranks for topic:", topic, err);
+		return [];
+	}
+}
+
+export async function getRanksByCompany(source: string): Promise<CompanyDetailType[]> {
+	try {
+		const res = await fetch(`${URL_BASE}/ranks/site/${encodeURIComponent(source)}`);
+		return await res.json();
+	} catch (err) {
+		console.log("Error fetching ranks for company:", source, err);
+		return [];
 	}
 }
 

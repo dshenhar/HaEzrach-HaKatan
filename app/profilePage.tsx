@@ -95,6 +95,7 @@ const styles = StyleSheet.create({
         borderColor: "#eaeaeaff",
     },
     cardTitle: {
+        fontFamily: "Heebo_700Bold",
         textAlign: "right",
         fontWeight: "bold",
         fontSize: 18,
@@ -108,6 +109,7 @@ const styles = StyleSheet.create({
         width: "100%"
     },
     switchText: {
+        fontFamily: "Heebo_400Regular",
         fontSize: 14
     },
     voteButton: {

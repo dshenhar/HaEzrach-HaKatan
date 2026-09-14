@@ -1,322 +1,291 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from "react-native";
-import PieChart from "react-native-pie-chart";
-import { Settings } from "lucide-react-native";
-import { getAggs, getRanks, getWatches } from "@/state/engagement";
+import { fetchArticles, getSitePositions, NewsItem, SitePosition } from "@/state/engagement";
+import { buildInsights, Insights } from "@/state/insights";
+import { getProfile, ReaderProfile } from "@/state/profile";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+/** "BeHadrei Haredim" does not fit in a 44px circle */
+function shortLabel(name: string) {
+	const words = name.split(/\s+/);
+	return words.length > 1 ? words.map((w) => w.slice(0, 6)).slice(0, 2).join("\n") : name.slice(0, 8);
+}
+
+const RIGHT = "#C0392F";
+const LEFT = "#2B5EA7";
+const BRAND = "#22C55E";
+
 export default function AnalyticsPage() {
-	const [data, setData] = useState<Record<string, any>>({});
-	const [aggregates, setAggregates] = useState<Record<string, any>>({});
-	const [watches, setWatches] = useState<any[]>([]);
-	const [refreshing, setRefreshing] = useState<boolean>(false);
+	const [profile, setProfile] = useState<ReaderProfile | null>(null);
+	const [insights, setInsights] = useState<Insights | null>(null);
+	const [refreshing, setRefreshing] = useState(false);
+	// long and static, so it stays out of the way until asked for
+	const [positionsOpen, setPositionsOpen] = useState(false);
 
-	const fetchAnalitics = async () => {
-		setData(await getRanks());
-		setAggregates(await getAggs());
-		setWatches(await getWatches());
-	}
-
-	useEffect(() => {
-		fetchAnalitics();
+	const load = useCallback(async () => {
+		let feed: NewsItem[][] = [];
+		const [p, positions] = await Promise.all([
+			getProfile(),
+			getSitePositions(),
+			fetchArticles((next) => { feed = typeof next === "function" ? next(feed) : next; }),
+		]);
+		setProfile(p);
+		if (p) setInsights(await buildInsights(p, positions as Record<string, SitePosition>, feed));
 	}, []);
 
-	// ---- POSITION BREAKDOWN ----
-	const positionData = useMemo(() => {
-	if (!data || Object.keys(data).length === 0) {
-		console.log("no data");
-		return [];
-	}
+	useEffect(() => { load(); }, [load]);
 
-	let left = 0, center = 0, right = 0;
-
-	watches.forEach(s => {
-		const rating = data[s.site]?.[s.topic];
-		if (rating < -2.5) left++;
-		else if (rating > 2.5) right++;
-		else center++;
-	});
-
-	const total = left + center + right || 1;
-
-	const temp =  [
-		{ name: "עמדות ימין", value: right, percentage: Math.round(right / total * 100), color: "#166534" },
-		{ name: "עמדות מרכז", value: center, percentage: Math.round(center / total * 100), color: "#16a34a" },
-		{ name: "עמדות שמאל", value: left, percentage: Math.round(left / total * 100), color: "#4ade80" },
-	];
-	console.log(temp);
-	return temp;
-
-	}, [data, watches, aggregates]);
-
-	// ---- DIVERSITY SCORE ----
-	const diversityScore = useMemo(() => {
-		if (!aggregates || Object.keys(aggregates).length === 0) return 0;
-
-		const sources = Object.keys(aggregates);
-		const ratings = sources.map(source => {
-			const topics = Object.values(aggregates[source] || {});
-			return topics.length
-			? topics.reduce((sum: number, t: any) => sum + t.avg, 0) / topics.length
-			: 0;
-		});
-
-		const variance = ratings.reduce((sum, r) => sum + r * r, 0) / ratings.length;
-
-		return Math.max(0, Math.min(100, Math.round((1 - variance / 25) * 100)));
-	}, [aggregates]);
-
-	// ---- BLIND SPOTS ----
-	const allSources = Object.keys(data);
-	const readLastMonth = new Set(
-		watches.filter(e => {
-		const now = new Date();
-		const monthAgo = new Date();
-		monthAgo.setMonth(now.getMonth() - 1);
-		return e.date >= monthAgo && e.date <= now;
-		}).map(e => e.site)
-	);
-
-	const blindSpots = allSources.filter(s => !readLastMonth.has(s));
-
-	// ---- PIE CHART ----
-	const pieData = positionData.filter(item => item.value > 0).map((item) => ({
-		value: item.value,
-		color: item.color,
-	}));
-
-	const onRefresh = () => {
+	const onRefresh = async () => {
 		setRefreshing(true);
-		fetchAnalitics();
-		setTimeout(() => {
-			setRefreshing(false);
-		}, 1000);
+		await load();
+		setRefreshing(false);
+	};
+
+	if (!profile || !insights) {
+		return (
+			<SafeAreaView style={styles.container}>
+				<ActivityIndicator style={{ marginTop: 40 }} />
+			</SafeAreaView>
+		);
 	}
+
+	const ownLabel = profile.bloc === "right" ? "ימין" : "שמאל";
+	const otherLabel = profile.bloc === "right" ? "שמאל" : "ימין";
+	const ownColour = profile.bloc === "right" ? RIGHT : LEFT;
+	const otherColour = profile.bloc === "right" ? LEFT : RIGHT;
+	const captivePct = Math.round(insights.captive * 100);
 
 	return (
-	<SafeAreaView style={styles.container}>
-		{/* Header */}
-		<View style={styles.header}>
-		<Text style={styles.logo}>360°</Text>
-		<Settings size={26} color="#888" />
-		</View>
+		<SafeAreaView style={styles.container}>
+			<ScrollView
+				contentContainerStyle={styles.scroll}
+				showsVerticalScrollIndicator={false}
+				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+			>
+				<Text style={styles.title}>נתונים וניתוחים</Text>
+				<Text style={styles.subtitle}>ניתוח נתוני הצפיות שלך</Text>
 
-		<ScrollView style={styles.scroll} 
-		contentContainerStyle={{ paddingBottom: 5, alignItems: "center" }} 
-		showsVerticalScrollIndicator={false} 
-		refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-		>
-			{/* Title */}
-			<View style={styles.titleWrapper}>
-				<Text style={styles.mainTitle}>נתונים וניתוחים</Text>
-				<Text style={styles.subTitle}>ניתוח נתוני הצפיות שלך</Text>
-			</View>
-
-			{/* Position Breakdown */}
-			<View style={styles.card}>
-				<Text style={styles.cardTitle}>פילוח סוגי העמדות אותן קראת</Text>
-
-				<View style={styles.chartRow}>
-				<PieChart
-					series={pieData.length ? pieData : [{ value: 0.9999, color: "#888" }, { value: 0.0001, color: "#fff" }]}
-					widthAndHeight={150}
-					cover={0.60}
-					padAngle={0.03}
-				/>
-				</View>
-
-				<View style={styles.percentRow}>
-				{
-					(positionData.length ? positionData : [
-						{ name: "עמדות ימין", value: "right", percentage: 0, color: "#166534" },
-						{ name: "עמדות מרכז", value: "center", percentage: 0, color: "#16a34a" },
-						{ name: "עמדות שמאל", value: "left", percentage: 0, color: "#4ade80" },
-					]).map((p, i) => (
-						<Text key={i} style={[styles.percentText, { color: p.color }]}>
-							{p.percentage}%
+				{insights.totalRead === 0 ? (
+					<View style={styles.card}>
+						<Text style={styles.cardTitle}>עוד לא קראת כתבות</Text>
+						<Text style={styles.note}>
+							הנתונים כאן נבנים מהכתבות שאתה פותח. תקרא כמה כתבות ותחזור.
 						</Text>
-					))
-				}
-				</View>
-
-				<View style={styles.legendRow}>
-				{(positionData.length ? positionData : [
-					{ name: "עמדות ימין", value: "right", percentage: 0, color: "#166534" },
-					{ name: "עמדות מרכז", value: "center", percentage: 0, color: "#16a34a" },
-					{ name: "עמדות שמאל", value: "left", percentage: 0, color: "#4ade80" },
-				]).map((p, i) => (
-					<View key={i} style={styles.legendItem}>
-					<View style={[styles.circle, { backgroundColor: p.color }]} />
-					<Text>{p.name}</Text>
 					</View>
-				))}
-				</View>
-			</View>
+				) : (
+					<>
+						<View style={styles.card}>
+							<Text style={styles.cardTitle}>כמה אתה שבוי בקונספציה</Text>
+							<View style={styles.bigRow}>
+								<Text style={styles.big}>{captivePct}%</Text>
+								<Text style={styles.note}>
+									מהקריאה שלך הגיעה מגופים בגוש {ownLabel} — הגוש שהצהרת עליו
+								</Text>
+							</View>
+							<View style={styles.track}>
+								<View style={[styles.fill, { width: `${captivePct}%`, backgroundColor: ownColour }]} />
+							</View>
+							<Text style={styles.footnote}>
+								{insights.inOwnBloc} כתבות מ{ownLabel} · {insights.inOtherBloc} מ{otherLabel}
+							</Text>
+						</View>
 
-			{/* Diversity Score */}
-			<View style={styles.card}>
-				<Text style={styles.cardTitle}>מידת גיוון קריאה ביחס לעמדה שלך</Text>
+						<View style={styles.card}>
+							<Text style={styles.cardTitle}>פילוח סוגי העמדות אותן קראת</Text>
+							<View style={styles.legend}>
+								<Text style={[styles.legendItem, { color: RIGHT }]}>● עמדות ימין</Text>
+								<Text style={[styles.legendItem, { color: LEFT }]}>● עמדות שמאל</Text>
+							</View>
+							{(() => {
+								const total = insights.byBloc.right + insights.byBloc.left || 1;
+								// area, not diameter, carries the share - a bubble sized by
+								// diameter exaggerates the bigger side
+								const size = (n: number) => 42 + Math.sqrt(n / total) * 78;
+								const bubbles = [
+									{ n: insights.byBloc.right, colour: RIGHT, key: "r" },
+									{ n: insights.byBloc.left, colour: LEFT, key: "l" },
+								].filter((b) => b.n > 0).sort((a, b) => b.n - a.n);
+								return (
+									<View style={styles.bubbles}>
+										{bubbles.map((b) => (
+											<View key={b.key} style={[styles.bubble, {
+												width: size(b.n), height: size(b.n),
+												borderRadius: size(b.n) / 2, backgroundColor: b.colour,
+											}]}>
+												<Text style={styles.bubbleText}>
+													{Math.round((b.n / total) * 100)}%
+												</Text>
+											</View>
+										))}
+									</View>
+								);
+							})()}
+						</View>
 
-				<View style={styles.progressBar}>
-				<View style={[styles.progressFill, { width: `${diversityScore}%` }]} />
-				</View>
+						<View style={styles.card}>
+							<Text style={styles.cardTitle}>מידת גיוון הקריאה ביחס לעמדתך</Text>
+							<View style={styles.track}>
+								<View style={[styles.fill, {
+									width: `${Math.round((1 - insights.captive) * 100)}%`, backgroundColor: BRAND,
+								}]} />
+							</View>
+							<Text style={styles.note}>
+								{insights.captive < 0.5
+									? "אתה קורא יותר מהגוש השני מאשר משלך. זה נדיר."
+									: insights.captive < 0.8
+									? "אתה יוצא מהגוש שלך לא מעט."
+									: "כמעט כל הקריאה שלך בתוך הגוש שלך."}
+							</Text>
+						</View>
 
-				<Text style={styles.scoreNumber}>{diversityScore}%</Text>
+						<Text style={styles.sectionTitle}>Blind Spots</Text>
 
-				<Text style={styles.subTitle2}>
-				ציון גיוון קריאה — ככל שהציון גבוה יותר, אתה קורא מגוון רחב יותר של דעות
-				</Text>
-			</View>
+						{insights.oneSidedTopics.length > 0 && (
+							<View style={styles.card}>
+								<Text style={styles.cardTitle}>נושאים ששמעת בהם צד אחד בלבד</Text>
+								{insights.oneSidedTopics.slice(0, 5).map((t) => (
+									<View key={t.topic} style={styles.row}>
+										<Text style={styles.rowLabel}>{t.topic}</Text>
+										<Text style={[styles.rowValue, {
+											color: t.onlyBloc === "right" ? RIGHT : LEFT,
+										}]}>
+											רק {t.onlyBloc === "right" ? "ימין" : "שמאל"} · {t.count}
+										</Text>
+									</View>
+								))}
+							</View>
+						)}
 
-			{/* Blind Spots */}
-			<View style={styles.card}>
-				<Text style={styles.cardTitle}>Blind Spots</Text>
-				<Text style={styles.subTitle2}>העיתונים שלא קראת בהם מעל חודש</Text>
+						<View style={styles.card}>
+							<Text style={styles.cardTitle}>העיתונים שלא קראת בהם מעל חודש</Text>
+							<View style={styles.avatars}>
+								{insights.unreadOutlets.slice(0, 8).map((name) => (
+									<View key={name} style={styles.avatar}>
+										<Text style={styles.avatarText} numberOfLines={2}>{shortLabel(name)}</Text>
+									</View>
+								))}
+							</View>
+						</View>
 
-				{blindSpots.length > 0 ? (
-				<View style={styles.badgeRow}>
-					{blindSpots.map((b) => (
-					<View key={b} style={styles.badge}>
-						<Text>{b}</Text>
-					</View>
+						{insights.untouchedTopics.length > 0 && (
+							<View style={styles.card}>
+								<Text style={styles.cardTitle}>נושאים שלא נגעת בהם בכלל</Text>
+								<View style={styles.chips}>
+									{insights.untouchedTopics.slice(0, 8).map((topic) => (
+										<View key={topic} style={styles.chip}>
+											<Text style={styles.chipText}>{topic}</Text>
+										</View>
+									))}
+								</View>
+							</View>
+						)}
+
+						{insights.missedStories.length > 0 && (
+							<View style={styles.card}>
+								<Text style={styles.cardTitle}>האירועים שפספסת</Text>
+								{insights.missedStories.slice(0, 3).map((story, i) => (
+									<View key={i} style={styles.missed}>
+										<View style={styles.missedHead}>
+											<View style={[styles.avatar, styles.avatarSm]}>
+												<Text style={styles.avatarText} numberOfLines={2}>{shortLabel(story.source)}</Text>
+											</View>
+											{!!story.topic && (
+												<View style={styles.chip}>
+													<Text style={styles.chipText}>{story.topic}</Text>
+												</View>
+											)}
+										</View>
+										<Text style={styles.missedTitle} numberOfLines={2}>{story.title}</Text>
+									</View>
+								))}
+								<Text style={styles.footnote}>
+									{insights.missedStories.length} סיפורים שלא פתחת — המוצגים כאן מהגוש שאתה פחות קורא
+								</Text>
+							</View>
+						)}
+					</>
+				)}
+
+				<View style={styles.card}>
+					<TouchableOpacity
+						style={styles.cardHead}
+						onPress={() => setPositionsOpen(!positionsOpen)}
+						activeOpacity={0.7}
+					>
+						<Text style={styles.cardTitle}>העמדה שהצהרת עליה</Text>
+						<Ionicons
+							name={positionsOpen ? "chevron-up" : "chevron-down"}
+							size={18}
+							color="#6B7280"
+						/>
+					</TouchableOpacity>
+
+					{positionsOpen && Object.entries(profile.positions).map(([topic, score]) => (
+						<View key={topic} style={styles.row}>
+							<Text style={styles.rowLabel}>{topic}</Text>
+							<Text style={[styles.rowValue, { color: score >= 0 ? RIGHT : LEFT }]}>
+								{score > 0 ? "+" : ""}{score}
+							</Text>
+						</View>
 					))}
 				</View>
-				) : (
-				<Text style={styles.successText}>מעולה! קראת מכל המקורות החודש</Text>
-				)}
-			</View>
-		</ScrollView>
-	</SafeAreaView>
+			</ScrollView>
+		</SafeAreaView>
 	);
 }
 
 const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: "white",
-		direction: "rtl",
-		marginBottom: -35
-	},
-	header: {
-		padding: 16,
-		borderBottomWidth: 1,
-		borderColor: "#ddd",
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-	},
-	logo: {
-		fontSize: 26,
-		fontWeight: "bold",
-	},
-	scroll: {
-		backgroundColor: '#f8f8f8ff',
-		paddingTop: 16,
-	},
-	titleWrapper: {
-		alignItems: "center",
-		marginBottom: 20,
-	},
-	mainTitle: {
-		fontSize: 22,
-		fontWeight: "bold",
-	},
-	subTitle: {
-		color: "#666",
-		marginTop: 4,
-	},
-	card: {
-		backgroundColor: "white",
-		borderRadius: 12,
-		padding: 16,
-		marginBottom: 20,
-		elevation: 2,
-		borderWidth: 1,
-		width: "90%",
-		alignItems: "center",
-		borderColor: "#eaeaeaff",
-	},
-	cardTitle: {
-		textAlign: "center",
-		fontWeight: "bold",
-		fontSize: 18,
-		marginBottom: 16,
-	},
-	chartRow: {
-		alignItems: "center",
-		// borderWidth: 1
-	},
-	percentRow: {
-		flexDirection: "row",
-		justifyContent: "center",
-		marginTop: 8,
-		// borderWidth: 1
-	},
-	percentText: {
-		marginHorizontal: 10,
-		fontSize: 18,
-		fontWeight: "bold",
-	},
-	legendRow: {
-		flexDirection: "row",
-		justifyContent: "center",
-		marginTop: 12,
-	},
-	legendItem: {
-		flexDirection: "row",
-		alignItems: "center",
-		marginHorizontal: 10,
-	},
-	circle: {
-		width: 10,
-		height: 10,
-		borderRadius: 6,
-		marginRight: 6,
-		marginLeft: 4
-	},
-	progressBar: {
-		width: "100%",
-		height: 10,
-		backgroundColor: "#ddd",
-		borderRadius: 10,
-		overflow: "hidden",
-		marginTop: 10,
-	},
-	progressFill: {
-		height: "100%",
-		backgroundColor: "#16a34a",
-	},
-	scoreNumber: {
-		fontSize: 26,
-		marginTop: 12,
-		fontWeight: "bold",
-		color: "#15803d",
-		textAlign: "center",
-	},
-	subTitle2: {
-		textAlign: "center",
-		color: "#666",
-		marginTop: 4,
-	},
-	badgeRow: {
-		flexDirection: "row",
-		flexWrap: "wrap",
-		justifyContent: "center",
-		marginTop: 10,
-	},
-	badge: {
-		paddingVertical: 6,
-		paddingHorizontal: 12,
-		borderWidth: 1,
-		borderColor: "#aaa",
-		borderRadius: 12,
-		margin: 4,
-	},
-	successText: {
-		textAlign: "center",
-		color: "#16a34a",
-		fontWeight: "600",
-		marginTop: 10,
-	},
-});
+	container: { flex: 1, backgroundColor: "#f8f8f8ff" },
+	scroll: { padding: 16, gap: 12, paddingBottom: 40 },
+	title: { fontFamily: "Heebo_800ExtraBold", fontSize: 26, color: "#111827", textAlign: "right" },
+	subtitle: { fontFamily: "Heebo_400Regular", fontSize: 13, color: "#6B7280", textAlign: "right", marginBottom: 4 },
+	sectionTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right", marginTop: 8 },
 
+	card: { backgroundColor: "#fff", borderRadius: 12, padding: 14, gap: 9 },
+	cardTitle: { fontFamily: "Heebo_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
+	bigRow: { flexDirection: "row-reverse", alignItems: "baseline", gap: 10 },
+	big: { fontFamily: "Heebo_800ExtraBold", fontSize: 34, color: "#111827" },
+	note: { fontFamily: "Heebo_400Regular", fontSize: 12, lineHeight: 18, color: "#6B7280", textAlign: "right", flex: 1 },
+	footnote: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
+
+	track: { height: 10, borderRadius: 999, backgroundColor: "#EEEDEA", overflow: "hidden", direction: "ltr" },
+	fill: { height: 10, borderRadius: 999 },
+
+	stack: { flexDirection: "row", height: 26, borderRadius: 8, overflow: "hidden", gap: 2, direction: "ltr" },
+	stackPart: { justifyContent: "center", alignItems: "center" },
+	stackText: { fontFamily: "Heebo_800ExtraBold", fontSize: 11, color: "#fff" },
+	legend: { flexDirection: "row", gap: 14, justifyContent: "flex-end" },
+	legendItem: { fontFamily: "Heebo_700Bold", fontSize: 11 },
+
+	cardHead: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+	row: {
+		// without the gap the score sat flush against the end of the topic name
+		flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 14,
+		borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEEDEA", paddingVertical: 6,
+	},
+	rowLabel: { fontFamily: "Heebo_400Regular", fontSize: 13, color: "#111827", textAlign: "right", flex: 1 },
+	rowValue: { fontFamily: "Heebo_800ExtraBold", fontSize: 12 },
+
+	bubbles: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 6 },
+	bubble: { alignItems: "center", justifyContent: "center" },
+	bubbleText: { fontFamily: "Heebo_800ExtraBold", fontSize: 13, color: "#fff" },
+
+	avatars: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
+	avatar: {
+		width: 46, height: 46, borderRadius: 23, backgroundColor: "#3A3A38",
+		alignItems: "center", justifyContent: "center", padding: 3,
+	},
+	avatarSm: { width: 30, height: 30, borderRadius: 15 },
+	avatarText: { fontFamily: "Heebo_700Bold", fontSize: 8, color: "#fff", textAlign: "center", lineHeight: 10 },
+
+	missed: {
+		backgroundColor: "#F4F4F3", borderRadius: 10, padding: 10, gap: 6, marginTop: 2,
+	},
+	missedHead: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+	missedTitle: { fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 18, color: "#111827", textAlign: "right" },
+
+	chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+	chip: { borderWidth: 1, borderColor: "#E3E3E1", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+	chipText: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#111827" },
+});

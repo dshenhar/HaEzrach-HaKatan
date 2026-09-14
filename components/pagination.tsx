@@ -73,12 +73,14 @@ const styles = StyleSheet.create({
         height: 22,
     },
     dotLabelActive: {
+        fontFamily: "Heebo_500Medium",
         color: "#000000ff",
         fontSize: 13,
         // textDecorationLine: "underline",
         fontWeight: "500",
     },
     dotLabelInactive: {
+        fontFamily: "Heebo_500Medium",
         color: "#6c6c6cff",
         fontSize: 13,
         // fontWeight: "500",

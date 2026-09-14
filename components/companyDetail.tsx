@@ -1,11 +1,8 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import React, { useEffect, useState } from 'react';
 import { CompanyDetailType, getRanksByCompany } from '@/state/engagement';
-import { Scroll } from 'lucide-react-native';
 import RateBar from './ui/rateBar';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-const height = window.innerHeight;
 
 const CompanyDetail = ({ source, setDetailSource } : { source: string, setDetailSource: (source: string) => void }) => {
     const [ranks, setRanks] = useState<CompanyDetailType[]>();
@@ -68,6 +65,7 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     companyName: {
+        fontFamily: "Heebo_700Bold",
         fontSize: 30,
         textAlign: "right",
         fontWeight: "bold",
@@ -76,6 +74,7 @@ const styles = StyleSheet.create({
         paddingTop: 20,
     },
     topicName: {
+        fontFamily: "Heebo_400Regular",
         fontSize: 18,
         textAlign: "right",
         paddingRight: 20,

@@ -68,6 +68,7 @@ const styles = StyleSheet.create({
         backgroundColor: "#dedddeff",
     },
     badgeText: {
+        fontFamily: "Heebo_400Regular",
         fontSize: 13,
     },
     badgeTextSelected: {

@@ -1,8 +1,8 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Dimensions } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Dimensions, Platform } from "react-native";
 import Modal from "react-native-modal";
 import { WebView } from "react-native-webview";
-import { X, ExternalLink } from "lucide-react-native";
 import { saveWatch, WatchingEvent } from "@/state/engagement";
 
 const { height } = Dimensions.get("window");
@@ -19,6 +19,17 @@ interface ArticleViewerProps {
 
 export function ArticleViewer({ open, onOpenChange, url, title, source, id, topic }: ArticleViewerProps) {
 	const [loading, setLoading] = React.useState(true);
+
+	// WebView is native-only; callers should send web readers straight to the site
+	React.useEffect(() => {
+		if (open && Platform.OS === "web" && url) {
+			Linking.openURL(url);
+			saveWatch({ id, site: source, topic, date: Date.now() });
+			onOpenChange(false);
+		}
+	}, [open, url, id, source, topic, onOpenChange]);
+
+	if (Platform.OS === "web") return null;
 
 	const handleOnLoadEnd = () => {
 		setLoading(false);
@@ -49,7 +60,7 @@ export function ArticleViewer({ open, onOpenChange, url, title, source, id, topi
 				accessibilityLabel="סגור"
 				style={styles.iconButton}
 			>
-				<X size={20} color="#333" />
+				<Ionicons name="close" size={20} color="#333" />
 			</TouchableOpacity>
 			<Text style={styles.title}>{source || "קריאה מלאה"}</Text>
 			</View>
@@ -58,7 +69,7 @@ export function ArticleViewer({ open, onOpenChange, url, title, source, id, topi
 			accessibilityLabel="פתח בחלון חדש"
 			style={styles.externalButton}
 			>
-				<ExternalLink size={16} color="#333" />
+				<Ionicons name="open-outline" size={16} color="#333" />
 				<Text style={styles.externalText}>פתח חיצוני</Text>
 			</TouchableOpacity>
 		</View>
@@ -119,6 +130,7 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	title: {
+		fontFamily: "Heebo_700Bold",
 		fontSize: 16,
 		fontWeight: "600",
 	},
@@ -132,6 +144,7 @@ const styles = StyleSheet.create({
 		padding: 6,
 	},
 	externalText: {
+		fontFamily: "Heebo_400Regular",
 		fontSize: 14,
 	},
 	webviewContainer: {

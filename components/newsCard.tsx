@@ -1,6 +1,5 @@
 import { slideItemColors, slideWidth } from '@/state/constants';
 import { NewsItem, URL_BASE } from '@/state/engagement';
-import { Bookmark, ExternalLink, Share2 } from "lucide-react-native";
 import React, { Dispatch, SetStateAction } from 'react';
 import { Alert, Dimensions, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import RateBar from './ui/rateBar';
@@ -89,7 +88,7 @@ const NewsCard = ({slide, index, expanded, setExpanded, setViewerOpen, setViewer
 			<TouchableOpacity onPress={() => setExpanded(!expanded)} onLongPress={handleLongPress} activeOpacity={0.9}>
 				<View style={[{ flexDirection: "row", width: "100%", justifyContent: "space-between"}]}>
 					<TouchableOpacity style={styles.iconButton}>
-						<Bookmark size={22} color="#6b7280" />
+						<Ionicons name="bookmark-outline" size={22} color="#6b7280" />
 					</TouchableOpacity>
 					<Text style={[styles.time, {position: "absolute", top: 0, right: 0}]}>{timeFormat(slide.time)}</Text>
 				</View>
@@ -165,15 +164,15 @@ const NewsCard = ({slide, index, expanded, setExpanded, setViewerOpen, setViewer
 							style={styles.readButton}
 							onPress={() => openArticle(slide)}
 							>
-								<ExternalLink size={16} color="#fff" />
+								<Ionicons name="open-outline" size={16} color="#fff" />
 								<Text style={styles.readText}>לקריאה</Text>
 							</TouchableOpacity>
 							<View style={styles.row}>
 								<TouchableOpacity style={styles.iconButton}>
-									<Share2 size={18} color="#6b7280" />
+									<Ionicons name="share-social-outline" size={18} color="#6b7280" />
 								</TouchableOpacity>
 								<TouchableOpacity style={styles.iconButton}>
-									<Bookmark size={18} color="#6b7280" />
+									<Ionicons name="bookmark-outline" size={18} color="#6b7280" />
 								</TouchableOpacity>
 							</View>
 						</View>
@@ -239,6 +238,7 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 	},
 	title: {
+		fontFamily: "Heebo_700Bold",
 		marginTop: 8,
 		fontSize: 18,
 		fontWeight: "600",
@@ -269,10 +269,12 @@ const styles = StyleSheet.create({
 		marginHorizontal: 4,
 	},
 	source: {
+		fontFamily: "Heebo_400Regular",
 		fontSize: 12,
 		color: "#111827",
 	},
 	time: {
+		fontFamily: "Heebo_400Regular",
 		fontSize: 12,
 		color: "#6b7280",
 		marginLeft: 4,
@@ -285,6 +287,7 @@ const styles = StyleSheet.create({
 		marginLeft: 4,
 	},
 	badgeText: {
+		fontFamily: "Heebo_400Regular",
 		fontSize: 12,
 		color: "#6b7280",
 	},
@@ -300,6 +303,7 @@ const styles = StyleSheet.create({
 		paddingVertical: 6,
 	},
 	readText: {
+		fontFamily: "Heebo_400Regular",
 		color: "#fff",
 		fontSize: 12,
 		marginLeft: 4,

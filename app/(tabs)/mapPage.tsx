@@ -1,7 +1,8 @@
 import CompaniesFilter from '@/components/companiesFilter';
-import CompanyDetail from '@/components/companyDetail';
-import MapCarousel from '@/components/mapCarousel';
-import { CompanyItem, getTopics, getSites, getRanks } from '@/state/engagement';
+import OutletDetail from '@/components/outletDetail';
+import TopicAxis from '@/components/topicAxis';
+import TopicQuadrant from '@/components/topicQuadrant';
+import { CompanyItem, getTopics, getSites, getRanksByTopic, getTopicPoles, TopicPoles } from '@/state/engagement';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { createContext, useState, useEffect } from 'react';
 import { Text, View, StyleSheet, ActivityIndicator, I18nManager, ScrollView, TouchableOpacity } from 'react-native';
@@ -17,6 +18,7 @@ export default function MapPage() {
     const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set([]));
     const [open, setOpen] = useState<boolean>(false);
     const [detailSource, setDetailSource] = useState<string>("");
+    const [poles, setPoles] = useState<TopicPoles>({});
     
     useEffect(() => {
         const fetchTopics = async () => {
@@ -29,12 +31,34 @@ export default function MapPage() {
         };
         fetchTopics();
         fetchSites();
+        getTopicPoles().then(setPoles);
     }, []);
+
+    useEffect(() => {
+        // Deliberately two topics from different families. Two topics from the
+        // same one (both territory, say) rank the outlets almost identically, so
+        // the plane collapses into a diagonal line and shows nothing.
+        if (topics && topics.length >= 2 && selectedTopics.size === 0) {
+            const preferred = ["בנייה בהתנחלויות", "כלכלה"].filter((t) => topics.includes(t));
+            setSelectedTopics(new Set(preferred.length === 2 ? preferred : topics.slice(0, 2)));
+        }
+    }, [topics]);
+
+    useEffect(() => {
+        if (detailSource) return;
+        const first = Array.from(carouselData.values())[0];
+        if (first && first.length) {
+            // the most right-leaning outlet, just so the panel opens on something
+            // rather than on whatever the query happened to return first
+            const pick = [...first].sort((a, b) => b.bias - a.bias)[0];
+            setDetailSource(pick.source);
+        }
+    }, [carouselData]);
 
     useEffect(() => {
         topics?.forEach(async (topic) => {
             if (selectedTopics.has(topic) && !carouselData.get(topic)) {
-                const ranks = await getRanks(topic);
+                const ranks = await getRanksByTopic(topic);
                 setCarouselData((prev) => new Map(prev).set(topic, ranks));
             }
             if (!selectedTopics.has(topic) && carouselData.get(topic)) {
@@ -54,24 +78,44 @@ export default function MapPage() {
     return (
         <SafeAreaView style={styles.container}>
             {open && <CompaniesFilter topics={topics || []} selectedTopics={selectedTopics} setSelectedTopics={setSelectedTopics} setOpen={setOpen} />}
-            <View style={styles.headerContainer}>
-                <Text style={styles.header}>כמה אחוז יש לך?</Text>
-                <TouchableOpacity style={{position: "absolute", left: 20, alignSelf: "flex-start"}} onPress={handleOpenFilter}>
-                    <Ionicons name="add-circle-outline" size={50} color="#000000"></Ionicons>
-                </TouchableOpacity>
+            <View style={styles.header}>
+                <View style={styles.headerTop}>
+                    <Text style={styles.title}>אנחנו על המפה</Text>
+                    <TouchableOpacity onPress={handleOpenFilter} hitSlop={10}>
+                        <Ionicons name="search-circle-outline" size={30} color="#111827" />
+                    </TouchableOpacity>
+                </View>
+                <Text style={styles.subtitle}>
+                    כאן תוכלו לראות את העיתונות השונה ועמדותיה לגבי נושאים שונים.{"\n"}
+                    לבחירת נושאים לחצו על אייקון החיפוש (🔍)
+                </Text>
             </View>
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {selectedTopics.size == 0 ? <Text style={{textAlign: "center", marginTop: 20, fontSize: 16}}>לחץ על הפלוס כדי לבחור נושאים להצגה</Text> : null}
+
+            <View style={styles.chartArea}>
+                {selectedTopics.size == 0 ? <Text style={{textAlign: "center", marginTop: 20, fontSize: 15, fontFamily: "Heebo_400Regular", color: "#6B7280"}}>לא נבחרו נושאים</Text> : null}
             {
-                Array.from(carouselData.entries()).map(([topic, data], index) => (
-                    <MapCarousel key={index} data={data} topic={topic} setDetailSource={setDetailSource} />
-                ))
+                (() => {
+                    const entries = Array.from(carouselData.entries());
+                    // two topics become a plane; one stays a single axis
+                    if (entries.length === 2) {
+                        const [[topicX, dataX], [topicY, dataY]] = entries;
+                        return <TopicQuadrant poles={poles} topicX={topicX} dataX={dataX}
+                            topicY={topicY} dataY={dataY} setDetailSource={setDetailSource}
+                            selected={detailSource} />;
+                    }
+                    return entries.map(([topic, data], index) => (
+                        <TopicAxis key={index} poles={poles} topic={topic} data={data}
+                            setDetailSource={setDetailSource} selected={detailSource} />
+                    ));
+                })()
             }
-            </ScrollView>
-            {
-                detailSource != "" &&
-                <CompanyDetail source={detailSource} setDetailSource={setDetailSource} />
-            }
+            </View>
+
+            {!!detailSource && (
+                <View style={styles.detailArea}>
+                    <OutletDetail source={detailSource} poles={poles} />
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -82,27 +126,20 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgb(255, 255, 255)',
         alignItems: 'center',
     },
-    headerContainer: {
-        marginVertical: 10,
-        width: '100%',
-        alignSelf: "flex-end",
-        flexDirection: "row",
-        alignItems: "center",
-        alignContent: "space-between",
-        justifyContent: "flex-end",
+    // same shape as the feed and the analytics page: title with its control on
+    // the same line, explanatory line under it
+    header: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2, width: "100%", gap: 2 },
+    headerTop: {
+        flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10,
     },
-    header: {
-        width: '60%',
-        fontSize: 50,
-        direction: "rtl",
-        textAlign: "left",
-        paddingRight: 30,
+    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 23, color: "#111827", textAlign: "right" },
+    subtitle: {
+        // sized so each sentence holds one line at the phone width
+        fontFamily: "Heebo_400Regular", fontSize: 12.5, lineHeight: 19,
+        color: "#6B7280", textAlign: "right",
     },
-    scrollView: {
-        width: '100%',
-        flex: 1,
-        marginBottom: -40,
-    },
+    chartArea: { width: "100%" },
+    detailArea: { flex: 1, width: "100%", paddingBottom: 8, minHeight: 220 },
     text: {
         color: '#fff',
         margin: 20
