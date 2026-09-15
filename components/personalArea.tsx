@@ -1,10 +1,10 @@
 import { clearProfile, ReaderProfile } from '@/state/profile';
-import { getLearningStats, LearningStats } from '@/state/engagement';
+import { getLearningStats, hasValidDevCode, LearningStats, unlockDevMode } from '@/state/engagement';
 import { useTheme, useThemeControl } from '@/state/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import Modal from 'react-native-modal';
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Props = {
     open: boolean;
@@ -18,6 +18,36 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
     const { setThemeName, devMode, setDevMode } = useThemeControl();
     const negative = t.name === "negative";
     const [stats, setStats] = React.useState<LearningStats | null>(null);
+    // dev mode changes the feed for everyone, so turning it on takes a code
+    const [askingCode, setAskingCode] = React.useState(false);
+    const [code, setCode] = React.useState("");
+    const [codeWrong, setCodeWrong] = React.useState(false);
+    const [checking, setChecking] = React.useState(false);
+
+    const toggleDev = async (on: boolean) => {
+        if (!on) {
+            setDevMode(false);
+            setAskingCode(false);
+            return;
+        }
+        if (await hasValidDevCode()) setDevMode(true);
+        else setAskingCode(true);
+    };
+
+    const submitCode = async () => {
+        if (!code.trim() || checking) return;
+        setChecking(true);
+        const ok = await unlockDevMode(code);
+        setChecking(false);
+        if (!ok) {
+            setCodeWrong(true);
+            return;
+        }
+        setDevMode(true);
+        setAskingCode(false);
+        setCode("");
+        setCodeWrong(false);
+    };
 
     React.useEffect(() => {
         if (open && devMode) getLearningStats().then(setStats);
@@ -37,6 +67,7 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
             swipeDirection="down"
             style={styles.modal}
             backdropOpacity={0.45}
+            avoidKeyboard
         >
             <View style={[styles.sheet, { backgroundColor: t.surface }]}>
                 <View style={[styles.grabber, { backgroundColor: t.line }]} />
@@ -78,11 +109,48 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                             </Text>
                         </View>
                         <Switch
-                            value={devMode}
-                            onValueChange={setDevMode}
+                            value={devMode || askingCode}
+                            onValueChange={toggleDev}
                             trackColor={{ true: t.brand, false: "#D7D6D2" }}
                         />
                     </View>
+
+                    {askingCode && !devMode && (
+                        <View style={[styles.codeRow, { backgroundColor: t.surfaceAlt }]}>
+                            <Text style={[styles.rowNote, { color: codeWrong ? t.right : t.textMuted }]}>
+                                {codeWrong ? "הקוד לא התקבל. נסה שוב" : "מצב פיתוח משנה את הפיד לכולם, ולכן צריך קוד"}
+                            </Text>
+                            <View style={styles.codeLine}>
+                                <TextInput
+                                    value={code}
+                                    onChangeText={(v) => { setCode(v); setCodeWrong(false); }}
+                                    onSubmitEditing={submitCode}
+                                    placeholder="קוד פיתוח"
+                                    placeholderTextColor={t.textMuted}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    secureTextEntry
+                                    style={[styles.codeInput, {
+                                        color: t.text,
+                                        backgroundColor: t.surface,
+                                        borderColor: codeWrong ? t.right : t.line,
+                                    }]}
+                                />
+                                <TouchableOpacity
+                                    onPress={submitCode}
+                                    disabled={checking || !code.trim()}
+                                    style={[styles.codeButton, {
+                                        backgroundColor: t.brand,
+                                        opacity: checking || !code.trim() ? 0.5 : 1,
+                                    }]}
+                                >
+                                    <Text style={[styles.codeButtonText, { color: t.brandInk }]}>
+                                        {checking ? "בודק…" : "אישור"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
 
                     {devMode && stats && (
                         <View style={[styles.row, { backgroundColor: t.surfaceAlt }]}>
@@ -149,6 +217,15 @@ const styles = StyleSheet.create({
     row: { flexDirection: "row-reverse", alignItems: "center", gap: 12, borderRadius: 12, padding: 13 },
     rowTitle: { fontFamily: "Heebo_700Bold", fontSize: 14, textAlign: "right" },
     rowNote: { fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17, textAlign: "right", marginTop: 2 },
+
+    codeRow: { borderRadius: 12, padding: 13, gap: 8 },
+    codeLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+    codeInput: {
+        flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
+        fontFamily: "Heebo_500Medium", fontSize: 14, textAlign: "right",
+    },
+    codeButton: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+    codeButtonText: { fontFamily: "Heebo_700Bold", fontSize: 14 },
 
     positions: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13 },
     posRow: {

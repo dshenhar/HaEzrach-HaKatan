@@ -209,11 +209,52 @@ export async function getBlocSummary(clusterId: string | number, bloc: "right" |
 	}
 }
 
+/** where the dev-mode code is kept once the server has accepted it */
+export const DEV_CODE_KEY = "dev_code";
+
+/**
+ * true when this device holds a code the server still accepts. A code the server
+ * turns down (it was changed since) is forgotten, so the app asks for the new one.
+ */
+export async function hasValidDevCode(): Promise<boolean> {
+	const code = await AsyncStorage.getItem(DEV_CODE_KEY).catch(() => null);
+	if (!code) return false;
+	try {
+		const res = await fetch(`${URL_BASE}/dev/unlock`, { method: "POST", headers: { "X-Dev-Key": code } });
+		if (res.status === 403) await AsyncStorage.removeItem(DEV_CODE_KEY);
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
+/** checks a code with the server, and keeps it only if the server accepts it */
+export async function unlockDevMode(code: string): Promise<boolean> {
+	try {
+		const res = await fetch(`${URL_BASE}/dev/unlock`, {
+			method: "POST",
+			headers: { "X-Dev-Key": code.trim() },
+		});
+		if (!res.ok) return false;
+		await AsyncStorage.setItem(DEV_CODE_KEY, code.trim());
+		return true;
+	} catch (err) {
+		console.log("Error unlocking dev mode:", err);
+		return false;
+	}
+}
+
+// retagging and merging change the feed for everyone, so the server wants the code
+async function devHeaders() {
+	const code = await AsyncStorage.getItem(DEV_CODE_KEY).catch(() => null);
+	return { "Content-Type": "application/json", "X-Dev-Key": code ?? "" };
+}
+
 export async function setClusterTopic(clusterId: string | number, topic: string): Promise<boolean> {
 	try {
 		const res = await fetch(`${URL_BASE}/clusters/${clusterId}/topic`, {
 			method: "PATCH",
-			headers: { "Content-Type": "application/json" },
+			headers: await devHeaders(),
 			body: JSON.stringify({ topic }),
 		});
 		return res.ok;
@@ -227,7 +268,7 @@ export async function mergeClusters(keep: string | number, merge: string | numbe
 	try {
 		const res = await fetch(`${URL_BASE}/clusters/merge`, {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: await devHeaders(),
 			body: JSON.stringify({ keep: Number(keep), merge: Number(merge) }),
 		});
 		return res.ok;

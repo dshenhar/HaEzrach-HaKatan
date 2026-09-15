@@ -26,7 +26,7 @@ SplashScreen.preventAutoHideAsync();
 const PHONE_WIDTH = 420;
 
 export default function RootLayout() {
-	const [loaded] = useFonts({
+	const [loaded, fontError] = useFonts({
 		Heebo_400Regular,
 		Heebo_500Medium,
 		Heebo_700Bold,
@@ -41,11 +41,15 @@ export default function RootLayout() {
 		getProfile().then((p) => { setProfile(p); setProfileChecked(true); });
 	}, []);
 
-	useEffect(() => {
-		if (loaded && profileChecked) SplashScreen.hideAsync();
-	}, [loaded, profileChecked]);
+	// a font that fails to load falls back to the system font instead of leaving
+	// the app on a blank screen
+	const fontsReady = loaded || fontError !== null;
 
-	if (!loaded || !profileChecked) return null;
+	useEffect(() => {
+		if (fontsReady && profileChecked) SplashScreen.hideAsync();
+	}, [fontsReady, profileChecked]);
+
+	if (!fontsReady || !profileChecked) return null;
 
 	// the questionnaire is what gives every personal statistic something to
 	// compare against, so it runs before the app rather than inside settings

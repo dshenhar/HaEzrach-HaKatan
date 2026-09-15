@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { DEV_CODE_KEY } from "./engagement";
 
 const THEME_KEY = "theme_pref";
 const DEV_KEY = "dev_mode";
@@ -72,7 +73,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 		AsyncStorage.getItem(THEME_KEY).then((v) => {
 			if (v === "negative" || v === "light") setName(v);
 		});
-		AsyncStorage.getItem(DEV_KEY).then((v) => setDev(v === "1"));
+		// dev mode only comes back on a device that has been given the code
+		Promise.all([AsyncStorage.getItem(DEV_KEY), AsyncStorage.getItem(DEV_CODE_KEY)])
+			.then(([on, code]) => setDev(on === "1" && !!code));
 	}, []);
 
 	const setDevMode = (on: boolean) => {
