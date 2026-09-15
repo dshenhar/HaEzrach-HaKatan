@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { I18nManager } from "react-native";
 import FeedControls, { SortKey } from "./feedControls";
@@ -49,6 +50,22 @@ export default function NewsFeed() {
 	const [viewMode, setViewMode] = useState<ViewMode>("bloc");
 	const t = useTheme();
 	const dev = useDevMode();
+
+	const reload = useCallback(() => {
+		fetchArticles(setArticles);
+		getSitePositions().then(setPositions);
+	}, []);
+
+	// The feed used to load once and never again, so a phone left open since the
+	// morning kept showing the morning's stories. Two triggers: coming back to the
+	// app after it was in the background, and a timer while it is on screen.
+	useEffect(() => {
+		const sub = AppState.addEventListener("change", (state) => {
+			if (state === "active") reload();
+		});
+		const timer = setInterval(reload, 5 * 60 * 1000);
+		return () => { sub.remove(); clearInterval(timer); };
+	}, [reload]);
 
 	useEffect(() => {
 		getSitePositions().then(setPositions);
