@@ -29,7 +29,8 @@ if ! command -v docker >/dev/null; then
   apt-get install -y -qq docker.io docker-compose-v2 >/dev/null
   systemctl enable --now docker
 fi
-apt-get install -y -qq ufw >/dev/null
+# rsync copies the code in the next step; not every cloud image ships it
+apt-get install -y -qq ufw rsync >/dev/null
 ufw allow 22/tcp >/dev/null
 ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
@@ -62,6 +63,13 @@ POSTGRES_PASSWORD=$(openssl rand -hex 24)
 API_HOST=$API_HOST
 GEMINI_API_KEY=$GEMINI
 ENV
+fi
+
+# the dev-mode code lives in the local .env and is kept in step on every deploy,
+# so changing it there and redeploying changes it for the app
+DEV_KEY="$(grep '^DEV_KEY=' "$HERE/src/.env" | cut -d= -f2- || true)"
+if [ -n "$DEV_KEY" ]; then
+  "${SSH[@]}" "sed -i '/^DEV_KEY=/d' /opt/360news/.env && echo 'DEV_KEY=$DEV_KEY' >> /opt/360news/.env"
 fi
 
 COMPOSE="cd /opt/360news && docker compose -f docker-compose.prod.yml"

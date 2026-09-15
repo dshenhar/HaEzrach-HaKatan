@@ -30,6 +30,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      DEV_KEY: ${DEV_KEY:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/news360
       HF_TOKEN: ${HF_TOKEN}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

@@ -8,15 +8,26 @@ from db.models import (Article, ClusterMerge, ClusterSummary, Cluster, Site,
                        SiteTopicPriorBias, Topic, TopicCorrection, Vote)
 from db.db_session import SessionLocal
 from getClusters import get_clusters
-from fastapi import FastAPI, Query, HTTPException, Response, Request
+from fastapi import Depends, FastAPI, Query, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from pydantic import BaseModel
+import hmac
 import uuid
 from datetime import datetime
 
 
 K = 5
+
+# Retagging and merging change the feed for every reader, so they need the code
+# the app's dev mode asks for. With no DEV_KEY on the server they are refused.
+DEV_KEY = os.environ.get("DEV_KEY", "")
+
+
+def require_dev(request: Request):
+    given = request.headers.get("x-dev-key", "")
+    if not DEV_KEY or not hmac.compare_digest(given.encode(), DEV_KEY.encode()):
+        raise HTTPException(status_code=403, detail="dev code required")
 
 app = FastAPI()
 app.add_middleware(
@@ -280,7 +291,7 @@ class TopicFix(BaseModel):
     topic: str
 
 
-@app.patch("/clusters/{cluster_id}/topic")
+@app.patch("/clusters/{cluster_id}/topic", dependencies=[Depends(require_dev)])
 def set_cluster_topic(cluster_id: int, fix: TopicFix):
     """Reassign a story's topic and keep the correction as a labelled example.
 
@@ -331,7 +342,7 @@ class MergeRequest(BaseModel):
     merge: int
 
 
-@app.post("/clusters/merge")
+@app.post("/clusters/merge", dependencies=[Depends(require_dev)])
 def merge_clusters(req: MergeRequest):
     """Fold one story into another and remember that a human joined them."""
     if req.keep == req.merge:
@@ -383,6 +394,12 @@ def merge_clusters(req: MergeRequest):
         session.commit()
 
     return {"kept": req.keep, "moved": moved, "similarity": similarity}
+
+
+@app.post("/dev/unlock", dependencies=[Depends(require_dev)])
+def dev_unlock():
+    """Lets the app check a dev code before it turns dev mode on."""
+    return {"ok": True}
 
 
 @app.get("/dev/learning")
