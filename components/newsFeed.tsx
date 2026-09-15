@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, useWindowDimensions, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { I18nManager } from "react-native";
 import FeedControls, { SortKey } from "./feedControls";
 import ViewModeToggle, { ViewMode } from "./viewModeToggle";
@@ -14,6 +14,18 @@ import PersonalArea from "./personalArea";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+
+// The logo is navy ink, so negative mode swaps in a pale copy of it.
+const LOGO_INK = require("../assets/images/logo-ink.png");
+const LOGO_LIGHT = require("../assets/images/logo-light.png");
+const LOGO_RATIO = 600 / 186;
+const CROWD = require("../assets/images/parlament.png");
+const CROWD_RATIO = 1200 / 604;
+/** how far above the crowd the list starts fading out */
+const CROWD_FADE = 48;
+/** scrolled further than this, the crowd steps aside */
+const CROWD_HIDE_AFTER = 12;
 
 
 interface NewsItem {
@@ -50,6 +62,29 @@ export default function NewsFeed() {
 	const [viewMode, setViewMode] = useState<ViewMode>("bloc");
 	const t = useTheme();
 	const dev = useDevMode();
+	// the web build draws the app inside a 420px phone frame
+	const { width: windowWidth } = useWindowDimensions();
+	const crowdWidth = Math.round(Math.min(windowWidth, 420) * 0.68);
+	const crowdHeight = Math.round(crowdWidth / CROWD_RATIO);
+
+	// The crowd sits on the tab bar only while the feed is at its very top: the
+	// first scroll sends it down behind the bar, and it comes back only once the
+	// list is all the way up again (the gap between the two thresholds keeps it
+	// from flickering around the top).
+	const crowdIn = useRef(new Animated.Value(1)).current;
+	const crowdShown = useRef(true);
+	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+		const y = e.nativeEvent.contentOffset.y;
+		const show = crowdShown.current ? y <= CROWD_HIDE_AFTER : y <= 1;
+		if (show === crowdShown.current) return;
+		crowdShown.current = show;
+		Animated.timing(crowdIn, {
+			toValue: show ? 1 : 0,
+			duration: show ? 320 : 220,
+			easing: Easing.out(Easing.cubic),
+			useNativeDriver: true,
+		}).start();
+	};
 
 	const reload = useCallback(() => {
 		fetchArticles(setArticles);
@@ -193,7 +228,7 @@ export default function NewsFeed() {
 	}, [selectedCategories, topics])
 
 	return (
-		<SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
+		<SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: t.bg }]}>
 			{dev && (
 				<View style={[styles.devBar, { backgroundColor: t.brand }]}>
 					<Text style={styles.devBarText}>
@@ -203,13 +238,19 @@ export default function NewsFeed() {
 			)}
 			<View style={styles.header}>
 				<View style={styles.headerTop}>
-					<Text style={[styles.subtitle, { color: t.textMuted }]}>
-						{greet()} <Text style={styles.dot}>·</Text> {dateLabel} <Text style={styles.dot}>·</Text> <Text style={styles.clock}>{clock}</Text>
-					</Text>
+					<Image
+						source={t.name === "negative" ? LOGO_LIGHT : LOGO_INK}
+						style={styles.logo}
+						resizeMode="contain"
+						accessibilityLabel="חדשות האזרח הקטן"
+					/>
 					<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}>
 						<Ionicons name="person-circle-outline" size={30} color={t.text} />
 					</TouchableOpacity>
 				</View>
+				<Text style={[styles.subtitle, { color: t.textMuted }]}>
+					{greet()} <Text style={styles.dot}>·</Text> {dateLabel} <Text style={styles.dot}>·</Text> <Text style={styles.clock}>{clock}</Text>
+				</Text>
 				<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
 			</View>
 
@@ -223,8 +264,11 @@ export default function NewsFeed() {
 				onSort={setSort}
 			/>
 
+			<View style={styles.feedArea}>
 			<ScrollView 
 				style={[styles.scrollView, { backgroundColor: t.bg }]}
+				contentContainerStyle={{ paddingBottom: crowdHeight + CROWD_FADE }}
+				onScroll={onFeedScroll}
 				scrollEventThrottle={16}
 				showsVerticalScrollIndicator={false}
 				ref={scrollRef}
@@ -239,6 +283,25 @@ export default function NewsFeed() {
 					onArmMerge={handleArmMerge} />
 				))}
 			</ScrollView>
+
+			{/* the crowd sits on the tab bar, and the stories fade out behind their heads */}
+			<Animated.View style={[styles.crowd, { height: crowdHeight + CROWD_FADE, opacity: crowdIn }]}>
+				<LinearGradient
+					colors={[t.bg + "00", t.bg, t.bg]}
+					locations={[0, (CROWD_FADE + crowdHeight * 0.3) / (crowdHeight + CROWD_FADE), 1]}
+					style={StyleSheet.absoluteFill}
+				/>
+				<Animated.Image
+					source={CROWD}
+					resizeMode="contain"
+					style={{
+						width: crowdWidth,
+						height: crowdHeight,
+						transform: [{ translateY: crowdIn.interpolate({ inputRange: [0, 1], outputRange: [crowdHeight * 0.5, 0] }) }],
+					}}
+				/>
+			</Animated.View>
+			</View>
 			
 			<RatingSheet 
 				open={ratingOpen} 
@@ -265,20 +328,25 @@ const styles = StyleSheet.create({
 	},
 	header: { 
 		paddingHorizontal: 16, 
-		paddingTop: 16, 
-		paddingBottom: 8, 
+		paddingTop: 8, 
+		paddingBottom: 4, 
 		width: "100%" 
 	},
 	devBar: { width: "100%", paddingVertical: 5, alignItems: "center" },
 	devBarText: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#04310F" },
 	headerTop: {
-		flexDirection: "row-reverse",
+		// logo on the physical right, like the title, whether or not RTL layout is on
+		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
 		alignItems: "center",
 		justifyContent: "space-between",
 		gap: 10,
 	},
 	dot: { color: "#C9C6BF" },
 	clock: { fontFamily: "Heebo_700Bold", fontVariant: ["tabular-nums"] },
+	logo: {
+		height: 38,
+		width: 38 * LOGO_RATIO,
+	},
 	title: {
  
 		fontFamily: "Heebo_700Bold", 
@@ -290,7 +358,8 @@ const styles = StyleSheet.create({
  
 		fontFamily: "Heebo_400Regular", 
 		fontSize: 14, 
-		margin: 5,
+		marginHorizontal: 5,
+		marginVertical: 2,
 		color: "#6b7280", 
 		textAlign: "right" 
 	},
@@ -300,6 +369,16 @@ const styles = StyleSheet.create({
 		backgroundColor: '#f8f8f8ff',
 		// borderWidth: 2,
 		flex: 1,
-		marginBottom: -35
-	}
+	},
+	feedArea: { flex: 1, width: "100%" },
+	crowd: {
+		position: "absolute",
+		left: 0,
+		right: 0,
+		bottom: 0,
+		alignItems: "center",
+		justifyContent: "flex-end",
+		// scrolling keeps working through the crowd
+		pointerEvents: "none",
+	},
 });

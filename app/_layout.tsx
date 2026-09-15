@@ -5,6 +5,7 @@ import {
 	Heebo_800ExtraBold,
 	useFonts,
 } from '@expo-google-fonts/heebo';
+import IntroSplash from '@/components/introSplash';
 import Onboarding from '@/components/onboarding';
 import { getProfile, ReaderProfile } from '@/state/profile';
 import { ThemeProvider, useTheme } from '@/state/theme';
@@ -34,6 +35,7 @@ export default function RootLayout() {
 
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);
 	const [profileChecked, setProfileChecked] = useState(false);
+	const [introOn, setIntroOn] = useState(true);
 
 	useEffect(() => {
 		getProfile().then((p) => { setProfile(p); setProfileChecked(true); });
@@ -55,19 +57,28 @@ export default function RootLayout() {
 		</Stack>
 	);
 
+	// the intro plays over whatever comes first - the questionnaire or the feed -
+	// and fades into it
+	const shell = (
+		<>
+			{app}
+			{introOn && <IntroSplash onDone={() => setIntroOn(false)} />}
+		</>
+	);
+
 	// gestures anywhere in the tree need this at the root, and swipe-between-tabs
 	// is the first thing in the app that uses one
 	if (Platform.OS !== 'web') {
 		return (
 			<GestureHandlerRootView style={styles.root}>
-				<ThemeProvider>{app}</ThemeProvider>
+				<ThemeProvider>{shell}</ThemeProvider>
 			</GestureHandlerRootView>
 		);
 	}
 
 	return (
 		<ThemeProvider>
-			<WebFrame>{app}</WebFrame>
+			<WebFrame>{shell}</WebFrame>
 		</ThemeProvider>
 	);
 }

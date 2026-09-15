@@ -1,8 +1,13 @@
 import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 export default function TabLayout() {
+	// Thinner than the stock 49pt bar plus the whole home-indicator inset, so it
+	// sits lower and the feed gets the room. The icons still clear the indicator.
+	const insets = useSafeAreaInsets();
+	const bottomPad = Math.max(insets.bottom - 14, 0);
 	return (
 		<Tabs
 			screenOptions={{
@@ -13,7 +18,7 @@ export default function TabLayout() {
 			tabBarInactiveTintColor: '#A6A6A6',
 			headerShown: false,
 			tabBarShowLabel: false,
-			tabBarStyle: { paddingTop: 10, backgroundColor: "#3E3E3E" }
+			tabBarStyle: { height: 44 + bottomPad, paddingTop: 6, paddingBottom: bottomPad, backgroundColor: "#3E3E3E" }
 			}}
 		>
 			<Tabs.Screen
