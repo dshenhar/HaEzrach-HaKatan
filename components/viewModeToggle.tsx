@@ -1,11 +1,11 @@
 import { useTheme } from '@/state/theme';
 import React, { useEffect, useRef, useState } from 'react';
-import Modal from 'react-native-modal';
 import { Animated, Easing, LayoutChangeEvent, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export type ViewMode = "bloc" | "citizen";
 
-const EXPLAIN: Record<ViewMode, { title: string; body: string }> = {
+// the guides that step into the feed when a mode is tapped say these
+export const EXPLAIN: Record<ViewMode, { title: string; body: string }> = {
     bloc: {
         title: "תצוגה גושית",
         body: "אנחנו רגילים לקטלג כל אירוע לפי השאלה אם הוא משרת את המחנה שלנו או פוגע בו — ומתוך זה נגזרת גם הזהות שלנו. התצוגה הזו מראה איך הגוש שלך והגוש הנגדי סיקרו את אותו אירוע עצמו.",
@@ -15,12 +15,6 @@ const EXPLAIN: Record<ViewMode, { title: string; body: string }> = {
         body: "סקירה עניינית שלא מתייחסת למי אמר ולאיזה מחנה הוא שייך. היא לא מתיימרת לשבור את האג'נדות הקיימות, אלא להציג אותן זו לצד זו כפי שנכתבו — וחושפת אותך לעיתונות שאתה לא קורא ביום־יום.",
     },
 };
-
-const Info = ({ colour, outlined }: { colour: string; outlined?: boolean }) => (
-    <View style={[styles.info, { borderColor: colour }]}>
-        <Text style={[styles.infoText, { color: colour }, outlined && OUTLINE]}>i</Text>
-    </View>
-);
 
 type Props = { mode: ViewMode; onChange: (m: ViewMode) => void }
 
@@ -42,7 +36,6 @@ const OUTLINE: any = Platform.select({
 
 const ViewModeToggle = ({ mode, onChange }: Props) => {
     const t = useTheme();
-    const [explain, setExplain] = useState<ViewMode | null>(null);
     const [railWidth, setRailWidth] = useState(0);
 
     // row-reverse puts the first child at the right edge
@@ -99,28 +92,10 @@ const ViewModeToggle = ({ mode, onChange }: Props) => {
                             >
                                 {EXPLAIN[key].title}
                             </Text>
-                            <TouchableOpacity onPress={() => setExplain(key)} hitSlop={8}>
-                                <Info colour={on ? t.selectInk : t.textMuted} outlined={on} />
-                            </TouchableOpacity>
                         </TouchableOpacity>
                     );
                 })}
             </View>
-
-            <Modal isVisible={explain !== null} onBackdropPress={() => setExplain(null)}
-                backdropOpacity={0.45} style={styles.modal}>
-                <View style={[styles.card, { backgroundColor: t.surface }]}>
-                    {explain && (
-                        <>
-                            <Text style={[styles.cardTitle, { color: t.text }]}>{EXPLAIN[explain].title}</Text>
-                            <Text style={[styles.cardBody, { color: t.textMuted }]}>{EXPLAIN[explain].body}</Text>
-                        </>
-                    )}
-                    <TouchableOpacity onPress={() => setExplain(null)}>
-                        <Text style={[styles.close, { color: t.brand }]}>הבנתי</Text>
-                    </TouchableOpacity>
-                </View>
-            </Modal>
         </View>
     );
 };
@@ -140,15 +115,4 @@ const styles = StyleSheet.create({
         gap: 8, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 6,
     },
     segText: { fontFamily: "Heebo_700Bold", fontSize: 13.5, flexShrink: 0 },
-    info: {
-        width: 15, height: 15, borderRadius: 8, borderWidth: 1, flexShrink: 0,
-        alignItems: "center", justifyContent: "center",
-    },
-    infoText: { fontFamily: "Heebo_700Bold", fontSize: 9.5, lineHeight: 13 },
-
-    modal: { justifyContent: "center", margin: 24 },
-    card: { borderRadius: 16, padding: 20, gap: 10 },
-    cardTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 19, textAlign: "right" },
-    cardBody: { fontFamily: "Heebo_400Regular", fontSize: 14, lineHeight: 22, textAlign: "right" },
-    close: { fontFamily: "Heebo_800ExtraBold", fontSize: 14, textAlign: "center", paddingTop: 8 },
 });

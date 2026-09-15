@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, useWindowDim
 import { I18nManager } from "react-native";
 import FeedControls, { SortKey } from "./feedControls";
 import ViewModeToggle, { ViewMode } from "./viewModeToggle";
+import ModeGuide from "./modeGuide";
 import StoryCard from "./storyCard";
 import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, SitePosition } from "@/state/engagement";
@@ -70,12 +71,14 @@ export default function NewsFeed() {
 	// The crowd sits on the tab bar only while the feed is at its very top: the
 	// first scroll sends it down behind the bar, and it comes back only once the
 	// list is all the way up again (the gap between the two thresholds keeps it
-	// from flickering around the top).
+	// from flickering around the top). It also steps aside while a mode guide is
+	// out, so the two pictures never share the screen.
 	const crowdIn = useRef(new Animated.Value(1)).current;
 	const crowdShown = useRef(true);
-	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-		const y = e.nativeEvent.contentOffset.y;
-		const show = crowdShown.current ? y <= CROWD_HIDE_AFTER : y <= 1;
+	const atTop = useRef(true);
+	const guideOut = useRef(false);
+	const syncCrowd = () => {
+		const show = atTop.current && !guideOut.current;
 		if (show === crowdShown.current) return;
 		crowdShown.current = show;
 		Animated.timing(crowdIn, {
@@ -85,6 +88,25 @@ export default function NewsFeed() {
 			useNativeDriver: true,
 		}).start();
 	};
+	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+		const y = e.nativeEvent.contentOffset.y;
+		atTop.current = atTop.current ? y <= CROWD_HIDE_AFTER : y <= 1;
+		syncCrowd();
+	};
+
+	// tapping a mode sends out its guide with the explanation; another tap
+	// replaces whichever guide is on screen
+	const [guide, setGuide] = useState<{ mode: ViewMode; id: number } | null>(null);
+	const guideSeq = useRef(0);
+	const onModePress = (next: ViewMode) => {
+		setViewMode(next);
+		guideSeq.current += 1;
+		setGuide({ mode: next, id: guideSeq.current });
+	};
+	useEffect(() => {
+		guideOut.current = guide !== null;
+		syncCrowd();
+	}, [guide]);
 
 	const reload = useCallback(() => {
 		fetchArticles(setArticles);
@@ -254,7 +276,7 @@ export default function NewsFeed() {
 				<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
 			</View>
 
-			<ViewModeToggle mode={viewMode} onChange={setViewMode} />
+			<ViewModeToggle mode={viewMode} onChange={onModePress} />
 
 			<FeedControls
 				topics={[...topics].filter((c) => c !== "הכל")}
@@ -301,6 +323,14 @@ export default function NewsFeed() {
 					}}
 				/>
 			</Animated.View>
+
+			{guide && (
+				<ModeGuide
+					key={guide.id}
+					mode={guide.mode}
+					onDone={() => setGuide((g) => (g?.id === guide.id ? null : g))}
+				/>
+			)}
 			</View>
 			
 			<RatingSheet 
