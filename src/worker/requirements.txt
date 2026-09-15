@@ -1,0 +1,8 @@
+feedparser~=6.0.12
+SQLAlchemy>=2.0,<2.1
+bs4~=0.0.2
+python-dateutil~=2.9.0.post0
+requests
+psycopg2-binary~=2.9.9
+pgvector~=0.4.2
+sentence-transformers

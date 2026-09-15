@@ -1,0 +1,286 @@
+import os
+import sys
+# Get the absolute path to the src directory relative to this file
+module_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, module_dir)
+from sqlalchemy import select, and_, or_, func, Float
+from db.models import Article, Vote, Site, SiteTopicPriorBias, Topic
+from db.db_session import SessionLocal
+from getClusters import get_clusters
+from fastapi import FastAPI, Query, HTTPException, Response, Request
+from fastapi.middleware.cors import CORSMiddleware
+import httpx
+from pydantic import BaseModel
+import uuid
+from datetime import datetime
+
+
+K = 5
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow all origins (for dev)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/feed")
+def get_feed(response: Response):
+    response.headers["ngrok-skip-browser-warning"] = "true"
+    formatted_data = get_clusters()
+    return formatted_data
+
+
+@app.get("/sites")
+def get_sites():
+    with SessionLocal() as session:
+        sites = session.execute(select(Site.id, Site.name)).scalars().all()
+    return sites
+
+
+@app.get("/topics")
+def get_topics():
+    with SessionLocal() as session:
+        topics = session.execute(select(Topic.name)).scalars().all()
+    return topics
+
+
+@app.get("/ranks/{topic}")
+def get_ranks(topic: str):
+    with SessionLocal() as session:
+        site_names = {
+            s.id: s.name
+            for s in session.execute(select(Site.id, Site.name)).all()
+        }
+        topic_record = session.query(Topic.id).filter(Topic.name == topic).first()
+        if not topic_record:
+            raise HTTPException(status_code=404, detail="Topic not found")
+        topic_id = topic_record[0]
+
+        subq = (
+            session.query(
+                Article.site_id,
+                func.max(Article.created_at).label("latest_time")
+            )
+            .filter(Article.topic_id == topic_id)
+            .group_by(Article.site_id)
+            .subquery()
+        )
+
+        # Join and select only site_id and title
+        query = (
+            session.query(Article.site_id, Article.header)
+            .join(subq, (Article.site_id == subq.c.site_id) &
+                  (Article.created_at == subq.c.latest_time))
+            .all()
+        )
+        latest_articles = {q.site_id: q.header for q in query}
+        print(latest_articles)
+
+        stmt = (
+            select(
+                Article.site_id,
+                func.count(Article.id).label("n"),
+                func.avg(Article.bias_score.cast(Float) / func.nullif(Article.votes_count, 0)).label("avg_bias"),
+            )
+            .where(Article.topic_id == topic_id)
+            .group_by(Article.site_id)
+        )
+
+        stmt_prior = (
+            select(
+                SiteTopicPriorBias.site_id,
+                SiteTopicPriorBias.prior_bias,
+            )
+            .where(SiteTopicPriorBias.topic_id == topic_id)
+        )
+
+        article_stats = {
+            row.site_id: (row.n, row.avg_bias or 0.0)
+            for row in session.execute(stmt)
+        }
+
+        priors = {
+            row.site_id: row.prior_bias
+            for row in session.execute(stmt_prior)
+        }
+
+    results = []
+
+    for s_id in site_names.keys():
+        n, avg_bias = article_stats.get(s_id, (0, 0.0))
+        prior_bias = priors.get(s_id, 0.0)
+
+        w_articles = n / (n + K) if n > 0 else 0.0
+        w_prior = K / (n + K)
+
+        bias = w_articles * avg_bias + w_prior * prior_bias
+
+        results.append({
+            "source": site_names[s_id],
+            "bias": round(bias, 3),
+            "article_count": n,
+            "confidence": round(min(1.0, n / 20), 2),
+            "latest_article_header": latest_articles.get(s_id, "")
+        })
+    return results
+
+
+@app.get("/ranks/site/{site}")
+def get_ranks_by_site(site: str):
+    with SessionLocal() as session:
+        topics_names = {
+            t.id: t.name
+            for t in session.execute(select(Topic.id, Topic.name)).all()
+        }
+        site_record = session.query(Site.id).filter(Site.name == site).first()
+        if not site_record:
+            raise HTTPException(status_code=404, detail="Site not found")
+        site_id = site_record[0]
+
+        stmt = (
+            select(
+                Article.topic_id,
+                func.count(Article.id).label("n"),
+                func.avg(Article.bias_score.cast(Float) / func.nullif(Article.votes_count, 0)).label("avg_bias"),
+            )
+            .where(Article.site_id == site_id)
+            .group_by(Article.topic_id)
+        )
+
+        stmt_prior = (
+            select(
+                SiteTopicPriorBias.topic_id,
+                SiteTopicPriorBias.prior_bias,
+            )
+            .where(SiteTopicPriorBias.site_id == site_id)
+        )
+
+        article_stats = {
+            row.topic_id: (row.n, row.avg_bias or 0.0)
+            for row in session.execute(stmt)
+        }
+
+        priors = {
+            row.topic_id: row.prior_bias
+            for row in session.execute(stmt_prior)
+        }
+
+    results = []
+
+    for t_id in topics_names.keys():
+        n, avg_bias = article_stats.get(t_id, (0, 0.0))
+        prior_bias = priors.get(t_id, 0.0)
+
+        w_articles = n / (n + K) if n > 0 else 0.0
+        w_prior = K / (n + K)
+
+        bias = w_articles * avg_bias + w_prior * prior_bias
+
+        results.append({
+            "topic": topics_names[t_id],
+            "bias": round(bias, 3),
+            "article_count": n,
+            "confidence": round(min(1.0, n / 20), 2),
+        })
+    return results
+
+
+class VoteRequest(BaseModel):
+    value: int
+
+
+def get_anonymous_id(request: Request) -> uuid.UUID:
+    anon = request.cookies.get("anon_id")
+    if anon:
+        return uuid.UUID(anon)
+    return uuid.uuid4()
+
+
+@app.post("/articles/{article_id}/vote")
+async def add_vote(article_id: int, vote: VoteRequest, request: Request, response: Response):
+    with SessionLocal() as session:
+        anon_id = get_anonymous_id(request)
+        ip = request.client.host
+        response.set_cookie("anon_id", str(anon_id), 60 * 60 * 24 * 365, httponly=True, secure=True, samesite="lax")
+
+        article = session.get(Article, article_id)
+        if not article:
+            raise HTTPException(status_code=404, detail="article not found")
+
+        cur_vote = session.execute(select(Vote).where(
+            and_(
+                Vote.article_id == article_id,
+                or_(
+                    Vote.anonymous_id == anon_id,
+                    Vote.ip_address == ip,
+                )
+            )
+        )).scalar_one_or_none()
+        if cur_vote:
+            if cur_vote.value == vote.value:
+                return {"status": "no_change"}
+            article.bias_score += (vote.value - cur_vote.value)
+            cur_vote.value = vote.value
+        else:
+            new_vote = Vote(
+                article_id=article_id,
+                value=vote.value,
+                anonymous_id=anon_id,
+                ip_address=ip,
+            )
+            session.add(new_vote)
+            article.bias_score += vote.value
+            article.votes_count += 1
+
+        session.commit()
+        return {"mean_score": article.bias_score / article.votes_count}
+
+
+@app.get("/api/bypass")
+async def proxy_ynet(url: str = Query(..., description="Full Ynet URL")):
+    # Security check: only allow ynet.co.il or calcalist.co.il
+    print("in the ynet/calcalist server")
+    if not url.startswith("https://www.ynet.co.il/") and not url.startswith("https://www.calcalist.co.il/"):
+        raise HTTPException(status_code=400, detail="Only ynet.co.il or calcalist.co.il URLs are allowed")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, timeout=10)
+            html = r.text
+
+        return Response(content=html, media_type="text/html")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching {url}: {e}")
+
+
+@app.get("/")
+def home():
+    return {"msg": "Hebrew News Clustering API is running!"}
+
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint for monitoring and readiness probes"""
+    try:
+        # Check database connection
+        with SessionLocal() as session:
+            session.execute(select(1))
+        db_status = "ok"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    return {
+        "status": "healthy",
+        "db": db_status,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
