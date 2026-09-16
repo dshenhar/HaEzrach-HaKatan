@@ -14,8 +14,14 @@ PROJECT="${VERCEL_PROJECT:-haezrach-hakatan}"
 cd "$(dirname "$0")"
 
 echo "==> checking the API answers before building against it"
-curl -fsS -m 15 "https://$API_HOST/health" >/dev/null \
-  || { echo "https://$API_HOST/health did not answer - deploy the server first"; exit 1; }
+# A network that inspects HTTPS (a workplace firewall) swaps the certificate and
+# fails this check even when the server is fine; SKIP_API_CHECK=1 skips it.
+if [ "${SKIP_API_CHECK:-}" = "1" ]; then
+  echo "    skipped (SKIP_API_CHECK=1)"
+else
+  curl -fsS -m 15 "https://$API_HOST/health" >/dev/null \
+    || { echo "https://$API_HOST/health did not answer - deploy the server first (or SKIP_API_CHECK=1 behind a firewall)"; exit 1; }
+fi
 
 echo "==> exporting the web build"
 rm -rf dist
