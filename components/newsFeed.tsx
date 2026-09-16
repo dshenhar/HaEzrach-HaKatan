@@ -5,6 +5,7 @@ import { I18nManager } from "react-native";
 import FeedControls, { SortKey } from "./feedControls";
 import ViewModeToggle, { ViewMode } from "./viewModeToggle";
 import ModeGuide from "./modeGuide";
+import WelcomeGuide from "./welcomeGuide";
 import StoryCard from "./storyCard";
 import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, SitePosition } from "@/state/engagement";
@@ -103,10 +104,18 @@ export default function NewsFeed() {
 		guideSeq.current += 1;
 		setGuide({ mode: next, id: guideSeq.current });
 	};
+
+	// the i in the header brings the anchor's television down with the welcome; it
+	// clears any mode guide first, so only one picture is ever out
+	const [welcomeOpen, setWelcomeOpen] = useState(false);
+	const openWelcome = () => {
+		setGuide(null);
+		setWelcomeOpen(true);
+	};
 	useEffect(() => {
-		guideOut.current = guide !== null;
+		guideOut.current = guide !== null || welcomeOpen;
 		syncCrowd();
-	}, [guide]);
+	}, [guide, welcomeOpen]);
 
 	const reload = useCallback(() => {
 		fetchArticles(setArticles);
@@ -260,6 +269,9 @@ export default function NewsFeed() {
 			)}
 			<View style={styles.header}>
 				<View style={styles.headerTop}>
+					<TouchableOpacity onPress={openWelcome} hitSlop={10} accessibilityLabel="על האפליקציה">
+						<Ionicons name="information-circle-outline" size={30} color={t.text} />
+					</TouchableOpacity>
 					<Image
 						source={t.name === "negative" ? LOGO_LIGHT : LOGO_INK}
 						style={styles.logo}
@@ -333,6 +345,7 @@ export default function NewsFeed() {
 					onDone={() => setGuide((g) => (g?.id === guide.id ? null : g))}
 				/>
 			)}
+			{welcomeOpen && <WelcomeGuide onDone={() => setWelcomeOpen(false)} />}
 			
 			<RatingSheet 
 				open={ratingOpen} 
@@ -366,7 +379,9 @@ const styles = StyleSheet.create({
 	devBar: { width: "100%", paddingVertical: 5, alignItems: "center" },
 	devBarText: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#04310F" },
 	headerTop: {
-		// logo on the physical right, like the title, whether or not RTL layout is on
+		// right to left: the i, the logo, the personal area - the two icons are the
+		// same size, so space-between centres the logo; the direction keeps that order
+		// on the physical screen whether or not RTL layout is on
 		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
 		alignItems: "center",
 		justifyContent: "space-between",
