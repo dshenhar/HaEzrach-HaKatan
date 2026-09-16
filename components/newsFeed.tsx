@@ -6,6 +6,7 @@ import FeedControls, { SortKey } from "./feedControls";
 import ViewModeToggle, { ViewMode } from "./viewModeToggle";
 import ModeGuide from "./modeGuide";
 import WelcomeGuide from "./welcomeGuide";
+import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
 import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, SitePosition } from "@/state/engagement";
@@ -28,6 +29,8 @@ const CROWD_RATIO = 1200 / 604;
 const CROWD_FADE = 48;
 /** scrolled further than this, the crowd steps aside */
 const CROWD_HIDE_AFTER = 12;
+/** the tour the i runs: the anchor's welcome, then each view with its guide */
+const TOUR = ["welcome", "bloc", "citizen"] as const;
 
 
 interface NewsItem {
@@ -72,8 +75,8 @@ export default function NewsFeed() {
 	// The crowd sits on the tab bar only while the feed is at its very top: the
 	// first scroll sends it down behind the bar, and it comes back only once the
 	// list is all the way up again (the gap between the two thresholds keeps it
-	// from flickering around the top). It also steps aside while a mode guide is
-	// out, so the two pictures never share the screen.
+	// from flickering around the top). It also steps aside while the tour is
+	// running, so the pictures never share the screen.
 	const crowdIn = useRef(new Animated.Value(1)).current;
 	const crowdShown = useRef(true);
 	const atTop = useRef(true);
@@ -95,27 +98,45 @@ export default function NewsFeed() {
 		syncCrowd();
 	};
 
-	// tapping a mode sends out its guide with the explanation; another tap
-	// replaces whichever guide is on screen
-	const [guide, setGuide] = useState<{ mode: ViewMode; id: number } | null>(null);
-	const guideSeq = useRef(0);
-	const onModePress = (next: ViewMode) => {
-		setViewMode(next);
-		guideSeq.current += 1;
-		setGuide({ mode: next, id: guideSeq.current });
+	// The i runs the tour over a blurred feed, one step per touch: the welcome, the
+	// bloc view with the man, the citizen view with the woman. The toggle switches
+	// behind the blur to match each guide, and the last touch hands the feed back the
+	// way the reader had it. Tapping the toggle on its own just switches the view.
+	const [tourStep, setTourStep] = useState<number | null>(null);
+	const tourBlur = useRef(new Animated.Value(0)).current;
+	const modeBeforeTour = useRef<ViewMode>("bloc");
+	const startTour = () => {
+		modeBeforeTour.current = viewMode;
+		setTourStep(0);
+		Animated.timing(tourBlur, {
+			toValue: 1,
+			duration: 300,
+			easing: Easing.out(Easing.cubic),
+			useNativeDriver: true,
+		}).start();
 	};
-
-	// the i in the header brings the anchor's television down with the welcome; it
-	// clears any mode guide first, so only one picture is ever out
-	const [welcomeOpen, setWelcomeOpen] = useState(false);
-	const openWelcome = () => {
-		setGuide(null);
-		setWelcomeOpen(true);
+	// called once a step's picture has finished leaving
+	const advanceTour = (from: number) => {
+		const next = from + 1;
+		if (next < TOUR.length) {
+			const step = TOUR[next];
+			if (step !== "welcome") setViewMode(step);
+			setTourStep(next);
+			return;
+		}
+		setViewMode(modeBeforeTour.current);
+		Animated.timing(tourBlur, {
+			toValue: 0,
+			duration: 260,
+			easing: Easing.in(Easing.cubic),
+			useNativeDriver: true,
+		}).start(() => setTourStep(null));
 	};
 	useEffect(() => {
-		guideOut.current = guide !== null || welcomeOpen;
+		guideOut.current = tourStep !== null;
 		syncCrowd();
-	}, [guide, welcomeOpen]);
+	}, [tourStep]);
+	const tourStepName = tourStep !== null ? TOUR[tourStep] : null;
 
 	const reload = useCallback(() => {
 		fetchArticles(setArticles);
@@ -269,7 +290,7 @@ export default function NewsFeed() {
 			)}
 			<View style={styles.header}>
 				<View style={styles.headerTop}>
-					<TouchableOpacity onPress={openWelcome} hitSlop={10} accessibilityLabel="על האפליקציה">
+					<TouchableOpacity onPress={startTour} hitSlop={10} accessibilityLabel="על האפליקציה">
 						<Ionicons name="information-circle-outline" size={30} color={t.text} />
 					</TouchableOpacity>
 					<Image
@@ -288,7 +309,7 @@ export default function NewsFeed() {
 				<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
 			</View>
 
-			<ViewModeToggle mode={viewMode} onChange={onModePress} />
+			<ViewModeToggle mode={viewMode} onChange={setViewMode} />
 
 			<FeedControls
 				topics={[...topics].filter((c) => c !== "הכל")}
@@ -337,15 +358,18 @@ export default function NewsFeed() {
 			</Animated.View>
 			</View>
 
-			{/* over the whole screen, so a touch anywhere - header and toggle included - closes it */}
-			{guide && (
-				<ModeGuide
-					key={guide.id}
-					mode={guide.mode}
-					onDone={() => setGuide((g) => (g?.id === guide.id ? null : g))}
-				/>
+			{/* over the whole screen, header and toggle included; the blur stays put while
+			    the pictures change, and each picture moves the tour on when touched */}
+			{tourStep !== null && (
+				<View style={styles.tour}>
+					<GuideBackdrop opacity={tourBlur} />
+					{tourStepName === "welcome" ? (
+						<WelcomeGuide key="welcome" onDone={() => advanceTour(tourStep)} />
+					) : tourStepName !== null ? (
+						<ModeGuide key={tourStepName} mode={tourStepName} onDone={() => advanceTour(tourStep)} />
+					) : null}
+				</View>
 			)}
-			{welcomeOpen && <WelcomeGuide onDone={() => setWelcomeOpen(false)} />}
 			
 			<RatingSheet 
 				open={ratingOpen} 
@@ -427,4 +451,5 @@ const styles = StyleSheet.create({
 		// scrolling keeps working through the crowd
 		pointerEvents: "none",
 	},
+	tour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 });

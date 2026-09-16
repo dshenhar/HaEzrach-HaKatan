@@ -2,7 +2,6 @@ import { useTheme } from '@/state/theme';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import GuideBackdrop from './guideBackdrop';
 
 const TV = require('../assets/images/welcome-tv.png');
 const TV_RATIO = 1000 / 721;
@@ -83,8 +82,7 @@ export default function WelcomeGuide({ onDone }: Props) {
     const tailLeft = area.w / 2 - MARGIN - TAIL / 2;
 
     const fadeOut = leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
-    // the set and the blur behind it fade in and out together
-    const backdrop = Animated.multiply(
+    const shown = Animated.multiply(
         enter.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
         fadeOut,
     );
@@ -100,7 +98,6 @@ export default function WelcomeGuide({ onDone }: Props) {
             accessibilityRole="button"
             accessibilityLabel="סגירת ההסבר"
         >
-            <GuideBackdrop opacity={backdrop} />
             <Animated.View
                 style={{
                     position: 'absolute',
@@ -108,7 +105,7 @@ export default function WelcomeGuide({ onDone }: Props) {
                     left: (area.w - tvW) / 2,
                     width: tvW,
                     height: tvH,
-                    opacity: backdrop,
+                    opacity: shown,
                     transform: [{
                         // drops from above the top edge of the screen
                         translateY: Animated.add(

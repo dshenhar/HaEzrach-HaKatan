@@ -2,7 +2,6 @@ import { useTheme } from '@/state/theme';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { EXPLAIN, ViewMode } from './viewModeToggle';
-import GuideBackdrop from './guideBackdrop';
 
 // Each guide leans in from its own side of the feed: the man from the right for the
 // bloc view, the woman from the left for the citizen view. The pictures are cut flat
@@ -98,11 +97,6 @@ export default function ModeGuide({ mode, onDone }: Props) {
 
     const offscreen = guide.side === 'right' ? imgW : -imgW;
     const fadeOut = leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
-    // the blur behind comes in with the picture and leaves with it
-    const backdrop = Animated.multiply(
-        enter.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
-        fadeOut,
-    );
 
     return (
         // the guide stays until the reader is done with it: any touch on the screen sends it away
@@ -116,7 +110,6 @@ export default function ModeGuide({ mode, onDone }: Props) {
             accessibilityRole="button"
             accessibilityLabel="סגירת ההסבר"
         >
-            <GuideBackdrop opacity={backdrop} />
             <Animated.View
                 style={{
                     position: 'absolute',
