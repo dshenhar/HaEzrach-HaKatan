@@ -323,7 +323,9 @@ export default function NewsFeed() {
 					}}
 				/>
 			</Animated.View>
+			</View>
 
+			{/* over the whole screen, so a touch anywhere - header and toggle included - closes it */}
 			{guide && (
 				<ModeGuide
 					key={guide.id}
@@ -331,7 +333,6 @@ export default function NewsFeed() {
 					onDone={() => setGuide((g) => (g?.id === guide.id ? null : g))}
 				/>
 			)}
-			</View>
 			
 			<RatingSheet 
 				open={ratingOpen} 

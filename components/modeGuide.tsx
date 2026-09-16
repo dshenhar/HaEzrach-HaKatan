@@ -19,8 +19,6 @@ const GUIDES = {
     },
 } as const;
 
-/** how long a guide stays out before it leaves on its own */
-const SHOW_MS = 5000;
 /** the picture sits this far past the screen edge, so the pop's overshoot never shows its cut */
 const TUCK = 28;
 const MARGIN = 14;
@@ -68,8 +66,6 @@ export default function ModeGuide({ mode, onDone }: Props) {
                 useNativeDriver: true,
             }),
         ]).start();
-        const timer = setTimeout(dismiss, SHOW_MS);
-        return () => clearTimeout(timer);
     }, [measured]);
 
     const onLayout = (e: LayoutChangeEvent) => {
@@ -103,7 +99,17 @@ export default function ModeGuide({ mode, onDone }: Props) {
     const fadeOut = leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
 
     return (
-        <View style={styles.overlay} onLayout={onLayout}>
+        // the guide stays until the reader is done with it: any touch on the screen sends it away
+        <Pressable
+            style={styles.overlay}
+            onLayout={onLayout}
+            // react-native-web holds onPressIn back a moment and, for a quick tap, only
+            // fires it when onPress is set too
+            onPressIn={dismiss}
+            onPress={dismiss}
+            accessibilityRole="button"
+            accessibilityLabel="סגירת ההסבר"
+        >
             <Animated.View
                 style={{
                     position: 'absolute',
@@ -120,9 +126,7 @@ export default function ModeGuide({ mode, onDone }: Props) {
                     }],
                 }}
             >
-                <Pressable onPress={dismiss} style={styles.fill}>
-                    <Image source={guide.image} style={styles.fill} resizeMode="contain" />
-                </Pressable>
+                <Image source={guide.image} style={styles.fill} resizeMode="contain" />
             </Animated.View>
 
             <Animated.View
@@ -141,21 +145,20 @@ export default function ModeGuide({ mode, onDone }: Props) {
                     ],
                 }}
             >
-                <Pressable onPress={dismiss} style={[styles.bubble, { backgroundColor: t.surface, borderColor: t.line }]}>
+                <View style={[styles.bubble, { backgroundColor: t.surface, borderColor: t.line }]}>
                     <Text style={[styles.title, { color: t.text }]}>{EXPLAIN[mode].title}</Text>
                     <Text style={[styles.body, { color: t.textMuted }]}>{EXPLAIN[mode].body}</Text>
-                </Pressable>
+                </View>
                 <View
                     style={[styles.tail, { left: tailLeft, backgroundColor: t.surface, borderColor: t.line }]}
                 />
             </Animated.View>
-        </View>
+        </Pressable>
     );
 }
 
 const styles = StyleSheet.create({
-    // only the picture and the bubble take touches; the feed keeps scrolling around them
-    overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'box-none' },
+    overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
     fill: { width: '100%', height: '100%' },
     bubble: {
         borderRadius: 16,
