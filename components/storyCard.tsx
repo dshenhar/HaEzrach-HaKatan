@@ -9,14 +9,13 @@ import BlocView from './blocView';
 import CitizenCarousel from './citizenCarousel';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
-// On the phone a story's change of size glides instead of jumping, the stories
-// below it glide with it, and its expanded part fades in and out. Reanimated's
-// layout animations run natively on the new architecture, where LayoutAnimation
-// did nothing; the web build keeps the plain open and close.
-const NATIVE = Platform.OS !== "web";
-const GLIDE = NATIVE ? LinearTransition.duration(240) : undefined;
-const FADE_IN = NATIVE ? FadeIn.duration(220) : undefined;
-const FADE_OUT = NATIVE ? FadeOut.duration(140) : undefined;
+// A story's change of size glides instead of jumping, the stories below it glide
+// with it, and its expanded part fades in and out. Reanimated's layout animations
+// run natively on the phone's new architecture, where LayoutAnimation did nothing,
+// and through the Web Animations API in the browser.
+const GLIDE = LinearTransition.duration(240);
+const FADE_IN = FadeIn.duration(220);
+const FADE_OUT = FadeOut.duration(140);
 
 type Props = {
     data: NewsItem[];
