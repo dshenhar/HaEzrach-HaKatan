@@ -41,7 +41,11 @@ def _fetch(session, cutoff):
         session.query(Article, Site.name, Site.bias_score, Site.language)
         .join(Cluster, Article.cluster_id == Cluster.id).join(Site, Article.site_id == Site.id)
         .filter(Cluster.created_at >= cutoff, Cluster.article_count >= 2)
-        .order_by(Cluster.created_at.desc(), Article.created_at)
+        # the loop below groups consecutive rows by cluster, so each cluster's rows
+        # must stay together: clusters created in the same instant tie on
+        # created_at, and without the id their articles interleaved and one story
+        # came out as several
+        .order_by(Cluster.created_at.desc(), Cluster.id.desc(), Article.created_at)
         .all()
     )
 
