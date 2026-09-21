@@ -1,6 +1,16 @@
-import { NewsItem, SitePosition } from '@/state/engagement';
-import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getBlocSummary, NewsItem, SitePosition } from '@/state/engagement';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+const GOLD = "#DDA01E";
+// The rail reads right to left: its first card - the most right-leaning outlet -
+// sits at the right edge and the rest follow leftwards. The phone runs the app in
+// RTL layout and the web build does not, so each needs its own flex direction.
+const RTL_ROW = I18nManager.isRTL ? "row" : "row-reverse";
+// a stripe on the physical right; RTL layout on the phone swaps left and right styles
+const STRIPE = I18nManager.isRTL
+    ? { borderLeftWidth: 3, borderLeftColor: GOLD }
+    : { borderRightWidth: 3, borderRightColor: GOLD };
 
 type Props = {
     data: NewsItem[];
@@ -16,6 +26,27 @@ type Props = {
 const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
     const [openId, setOpenId] = useState<string | null>(null);
 
+    // In RTL layout a horizontal list already starts from the right. Without it the
+    // list opens scrolled to its left end, so it is moved to the right end once -
+    // only once, so opening a card later does not throw the reader back.
+    const rail = useRef<ScrollView>(null);
+    const started = useRef(false);
+    const startAtRight = () => {
+        if (started.current || I18nManager.isRTL) return;
+        started.current = true;
+        rail.current?.scrollToEnd({ animated: false });
+    };
+
+    // one summary of the whole story across every outlet, since this view has no blocs
+    const clusterId = data[0]?.groupId;
+    const [summary, setSummary] = useState<string | null>(null);
+    useEffect(() => {
+        if (clusterId === undefined) return;
+        let live = true;
+        getBlocSummary(clusterId, "all").then((text) => live && setSummary(text));
+        return () => { live = false; };
+    }, [clusterId]);
+
     // No labels here, but the order is not arbitrary: the rail runs along the
     // spectrum, so a right-leaning outlet sits on the right where the reader
     // expects it. Reading left to right is then a walk across the map.
@@ -26,7 +57,15 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
 
     return (
         <View style={styles.wrap}>
+            {!!summary && (
+                <View style={[styles.ai, STRIPE]}>
+                    <Text style={styles.aiLabel}>סיכום AI</Text>
+                    <Text style={styles.aiText}>{summary}</Text>
+                </View>
+            )}
             <ScrollView
+                ref={rail}
+                onContentSizeChange={startAtRight}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 decelerationRate="normal"
@@ -58,7 +97,7 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
                     );
                 })}
             </ScrollView>
-            <Text style={styles.note}>גלילה אופקית · ללא שיוך לגוש</Text>
+            <Text style={styles.note}>גלילה אופקית לצפייה בעוד כותרות</Text>
         </View>
     );
 };
@@ -67,8 +106,21 @@ export default CitizenCarousel;
 
 const styles = StyleSheet.create({
     wrap: { gap: 6 },
-    // row-reverse puts the first card - the most right-leaning - at the right edge
-    rail: { flexDirection: "row-reverse", gap: 9, paddingHorizontal: 2 },
+    // the bloc view's summary box, its stripe in the selection gold instead of a
+    // bloc's colour; the soft shadow keeps a white box visible on the white card
+    ai: {
+        backgroundColor: "#fff", borderRadius: 7, padding: 8, gap: 3, marginBottom: 2,
+        boxShadow: "0 1px 5px rgba(0,0,0,0.10)",
+    },
+    aiLabel: {
+        fontFamily: "Heebo_800ExtraBold", fontSize: 9.5, color: "#6B7280",
+        letterSpacing: 0.4, textAlign: "right",
+    },
+    aiText: {
+        fontFamily: "Heebo_400Regular", fontSize: 12, lineHeight: 17,
+        color: "#111827", textAlign: "right",
+    },
+    rail: { flexDirection: RTL_ROW, gap: 9, paddingHorizontal: 2 },
     slide: {
         width: 232, backgroundColor: "#F4F4F3", borderRadius: 12, padding: 11, gap: 5,
         borderWidth: 1.5, borderColor: "transparent",

@@ -198,7 +198,8 @@ export async function getSitePositions(): Promise<Record<string, SitePosition>> 
 	}
 }
 
-export async function getBlocSummary(clusterId: string | number, bloc: "right" | "left"): Promise<string | null> {
+/** "all" is the whole story as every outlet told it - the citizen view's summary */
+export async function getBlocSummary(clusterId: string | number, bloc: "right" | "left" | "all"): Promise<string | null> {
 	try {
 		const res = await fetch(`${URL_BASE}/clusters/${clusterId}/summary/${bloc}`);
 		const data: { summary: string | null } = await res.json();
