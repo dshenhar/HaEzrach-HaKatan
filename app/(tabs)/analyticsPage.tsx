@@ -4,7 +4,7 @@ import { buildInsights, Insights } from "@/state/insights";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, I18nManager, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 /** "BeHadrei Haredim" does not fit in a 44px circle */
@@ -16,6 +16,10 @@ function shortLabel(name: string) {
 const RIGHT = "#C0392F";
 const LEFT = "#2B5EA7";
 const BRAND = "#22C55E";
+// Every row on this page reads right to left. The phone runs the app in RTL layout
+// and the web build does not, so the same row needs "row" on one and "row-reverse"
+// on the other to put its first item on the right.
+const RTL_ROW = I18nManager.isRTL ? "row" : "row-reverse";
 
 export default function AnalyticsPage() {
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);
@@ -65,7 +69,7 @@ export default function AnalyticsPage() {
 					showsVerticalScrollIndicator={false}
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
 				>
-					<Text style={styles.title}>נתונים וניתוחים</Text>
+					<Text style={styles.title}>מה קורא פה</Text>
 					<Text style={styles.subtitle}>ניתוח נתוני הצפיות שלך</Text>
 
 					{insights.totalRead === 0 ? (
@@ -104,10 +108,11 @@ export default function AnalyticsPage() {
 									// area, not diameter, carries the share - a bubble sized by
 									// diameter exaggerates the bigger side
 									const size = (n: number) => 42 + Math.sqrt(n / total) * 78;
+									// right bloc first, so it lands on the right like its label
 									const bubbles = [
 										{ n: insights.byBloc.right, colour: RIGHT, key: "r" },
 										{ n: insights.byBloc.left, colour: LEFT, key: "l" },
-									].filter((b) => b.n > 0).sort((a, b) => b.n - a.n);
+									].filter((b) => b.n > 0);
 									return (
 										<View style={styles.bubbles}>
 											{bubbles.map((b) => (
@@ -242,39 +247,38 @@ const styles = StyleSheet.create({
 	container: { flex: 1, backgroundColor: "#f8f8f8ff" },
 	scroll: { padding: 16, gap: 12, paddingBottom: 40 },
 	title: { fontFamily: "Heebo_800ExtraBold", fontSize: 26, color: "#111827", textAlign: "right" },
-	subtitle: { fontFamily: "Heebo_400Regular", fontSize: 13, color: "#6B7280", textAlign: "right", marginBottom: 4 },
+	subtitle: { fontFamily: "Heebo_400Regular", fontSize: 14, color: "#6B7280", textAlign: "right", marginBottom: 4 },
 	sectionTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right", marginTop: 8 },
 
 	card: { backgroundColor: "#fff", borderRadius: 12, padding: 14, gap: 9 },
 	cardTitle: { fontFamily: "Heebo_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
-	bigRow: { flexDirection: "row-reverse", alignItems: "baseline", gap: 10 },
+	bigRow: { flexDirection: RTL_ROW, alignItems: "baseline", gap: 10 },
 	big: { fontFamily: "Heebo_800ExtraBold", fontSize: 34, color: "#111827" },
 	note: { fontFamily: "Heebo_400Regular", fontSize: 12, lineHeight: 18, color: "#6B7280", textAlign: "right", flex: 1 },
 	footnote: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
 
-	track: { height: 10, borderRadius: 999, backgroundColor: "#EEEDEA", overflow: "hidden", direction: "ltr" },
+	// the bars fill from the right
+	track: { flexDirection: RTL_ROW, height: 10, borderRadius: 999, backgroundColor: "#EEEDEA", overflow: "hidden" },
 	fill: { height: 10, borderRadius: 999 },
 
-	stack: { flexDirection: "row", height: 26, borderRadius: 8, overflow: "hidden", gap: 2, direction: "ltr" },
-	stackPart: { justifyContent: "center", alignItems: "center" },
-	stackText: { fontFamily: "Heebo_800ExtraBold", fontSize: 11, color: "#fff" },
-	legend: { flexDirection: "row", gap: 14, justifyContent: "flex-end" },
+	// centred like the circles below, so each label sits over its own circle
+	legend: { flexDirection: RTL_ROW, justifyContent: "center", gap: 44 },
 	legendItem: { fontFamily: "Heebo_700Bold", fontSize: 11 },
 
-	cardHead: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+	cardHead: { flexDirection: RTL_ROW, alignItems: "center", justifyContent: "space-between" },
 	row: {
 		// without the gap the score sat flush against the end of the topic name
-		flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 14,
+		flexDirection: RTL_ROW, justifyContent: "space-between", alignItems: "center", gap: 14,
 		borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEEDEA", paddingVertical: 6,
 	},
 	rowLabel: { fontFamily: "Heebo_400Regular", fontSize: 13, color: "#111827", textAlign: "right", flex: 1 },
 	rowValue: { fontFamily: "Heebo_800ExtraBold", fontSize: 12 },
 
-	bubbles: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 6 },
+	bubbles: { flexDirection: RTL_ROW, alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 6 },
 	bubble: { alignItems: "center", justifyContent: "center" },
 	bubbleText: { fontFamily: "Heebo_800ExtraBold", fontSize: 13, color: "#fff" },
 
-	avatars: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
+	avatars: { flexDirection: RTL_ROW, flexWrap: "wrap", gap: 8 },
 	avatar: {
 		width: 46, height: 46, borderRadius: 23, backgroundColor: "#3A3A38",
 		alignItems: "center", justifyContent: "center", padding: 3,
@@ -285,10 +289,10 @@ const styles = StyleSheet.create({
 	missed: {
 		backgroundColor: "#F4F4F3", borderRadius: 10, padding: 10, gap: 6, marginTop: 2,
 	},
-	missedHead: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+	missedHead: { flexDirection: RTL_ROW, alignItems: "center", gap: 8 },
 	missedTitle: { fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 18, color: "#111827", textAlign: "right" },
 
-	chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+	chips: { flexDirection: RTL_ROW, flexWrap: "wrap", gap: 6 },
 	chip: { borderWidth: 1, borderColor: "#E3E3E1", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
 	chipText: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#111827" },
 });

@@ -1,13 +1,43 @@
 import { CompanyItem } from '@/state/engagement';
 import React, { useMemo, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutChangeEvent, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { OUTLINE } from './viewModeToggle';
 
 const RIGHT = "#C0392F";
 const LEFT = "#2B5EA7";
 // a third accent that reads as "chosen" without competing with the two bloc inks
 const SELECT = "#DDA01E";
-const SELECT_SOFT = "#FBF1DA";
+const AXIS = "#D9D6CF";
+const POLE = "#A29E96";
 const BREAKING_POINT = 0;
+
+/** room to the right of the plot for the x axis's name */
+const X_TITLE_W = 62;
+/** the x axis's name may reach this far into the page's side margin, which buys the plot width */
+const OVERHANG = 10;
+const GAP = 4;
+/** room above the plot for the y axis's name */
+const Y_TITLE_H = 20;
+const DOT = 22;
+const BADGE = 80;
+
+// The plot is laid out with physical left/right. On a phone the app runs in RTL
+// layout, which would mirror every left/right here, so the chart is pinned to LTR.
+// The web build is LTR already and rejects the style.
+const LTR = Platform.OS === "web" ? null : { direction: "ltr" as const };
+
+/**
+ * What goes inside an outlet's marker: the first letter, or one letter from each of
+ * the first two words (כיכר השבת -> כה). For a numbered channel the number is what
+ * tells it apart, so ערוץ 14 is 14 rather than ע1, which ערוץ 13 would share.
+ */
+export function initials(name: string): string {
+    const words = name.replace(/[!?.״"']/g, "").split(/\s+/).filter(Boolean);
+    const number = name.match(/\d+/)?.[0];
+    if (number && words.length > 1) return number;
+    if (words.length > 1) return words[0][0] + words[1][0];
+    return words[0]?.[0] ?? "?";
+}
 
 type Props = {
     poles: import("@/state/engagement").TopicPoles;
@@ -25,14 +55,12 @@ type Props = {
  * apart: the haredi papers land bottom-right on economy-vs-religion, which no
  * single axis can show.
  */
-const LABEL_W = 54;
-const LABEL_H = 13;
-
 const TopicQuadrant = ({ poles, topicX, dataX, topicY, dataY, setDetailSource, selected }: Props) => {
     const px = poles[topicX] ?? { right: "בעד", left: "נגד" };
     const py = poles[topicY] ?? { right: "בעד", left: "נגד" };
-    const [size, setSize] = useState(0);
-    const onLayout = (e: LayoutChangeEvent) => setSize(e.nativeEvent.layout.width);
+    const [width, setWidth] = useState(0);
+    const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
+    const plot = width ? width + OVERHANG - X_TITLE_W - GAP : 0;
 
     const points = useMemo(() => {
         const byY = new Map(dataY.map((d) => [d.source, d.bias]));
@@ -52,74 +80,88 @@ const TopicQuadrant = ({ poles, topicX, dataX, topicY, dataY, setDetailSource, s
         return mean >= BREAKING_POINT ? RIGHT : LEFT;
     };
 
-    // Markers land wherever the data puts them, and labels collide. Walk them in
-    // order and nudge each one down until it clears the labels already placed -
-    // a dot with an unreadable name is worse than no name at all.
+    // Outlets with near-identical scores would stack their markers and hide each
+    // other's letters. Each one that lands on a marker already placed steps aside
+    // along a widening ring until it clears - a few pixels, small next to the scale.
     const laidOut = useMemo(() => {
-        if (!size) return [];
+        if (!plot) return [];
         const placed: { x: number; y: number }[] = [];
-        return points
-            .map((p) => ({ ...p, px: norm(p.x) * size, py: (1 - norm(p.y)) * size }))
-            .sort((a, b) => a.py - b.py)
-            .map((p) => {
-                let labelY = p.py;
-                let guard = 0;
-                while (
-                    guard++ < 40 &&
-                    placed.some((q) => Math.abs(q.x - p.px) < LABEL_W && Math.abs(q.y - labelY) < LABEL_H)
-                ) {
-                    labelY += LABEL_H;
+        const clear = (x: number, y: number) => placed.every((q) => Math.hypot(q.x - x, q.y - y) >= DOT - 2);
+        const place = (x0: number, y0: number) => {
+            if (clear(x0, y0)) return { x: x0, y: y0 };
+            for (let r = 6; r <= 24; r += 6) {
+                for (let k = 0; k < 8; k++) {
+                    const a = (k / 8) * Math.PI * 2;
+                    const x = x0 + r * Math.cos(a);
+                    const y = y0 + r * Math.sin(a);
+                    if (clear(x, y)) return { x, y };
                 }
-                placed.push({ x: p.px, y: labelY });
-                return { ...p, labelY };
-            });
-    }, [points, size]);
+            }
+            return { x: x0, y: y0 };
+        };
+        return points.map((p) => {
+            const at = place(norm(p.x) * plot, (1 - norm(p.y)) * plot);
+            placed.push(at);
+            return { ...p, cx: at.x, cy: at.y };
+        });
+    }, [points, plot]);
+
+    // the chosen marker is drawn last, so its ring is never under a neighbour
+    const drawOrder = [...laidOut].sort((a, b) => Number(a.source === selected) - Number(b.source === selected));
 
     return (
         <View style={styles.wrap}>
-            <View style={styles.head}>
-                <Text style={styles.title}>{topicX}  ×  {topicY}</Text>
-            </View>
+            <Text style={styles.title}>{topicX}  ×  {topicY}</Text>
 
-            <View style={styles.plotRow}>
-                <Text style={styles.yLabel} numberOfLines={2}>{topicY}</Text>
+            <View style={[styles.chart, LTR, { height: Y_TITLE_H + plot }]} onLayout={onLayout}>
+                {plot > 0 && (
+                    <>
+                        {/* the y axis's name sits on top of its line, the x axis's at the end of its */}
+                        <Text style={[styles.yTitle, { width: plot }]} numberOfLines={1}>{topicY}</Text>
+                        <View style={[styles.xTitleBox, { left: plot + GAP, top: Y_TITLE_H + plot / 2 - 20 }]}>
+                            <Text style={styles.xTitle} numberOfLines={2}>{topicX}</Text>
+                        </View>
 
-                <View style={styles.plot} onLayout={onLayout}>
-                    <View style={styles.hLine} />
-                    <View style={styles.vLine} />
-                    <Text style={[styles.tick, styles.tickTop]} numberOfLines={1}>{py.right}</Text>
-                    <Text style={[styles.tick, styles.tickBottom]} numberOfLines={1}>{py.left}</Text>
+                        <View style={[styles.plot, { top: Y_TITLE_H, width: plot, height: plot }]}>
+                            <View style={styles.hLine} />
+                            <View style={styles.vLine} />
+                            <Text style={[styles.pole, { top: 3, left: plot / 2 + 5 }]} numberOfLines={1}>{py.right}</Text>
+                            <Text style={[styles.pole, { bottom: 3, left: plot / 2 + 5 }]} numberOfLines={1}>{py.left}</Text>
+                            <Text style={[styles.pole, { top: plot / 2 + 3, right: 6, textAlign: "right" }]} numberOfLines={1}>{px.right}</Text>
+                            <Text style={[styles.pole, { top: plot / 2 + 3, left: 6 }]} numberOfLines={1}>{px.left}</Text>
 
-                    {laidOut.map((p) => {
-                        const on = p.source === selected;
-                        return (
-                            <React.Fragment key={p.source}>
-                                <View pointerEvents="none" style={[styles.dotWrap, {
-                                    left: p.px - 6, top: p.py - 6,
-                                }]}>
-                                    <View style={[styles.dot, { backgroundColor: colourOf(p.x, p.y) },
-                                        on && styles.dotOn]} />
+                            {selected && (
+                                <View style={styles.badge}>
+                                    <Text style={[styles.badgeText, OUTLINE]} numberOfLines={2}>{selected}</Text>
                                 </View>
-                                <TouchableOpacity
-                                    style={[styles.labelWrap, { left: p.px - LABEL_W / 2, top: p.labelY + 5 },
-                                        on && styles.labelWrapOn]}
-                                    onPress={() => setDetailSource(p.source)}
-                                >
-                                    <Text style={[styles.label, { color: colourOf(p.x, p.y) },
-                                        on && styles.labelOn]} numberOfLines={1}>
-                                        {p.source}
-                                    </Text>
-                                </TouchableOpacity>
-                            </React.Fragment>
-                        );
-                    })}
-                </View>
-            </View>
+                            )}
 
-            <View style={styles.xAxis}>
-                <Text style={[styles.end, { color: LEFT }]} numberOfLines={1}>{px.left}</Text>
-                <Text style={styles.xLabel} numberOfLines={1}>{topicX}</Text>
-                <Text style={[styles.end, { color: RIGHT }]} numberOfLines={1}>{px.right}</Text>
+                            {drawOrder.map((p) => {
+                                const on = p.source === selected;
+                                const size = on ? DOT + 6 : DOT;
+                                const tag = initials(p.source);
+                                return (
+                                    <TouchableOpacity
+                                        key={p.source}
+                                        onPress={() => setDetailSource(p.source)}
+                                        hitSlop={4}
+                                        accessibilityLabel={p.source}
+                                        style={[styles.dot, {
+                                            left: p.cx - size / 2,
+                                            top: p.cy - size / 2,
+                                            width: size,
+                                            height: size,
+                                            borderRadius: size / 2,
+                                            backgroundColor: colourOf(p.x, p.y),
+                                        }, on && styles.dotOn]}
+                                    >
+                                        <Text style={[styles.dotText, { fontSize: tag.length > 1 ? 9.5 : 11 }]}>{tag}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </>
+                )}
             </View>
         </View>
     );
@@ -128,35 +170,31 @@ const TopicQuadrant = ({ poles, topicX, dataX, topicY, dataY, setDetailSource, s
 export default TopicQuadrant;
 
 const styles = StyleSheet.create({
-    wrap: { width: "100%", paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 6 },
-    head: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
-    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 15, color: "#111827", flex: 1, textAlign: "right" },
-    count: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#6B7280" },
+    wrap: { width: "100%", paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 8 },
+    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 15, color: "#111827", textAlign: "right" },
 
-    plotRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
-    yLabel: {
-        fontFamily: "Heebo_700Bold", fontSize: 10, color: "#6B7280",
-        width: 58, textAlign: "center",
+    chart: { width: "100%" },
+    yTitle: {
+        position: "absolute", top: 0, left: 0, height: Y_TITLE_H,
+        fontFamily: "Heebo_700Bold", fontSize: 11, color: "#6B7280", textAlign: "center",
     },
-    plot: { flex: 1, aspectRatio: 1, backgroundColor: "#FAFAF9", borderRadius: 10 },
-    hLine: { position: "absolute", top: "50%", left: 8, right: 8, height: 1, backgroundColor: "#D9D6CF" },
-    vLine: { position: "absolute", left: "50%", top: 8, bottom: 8, width: 1, backgroundColor: "#D9D6CF" },
-    tick: { position: "absolute", fontFamily: "Heebo_500Medium", fontSize: 9, color: "#B6B2AA", left: "50%", marginLeft: 4, maxWidth: 110 },
-    tickTop: { top: 4 },
-    tickBottom: { bottom: 4 },
+    xTitleBox: { position: "absolute", width: X_TITLE_W, height: 40, justifyContent: "center" },
+    xTitle: { fontFamily: "Heebo_700Bold", fontSize: 11, lineHeight: 15, color: "#6B7280", textAlign: "center" },
 
-    dotWrap: { position: "absolute", width: 12, height: 12, alignItems: "center", justifyContent: "center" },
-    dot: { width: 9, height: 9, borderRadius: 5 },
-    dotOn: { width: 13, height: 13, borderRadius: 7, borderWidth: 3, borderColor: SELECT },
-    labelWrap: { position: "absolute", width: LABEL_W, alignItems: "center" },
-    labelWrapOn: {
-        backgroundColor: SELECT_SOFT, borderRadius: 4,
-        borderWidth: 1, borderColor: SELECT, paddingVertical: 1,
+    plot: { position: "absolute", left: 0, backgroundColor: "#FAFAF9", borderRadius: 10 },
+    // both lines run edge to edge, so each carries on straight into its axis's name
+    hLine: { position: "absolute", top: "50%", left: 0, right: 0, height: 1, backgroundColor: AXIS },
+    vLine: { position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, backgroundColor: AXIS },
+    pole: { position: "absolute", fontFamily: "Heebo_500Medium", fontSize: 9.5, color: POLE, maxWidth: 120 },
+
+    badge: {
+        position: "absolute", left: 8, top: 8, width: BADGE, height: BADGE, borderRadius: BADGE / 2,
+        backgroundColor: SELECT, alignItems: "center", justifyContent: "center", padding: 5,
     },
-    label: { fontFamily: "Heebo_700Bold", fontSize: 8.5, textAlign: "center" },
-    labelOn: { fontFamily: "Heebo_800ExtraBold", fontSize: 9.5 },
+    // the same size as the outlet's name heading its detail below the chart
+    badgeText: { fontFamily: "Heebo_800ExtraBold", fontSize: 17, lineHeight: 20, color: "#FFFFFF", textAlign: "center" },
 
-    xAxis: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", direction: "ltr", paddingLeft: 64 },
-    xLabel: { fontFamily: "Heebo_700Bold", fontSize: 10, color: "#6B7280", flex: 1, textAlign: "center" },
-    end: { fontFamily: "Heebo_800ExtraBold", fontSize: 10.5, maxWidth: 110 },
+    dot: { position: "absolute", alignItems: "center", justifyContent: "center" },
+    dotOn: { borderWidth: 3, borderColor: SELECT },
+    dotText: { fontFamily: "Heebo_800ExtraBold", color: "#FFFFFF", textAlign: "center" },
 });

@@ -25,7 +25,7 @@ const GAP = 6;
 // paintOrder puts the stroke BEHIND the glyph - without it the stroke paints over
 // the fill and eats into the letterforms, which reads as a blurry bold.
 // Native has no text stroke, so it gets a tight dark halo instead.
-const OUTLINE: any = Platform.select({
+export const OUTLINE: any = Platform.select({
     web: { WebkitTextStroke: "0.6px rgba(0,0,0,0.55)", paintOrder: "stroke fill" },
     default: {
         textShadowColor: "rgba(0,0,0,0.55)",
