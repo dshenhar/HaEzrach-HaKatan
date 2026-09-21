@@ -1,6 +1,7 @@
 import { CompanyItem } from '@/state/engagement';
 import React, { useMemo, useState } from 'react';
-import { LayoutChangeEvent, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutChangeEvent, Platform, StyleSheet, Text, View } from 'react-native';
+import OutletDot, { DOT } from './outletDot';
 import { OUTLINE } from './viewModeToggle';
 
 const RIGHT = "#C0392F";
@@ -18,26 +19,12 @@ const OVERHANG = 10;
 const GAP = 4;
 /** room above the plot for the y axis's name */
 const Y_TITLE_H = 20;
-const DOT = 22;
 const BADGE = 80;
 
 // The plot is laid out with physical left/right. On a phone the app runs in RTL
 // layout, which would mirror every left/right here, so the chart is pinned to LTR.
 // The web build is LTR already and rejects the style.
 const LTR = Platform.OS === "web" ? null : { direction: "ltr" as const };
-
-/**
- * What goes inside an outlet's marker: the first letter, or one letter from each of
- * the first two words (כיכר השבת -> כה). For a numbered channel the number is what
- * tells it apart, so ערוץ 14 is 14 rather than ע1, which ערוץ 13 would share.
- */
-export function initials(name: string): string {
-    const words = name.replace(/[!?.״"']/g, "").split(/\s+/).filter(Boolean);
-    const number = name.match(/\d+/)?.[0];
-    if (number && words.length > 1) return number;
-    if (words.length > 1) return words[0][0] + words[1][0];
-    return words[0]?.[0] ?? "?";
-}
 
 type Props = {
     poles: import("@/state/engagement").TopicPoles;
@@ -136,29 +123,17 @@ const TopicQuadrant = ({ poles, topicX, dataX, topicY, dataY, setDetailSource, s
                                 </View>
                             )}
 
-                            {drawOrder.map((p) => {
-                                const on = p.source === selected;
-                                const size = on ? DOT + 6 : DOT;
-                                const tag = initials(p.source);
-                                return (
-                                    <TouchableOpacity
-                                        key={p.source}
-                                        onPress={() => setDetailSource(p.source)}
-                                        hitSlop={4}
-                                        accessibilityLabel={p.source}
-                                        style={[styles.dot, {
-                                            left: p.cx - size / 2,
-                                            top: p.cy - size / 2,
-                                            width: size,
-                                            height: size,
-                                            borderRadius: size / 2,
-                                            backgroundColor: colourOf(p.x, p.y),
-                                        }, on && styles.dotOn]}
-                                    >
-                                        <Text style={[styles.dotText, { fontSize: tag.length > 1 ? 9.5 : 11 }]}>{tag}</Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
+                            {drawOrder.map((p) => (
+                                <OutletDot
+                                    key={p.source}
+                                    source={p.source}
+                                    colour={colourOf(p.x, p.y)}
+                                    x={p.cx}
+                                    y={p.cy}
+                                    selected={p.source === selected}
+                                    onPress={() => setDetailSource(p.source)}
+                                />
+                            ))}
                         </View>
                     </>
                 )}
@@ -194,7 +169,4 @@ const styles = StyleSheet.create({
     // the same size as the outlet's name heading its detail below the chart
     badgeText: { fontFamily: "Heebo_800ExtraBold", fontSize: 17, lineHeight: 20, color: "#FFFFFF", textAlign: "center" },
 
-    dot: { position: "absolute", alignItems: "center", justifyContent: "center" },
-    dotOn: { borderWidth: 3, borderColor: SELECT },
-    dotText: { fontFamily: "Heebo_800ExtraBold", color: "#FFFFFF", textAlign: "center" },
 });
