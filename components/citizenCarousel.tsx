@@ -1,8 +1,9 @@
 import { getBlocSummary, NewsItem, SitePosition } from '@/state/engagement';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { I18nManager, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const GOLD = "#DDA01E";
+const RAIL_PAD = 2;
 // The rail reads right to left: its first card - the most right-leaning outlet -
 // sits at the right edge and the rest follow leftwards. The phone runs the app in
 // RTL layout and the web build does not, so each needs its own flex direction.
@@ -11,6 +12,17 @@ const RTL_ROW = I18nManager.isRTL ? "row" : "row-reverse";
 const STRIPE = I18nManager.isRTL
     ? { borderLeftWidth: 3, borderLeftColor: GOLD }
     : { borderRightWidth: 3, borderRightColor: GOLD };
+
+/** some feeds send their standfirst as HTML - show it as plain text */
+const plain = (text: string) =>
+    text
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;|&apos;/g, "'")
+        .replace(/&amp;/g, "&")
+        .replace(/\s+/g, " ")
+        .trim();
 
 type Props = {
     data: NewsItem[];
@@ -37,6 +49,18 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
         rail.current?.scrollToEnd({ animated: false });
     };
 
+    // A card that opens grows, and in a list laid out from the right that growth
+    // pushed it past the right edge, cutting its text off. So the card just opened
+    // or closed is brought back flush with the right edge, and the rest move left.
+    const railWidth = useRef(0);
+    const anchor = useRef<string | null>(null);
+    const onSlideLayout = (id: string) => (e: LayoutChangeEvent) => {
+        if (I18nManager.isRTL || anchor.current !== id) return;
+        anchor.current = null;
+        const { x, width } = e.nativeEvent.layout;
+        rail.current?.scrollTo({ x: Math.max(0, x + width + RAIL_PAD - railWidth.current), animated: true });
+    };
+
     // one summary of the whole story across every outlet, since this view has no blocs
     const clusterId = data[0]?.groupId;
     const [summary, setSummary] = useState<string | null>(null);
@@ -56,7 +80,7 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
     }, [data, positions]);
 
     return (
-        <View style={styles.wrap}>
+        <View style={styles.wrap} onLayout={(e) => { railWidth.current = e.nativeEvent.layout.width; }}>
             {!!summary && (
                 <View style={[styles.ai, STRIPE]}>
                     <Text style={styles.aiLabel}>סיכום AI</Text>
@@ -74,11 +98,14 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
                 {ordered.map((item) => {
                     const open = openId === item.id;
                     return (
+                        <View key={item.id} onLayout={onSlideLayout(item.id)}>
                         <TouchableOpacity
-                            key={item.id}
                             activeOpacity={0.9}
                             style={[styles.slide, open && styles.slideOpen]}
-                            onPress={() => setOpenId(open ? null : item.id)}
+                            onPress={() => {
+                                anchor.current = item.id;
+                                setOpenId(open ? null : item.id);
+                            }}
                         >
                             <Text style={styles.outlet}>{item.source}</Text>
                             <Text style={styles.title} numberOfLines={open ? undefined : 3}>
@@ -87,13 +114,14 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
 
                             {open && (
                                 <>
-                                    {!!item.summary && <Text style={styles.summary}>{item.summary}</Text>}
+                                    {!!item.summary && <Text style={styles.summary}>{plain(item.summary)}</Text>}
                                     <TouchableOpacity onPress={() => onOpenArticle(item)}>
                                         <Text style={styles.go}>לכתבה המלאה ←</Text>
                                     </TouchableOpacity>
                                 </>
                             )}
                         </TouchableOpacity>
+                        </View>
                     );
                 })}
             </ScrollView>
@@ -120,7 +148,9 @@ const styles = StyleSheet.create({
         fontFamily: "Heebo_400Regular", fontSize: 12, lineHeight: 17,
         color: "#111827", textAlign: "right",
     },
-    rail: { flexDirection: RTL_ROW, gap: 9, paddingHorizontal: 2 },
+    // at least as wide as the box, so a story with one or two outlets still starts
+    // at the right edge instead of hugging the left
+    rail: { flexDirection: RTL_ROW, flexGrow: 1, gap: 9, paddingHorizontal: RAIL_PAD },
     slide: {
         width: 232, backgroundColor: "#F4F4F3", borderRadius: 12, padding: 11, gap: 5,
         borderWidth: 1.5, borderColor: "transparent",
