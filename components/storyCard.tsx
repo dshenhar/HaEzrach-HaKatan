@@ -1,5 +1,5 @@
 import { NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
-import React, { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
+import React, { Dispatch, SetStateAction, useMemo, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDevMode, useTheme } from '@/state/theme';
 import TopicPicker from './topicPicker';
@@ -18,8 +18,9 @@ type Props = {
     /** dev mode: this story is waiting to be merged into another */
     mergeArmed?: boolean;
     onArmMerge?: (clusterId: string | number, title: string) => void;
-    /** tells the feed while this story is open, so the crowd can step aside */
-    onOpenChange?: (open: boolean) => void;
+    /** the feed keeps one story open at a time, so it decides which */
+    open: boolean;
+    onToggle: () => void;
 }
 
 /**
@@ -27,20 +28,12 @@ type Props = {
  * how many. Opening it is what reveals the two ways of reading the same story.
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
-                    topics = [], mergeArmed, onArmMerge, onOpenChange }: Props) => {
-    const [open, setOpen] = useState(false);
+                    topics = [], mergeArmed, onArmMerge, open, onToggle }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
     const t = useTheme();
     const dev = useDevMode();
-
-    // closing the story - or the card going away while it is open - hands the room back
-    useEffect(() => {
-        if (!open) return;
-        onOpenChange?.(true);
-        return () => onOpenChange?.(false);
-    }, [open]);
 
     // when the story broke, not when this particular outlet got to it.
     // stays above the early return: a hook may not be skipped on some renders
@@ -94,7 +87,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     return (
         <View style={[styles.card, { backgroundColor: t.surfaceAlt },
             open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
-            <TouchableOpacity activeOpacity={0.8} onPress={() => setOpen(!open)}>
+            <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
                 <View style={styles.titleRow}>
                     {!!firstPublished && <Text style={[styles.time, { color: t.textMuted }]}>{firstPublished}</Text>}
                     <Text style={[styles.title, { color: t.text }]} numberOfLines={open ? undefined : 2}>{lead.title}</Text>

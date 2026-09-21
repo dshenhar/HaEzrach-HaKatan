@@ -81,9 +81,9 @@ export default function NewsFeed() {
 	const crowdShown = useRef(true);
 	const atTop = useRef(true);
 	const guideOut = useRef(false);
-	const openStories = useRef(0);
+	const storyOpen = useRef(false);
 	const syncCrowd = () => {
-		const show = atTop.current && !guideOut.current && openStories.current === 0;
+		const show = atTop.current && !guideOut.current && !storyOpen.current;
 		if (show === crowdShown.current) return;
 		crowdShown.current = show;
 		Animated.timing(crowdIn, {
@@ -92,10 +92,6 @@ export default function NewsFeed() {
 			easing: Easing.out(Easing.cubic),
 			useNativeDriver: true,
 		}).start();
-	};
-	const onStoryOpenChange = (isOpen: boolean) => {
-		openStories.current = Math.max(0, openStories.current + (isOpen ? 1 : -1));
-		syncCrowd();
 	};
 	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
 		const y = e.nativeEvent.contentOffset.y;
@@ -205,6 +201,18 @@ export default function NewsFeed() {
 				return list.sort((a, b) => clusterTime(b) - clusterTime(a));
 		}
 	}, [filteredArticles, sort, positions, profile]);
+
+	// One story open at a time: opening another closes the first, and switching
+	// between the bloc and citizen views closes whatever was open.
+	const storyKey = (cluster: NewsItem[], index: number) => String(cluster[0]?.groupId ?? index);
+	const [openStory, setOpenStory] = useState<string | null>(null);
+	useEffect(() => { setOpenStory(null); }, [viewMode]);
+	useEffect(() => {
+		// a story that dropped out of the feed on a refresh no longer keeps the crowd away
+		storyOpen.current = openStory !== null
+			&& sortedArticles.some((cluster, i) => storyKey(cluster, i) === openStory);
+		syncCrowd();
+	}, [openStory, sortedArticles]);
 
 	// first tap arms a story, second tap picks the one to fold it into
 	const handleArmMerge = async (clusterId: string | number, title: string) => {
@@ -334,15 +342,19 @@ export default function NewsFeed() {
 				ref={scrollRef}
 				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
 			>
-				{sortedArticles.map((cluster, index) => (
-					<StoryCard key={index} data={cluster} positions={positions}
-					setRatingOpen={setRatingOpen} setRatingTarget={setRatingTarget}
-					mode={viewMode}
-					topics={allTopics}
-					mergeArmed={mergeSource?.id === cluster[0]?.groupId}
-					onArmMerge={handleArmMerge}
-					onOpenChange={onStoryOpenChange} />
-				))}
+				{sortedArticles.map((cluster, index) => {
+					const key = storyKey(cluster, index);
+					return (
+						<StoryCard key={key} data={cluster} positions={positions}
+						setRatingOpen={setRatingOpen} setRatingTarget={setRatingTarget}
+						mode={viewMode}
+						topics={allTopics}
+						mergeArmed={mergeSource?.id === cluster[0]?.groupId}
+						onArmMerge={handleArmMerge}
+						open={openStory === key}
+						onToggle={() => setOpenStory((current) => (current === key ? null : key))} />
+					);
+				})}
 			</ScrollView>
 
 			{/* the crowd sits on the tab bar, and the stories fade out behind their heads */}
