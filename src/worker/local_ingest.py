@@ -32,7 +32,7 @@ import sys
 import time
 
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import feedparser
 import numpy as np
@@ -44,7 +44,8 @@ from sentence_transformers import SentenceTransformer
 from transformers import pipeline
 
 from db.db_session import SessionLocal
-from db.models import Article, Cluster, Site, Topic, TopicCorrection
+from db.models import Article, Cluster, ClusterSummary, Site, Topic, TopicCorrection
+from db.summaries import BLOCS, articles_for, prompt as summary_prompt, site_blocs
 
 GENERAL_TOPIC = "חדשות כלליות"
 
@@ -91,6 +92,8 @@ HYPOTHESIS = "הכתבה עוסקת ב{}."
 # ingest, so the headline stored in the database is already the one shown.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-3.6-flash"
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+CLAUDE_MODEL = "claude-sonnet-5"
 
 # Arabic script, including the presentation forms some feeds emit. The site's
 # declared language is a hint; THIS is the guarantee - an outlet added without
@@ -261,6 +264,113 @@ def translate_to_hebrew(header: str, subheader: str) -> tuple[str, str] | None:
                 return None
             time.sleep(4 * (attempt + 1))
     return None
+
+
+# ---- AI summaries, written ahead of any reader --------------------------------
+# Every story the feed can show gets its summaries here: one for each bloc that
+# covered it and one across all of them for the citizen view, so opening a story
+# never waits on the AI. A summary is redone only when more headlines have joined
+# its story since. This runs after translation, so on a tight quota the headlines
+# come first - and it stops at the first refusal instead of waiting the quota out.
+SUMMARY_WINDOW = timedelta(hours=26)     # a little over the feed's day
+SUMMARY_MAX_PER_CYCLE = 90
+SUMMARY_MIN_GAP = 1.0
+
+
+class QuotaExhausted(Exception):
+    """The AI provider refuses more requests for now; the rest wait for the next cycle."""
+
+
+def _summary_via_gemini(text_prompt: str) -> str | None:
+    r = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+        headers={"x-goog-api-key": GEMINI_API_KEY, "content-type": "application/json"},
+        json={"contents": [{"parts": [{"text": text_prompt}]}],
+              "generationConfig": {"maxOutputTokens": 300, "temperature": 0.3,
+                                   "thinkingConfig": {"thinkingBudget": 0}}},
+        timeout=60,
+    )
+    if r.status_code == 429:
+        raise QuotaExhausted("gemini")
+    r.raise_for_status()
+    parts = r.json()["candidates"][0].get("content", {}).get("parts", [])
+    return "".join(p.get("text", "") for p in parts if not p.get("thought")).strip() or None
+
+
+def _summary_via_claude(text_prompt: str) -> str | None:
+    r = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={"x-api-key": CLAUDE_API_KEY, "anthropic-version": "2023-06-01",
+                 "content-type": "application/json"},
+        json={"model": CLAUDE_MODEL, "max_tokens": 300,
+              "messages": [{"role": "user", "content": text_prompt}]},
+        timeout=60,
+    )
+    if r.status_code in (429, 529):
+        raise QuotaExhausted("claude")
+    r.raise_for_status()
+    return "".join(b.get("text", "") for b in r.json().get("content", [])).strip() or None
+
+
+def _summarise(text_prompt: str) -> str | None:
+    """Gemini first, Claude as the fallback - the same order as the api."""
+    providers = [fn for key, fn in ((GEMINI_API_KEY, _summary_via_gemini),
+                                    (CLAUDE_API_KEY, _summary_via_claude)) if key]
+    refused = 0
+    for fn in providers:
+        try:
+            text = fn(text_prompt)
+            if text:
+                return text
+        except QuotaExhausted:
+            refused += 1
+        except Exception as err:
+            print(f"  ! summary failed: {err}")
+    if providers and refused == len(providers):
+        raise QuotaExhausted("every provider")
+    return None
+
+
+def write_summaries():
+    if not (GEMINI_API_KEY or CLAUDE_API_KEY):
+        return
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - SUMMARY_WINDOW
+    written = 0
+    with SessionLocal() as session:
+        cluster_ids = session.execute(
+            select(Cluster.id)
+            .where(Cluster.article_count >= 2, Cluster.last_updated >= since)
+            .order_by(Cluster.last_updated.desc())
+        ).scalars().all()
+        for cluster_id in cluster_ids:
+            rows = session.execute(
+                select(Article.header, Article.subheader, Article.site_id)
+                .where(Article.cluster_id == cluster_id)
+            ).all()
+            blocs = site_blocs(session, {r.site_id for r in rows})
+            have = {s.bloc: s.article_count for s in session.execute(
+                select(ClusterSummary).where(ClusterSummary.cluster_id == cluster_id)
+            ).scalars()}
+            for bloc in BLOCS:
+                articles = articles_for(rows, blocs, bloc)
+                if not articles or have.get(bloc) == len(articles):
+                    continue
+                if written >= SUMMARY_MAX_PER_CYCLE:
+                    print(f"summaries: {written} written, the rest next cycle")
+                    return
+                try:
+                    text = _summarise(summary_prompt(articles, bloc))
+                except QuotaExhausted as err:
+                    print(f"summaries: {written} written, then the AI quota ran out ({err}) - the rest next cycle")
+                    return
+                if not text:
+                    continue
+                session.merge(ClusterSummary(cluster_id=cluster_id, bloc=bloc,
+                                             summary=text[:2048], article_count=len(articles)))
+                session.commit()
+                written += 1
+                time.sleep(SUMMARY_MIN_GAP)
+    print(f"summaries: {written} written")
 
 
 def encode(model, text):
@@ -629,7 +739,7 @@ def recluster():
     print(f"clusters {total} total, {feedable} with 2+ articles (these reach /feed)")
 
 
-def run_once(model, classifier):
+def ingest(model, classifier):
     started = datetime.now()
     print(f"\n=== ingest {started:%Y-%m-%d %H:%M:%S} ===")
 
@@ -727,6 +837,12 @@ def run_once(model, classifier):
     print(f"took     {(datetime.now() - started).seconds}s")
 
 
+def run_once(model, classifier):
+    ingest(model, classifier)
+    # after the new articles are in their stories, so the summaries cover them
+    write_summaries()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true", help="one pass, then exit")
@@ -735,6 +851,8 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="with --relabel: sample N")
     parser.add_argument("--translate-existing", action="store_true",
                         help="backfill Hebrew for articles stored before translation existed")
+    parser.add_argument("--summaries", action="store_true",
+                        help="write the AI summaries the feed is missing, no scraping")
     parser.add_argument("--recluster", action="store_true",
                         help="re-cluster stored articles at the current threshold, no scraping")
     args = parser.parse_args()
@@ -745,6 +863,10 @@ def main():
 
     if args.translate_existing:
         translate_existing()
+        return
+
+    if args.summaries:
+        write_summaries()
         return
 
     model = None

@@ -121,6 +121,8 @@ def main():
         conn.execute(text(
             "ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS "
             "in_roster boolean NOT NULL DEFAULT false"))
+        conn.execute(text(
+            "ALTER TABLE IF EXISTS cluster_summaries ADD COLUMN IF NOT EXISTS article_count integer"))
 
     Base.metadata.create_all(engine)
 

@@ -8,6 +8,7 @@ from db.models import (Article, ClusterMerge, ClusterSummary, Cluster, Site,
                        SiteTopicPriorBias, Topic, TopicCorrection, Vote)
 from db.db_session import SessionLocal
 from getClusters import get_clusters
+from db.summaries import SIDES, articles_for, prompt as summary_prompt, site_blocs
 from fastapi import Depends, FastAPI, Query, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
@@ -145,29 +146,6 @@ CLAUDE_MODEL = "claude-sonnet-5"
 
 
 
-def _bloc_of(bias: float | None) -> str:
-    if bias is None:
-        return "unknown"
-    return "right" if bias >= BREAKING_POINT else "left"
-
-
-def _prompt(articles: list[tuple[str, str]], bloc: str) -> str:
-    side = "הימני" if bloc == "right" else "השמאלי"
-    listed = "\n\n".join(
-        f"כותרת: {h}" + (f"\nתקציר: {sub}" if sub else "") for h, sub in articles
-    )
-    return (
-        f"להלן כותרות ותקצירים שפרסמו גופי תקשורת מהצד {side} של המפה הפוליטית "
-        f"בישראל על אותו אירוע:\n\n{listed}\n\n"
-        "כתוב שורה אחת בעברית שמאחדת את מה שנאמר בהן - מיזוג מינימליסטי, "
-        "כמו כותרת אחת מסכמת. עד 25 מילים, בלשון עיתונאית ישירה.\n"
-        "אל תתאר את הכותרות ואל תתייחס אליהן כאובייקט: בלי \"הכותרות\", "
-        "\"הדיווחים\", \"גופי התקשורת\", \"מדגישים\", \"מבליטים\", \"משמיטים\", "
-        "\"פותחות ב\". כתוב את החדשות עצמן.\n"
-        "אל תוסיף פרשנות, שיפוט או עובדות שלא מופיעות בטקסט. החזר רק את השורה."
-    )
-
-
 async def _gemini(client, prompt: str) -> str | None:
     r = await client.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
@@ -200,7 +178,7 @@ async def _claude(client, prompt: str) -> str | None:
 
 
 async def _summarise(articles: list[tuple[str, str]], bloc: str) -> str | None:
-    prompt = _prompt(articles, bloc)
+    prompt = summary_prompt(articles, bloc)
     last_error = None
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -223,13 +201,14 @@ async def _summarise(articles: list[tuple[str, str]], bloc: str) -> str | None:
 
 @app.get("/clusters/{cluster_id}/summary/{bloc}")
 async def get_bloc_summary(cluster_id: int, bloc: str):
-    """One or two sentences on how one bloc framed a story.
+    """One line on how one bloc framed a story - or, for "all", on the story as
+    every outlet that covered it told it (the citizen view).
 
     Returns summary=None when no key is configured or the bloc did not cover the
     story - the app hides the box rather than showing an empty one.
     """
-    if bloc not in ("right", "left"):
-        raise HTTPException(status_code=400, detail="bloc must be right or left")
+    if bloc not in SIDES:
+        raise HTTPException(status_code=400, detail="bloc must be right, left or all")
 
     with SessionLocal() as session:
         stored = session.get(ClusterSummary, (cluster_id, bloc))
@@ -247,19 +226,9 @@ async def get_bloc_summary(cluster_id: int, bloc: str):
         if not rows:
             raise HTTPException(status_code=404, detail="cluster not found")
 
-        site_ids = {r.site_id for r in rows}
-        priors: dict[int, list[float]] = {}
-        for row in session.execute(
-            select(SiteTopicPriorBias).where(SiteTopicPriorBias.site_id.in_(site_ids))
-        ).scalars():
-            priors.setdefault(row.site_id, []).append(row.prior_bias)
+        blocs = site_blocs(session, {r.site_id for r in rows})
 
-    articles = [
-        (r.header, r.subheader or "") for r in rows
-        if _bloc_of(
-            sum(priors[r.site_id]) / len(priors[r.site_id]) if priors.get(r.site_id) else None
-        ) == bloc
-    ]
+    articles = articles_for(rows, blocs, bloc)
     if not articles:
         return {"summary": None, "reason": "bloc did not cover this story"}
 
@@ -282,7 +251,8 @@ async def get_bloc_summary(cluster_id: int, bloc: str):
         return {"summary": None, "reason": "no provider returned a summary"}
 
     with SessionLocal() as session:
-        session.merge(ClusterSummary(cluster_id=cluster_id, bloc=bloc, summary=text[:2048]))
+        session.merge(ClusterSummary(cluster_id=cluster_id, bloc=bloc, summary=text[:2048],
+                                     article_count=len(articles)))
         session.commit()
     return {"summary": text, "cached": False, "articles": len(articles)}
 

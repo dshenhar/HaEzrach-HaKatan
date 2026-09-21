@@ -131,13 +131,16 @@ class ClusterSummary(Base):
 
     It used to live in a dict on the api process, so every restart threw the lot
     away and the next reader paid for them again - which is what exhausted the
-    free quota. A summary of a fixed set of headlines never changes; compute once.
+    free quota. A summary of a given set of headlines never changes, so it is
+    written once and redone only when more headlines join the story - which is what
+    article_count, the number it was written from, is for.
     """
     __tablename__ = "cluster_summaries"
 
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), primary_key=True)
     bloc = Column(String(8), primary_key=True)
     summary = Column(String(2048), nullable=False)
+    article_count = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 
