@@ -7,6 +7,16 @@ import { ViewMode } from './viewModeToggle';
 import { ArticleViewer } from './articleViewer';
 import BlocView from './blocView';
 import CitizenCarousel from './citizenCarousel';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+
+// On the phone a story's change of size glides instead of jumping, the stories
+// below it glide with it, and its expanded part fades in and out. Reanimated's
+// layout animations run natively on the new architecture, where LayoutAnimation
+// did nothing; the web build keeps the plain open and close.
+const NATIVE = Platform.OS !== "web";
+const GLIDE = NATIVE ? LinearTransition.duration(240) : undefined;
+const FADE_IN = NATIVE ? FadeIn.duration(220) : undefined;
+const FADE_OUT = NATIVE ? FadeOut.duration(140) : undefined;
 
 type Props = {
     data: NewsItem[];
@@ -85,7 +95,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const handleViewerClosed = () => setRatingOpen(true);
 
     return (
-        <View style={[styles.card, { backgroundColor: t.surfaceAlt },
+        <Animated.View layout={GLIDE} style={[styles.card, { backgroundColor: t.surfaceAlt },
             open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
             <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
                 <View style={styles.titleRow}>
@@ -123,13 +133,13 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
             </TouchableOpacity>
 
             {open && (
-                <>
+                <Animated.View entering={FADE_IN} exiting={FADE_OUT}>
                     {mode === "bloc" ? (
                         <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
                     ) : (
                         <CitizenCarousel data={data} positions={positions} onOpenArticle={handleOpenArticle} />
                     )}
-                </>
+                </Animated.View>
             )}
 
             <TopicPicker
@@ -151,7 +161,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                 id={viewerItem?.id || ''}
                 topic={viewerItem?.topic || ''}
             />
-        </View>
+        </Animated.View>
     );
 };
 
