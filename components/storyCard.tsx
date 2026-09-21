@@ -1,5 +1,5 @@
 import { NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
-import React, { Dispatch, SetStateAction, useMemo, useState } from 'react';
+import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDevMode, useTheme } from '@/state/theme';
 import TopicPicker from './topicPicker';
@@ -43,6 +43,15 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const [topic, setTopic] = useState<string>("");
     const t = useTheme();
     const dev = useDevMode();
+
+    // In the browser Reanimated animates a change of size by scaling the box, which
+    // smeared the text of the story being opened or closed. There the story that is
+    // changing size - and an open one, whose content keeps settling - simply resizes
+    // while its expanded part fades, and the stories around it still glide. The phone
+    // animates real sizes, so there everything glides.
+    const wasOpen = useRef(open);
+    useEffect(() => { wasOpen.current = open; });
+    const glide = Platform.OS !== "web" || (!open && !wasOpen.current) ? GLIDE : undefined;
 
     // when the story broke, not when this particular outlet got to it.
     // stays above the early return: a hook may not be skipped on some renders
@@ -94,7 +103,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const handleViewerClosed = () => setRatingOpen(true);
 
     return (
-        <Animated.View layout={GLIDE} style={[styles.card, { backgroundColor: t.surfaceAlt },
+        <Animated.View layout={glide} style={[styles.card, { backgroundColor: t.surfaceAlt },
             open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
             <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
                 <View style={styles.titleRow}>
