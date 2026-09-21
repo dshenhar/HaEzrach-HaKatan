@@ -76,13 +76,14 @@ export default function NewsFeed() {
 	// first scroll sends it down behind the bar, and it comes back only once the
 	// list is all the way up again (the gap between the two thresholds keeps it
 	// from flickering around the top). It also steps aside while the tour is
-	// running, so the pictures never share the screen.
+	// running or a story is open, so nothing has to share the screen with it.
 	const crowdIn = useRef(new Animated.Value(1)).current;
 	const crowdShown = useRef(true);
 	const atTop = useRef(true);
 	const guideOut = useRef(false);
+	const openStories = useRef(0);
 	const syncCrowd = () => {
-		const show = atTop.current && !guideOut.current;
+		const show = atTop.current && !guideOut.current && openStories.current === 0;
 		if (show === crowdShown.current) return;
 		crowdShown.current = show;
 		Animated.timing(crowdIn, {
@@ -91,6 +92,10 @@ export default function NewsFeed() {
 			easing: Easing.out(Easing.cubic),
 			useNativeDriver: true,
 		}).start();
+	};
+	const onStoryOpenChange = (isOpen: boolean) => {
+		openStories.current = Math.max(0, openStories.current + (isOpen ? 1 : -1));
+		syncCrowd();
 	};
 	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
 		const y = e.nativeEvent.contentOffset.y;
@@ -335,7 +340,8 @@ export default function NewsFeed() {
 					mode={viewMode}
 					topics={allTopics}
 					mergeArmed={mergeSource?.id === cluster[0]?.groupId}
-					onArmMerge={handleArmMerge} />
+					onArmMerge={handleArmMerge}
+					onOpenChange={onStoryOpenChange} />
 				))}
 			</ScrollView>
 

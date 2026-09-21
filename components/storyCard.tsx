@@ -1,5 +1,5 @@
 import { NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
-import React, { Dispatch, SetStateAction, useMemo, useState } from 'react';
+import React, { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDevMode, useTheme } from '@/state/theme';
 import TopicPicker from './topicPicker';
@@ -18,6 +18,8 @@ type Props = {
     /** dev mode: this story is waiting to be merged into another */
     mergeArmed?: boolean;
     onArmMerge?: (clusterId: string | number, title: string) => void;
+    /** tells the feed while this story is open, so the crowd can step aside */
+    onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -25,13 +27,20 @@ type Props = {
  * how many. Opening it is what reveals the two ways of reading the same story.
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
-                    topics = [], mergeArmed, onArmMerge }: Props) => {
+                    topics = [], mergeArmed, onArmMerge, onOpenChange }: Props) => {
     const [open, setOpen] = useState(false);
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
     const t = useTheme();
     const dev = useDevMode();
+
+    // closing the story - or the card going away while it is open - hands the room back
+    useEffect(() => {
+        if (!open) return;
+        onOpenChange?.(true);
+        return () => onOpenChange?.(false);
+    }, [open]);
 
     // when the story broke, not when this particular outlet got to it.
     // stays above the early return: a hook may not be skipped on some renders
