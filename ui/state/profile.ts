@@ -87,3 +87,18 @@ export async function getProfile(): Promise<ReaderProfile | null> {
 export async function clearProfile() {
 	await AsyncStorage.removeItem(PROFILE_KEY);
 }
+
+
+// The questionnaire is an offer, not a gate: the app opens without it. These two
+// remember whether the offer was already made once, and whether the reader asked
+// not to be asked again.
+const WELCOMED_KEY = "questionnaire_welcomed";
+const NUDGE_OFF_KEY = "questionnaire_nudge_off";
+
+const flag = async (key: string) => (await AsyncStorage.getItem(key).catch(() => null)) === "1";
+const raise = (key: string) => { AsyncStorage.setItem(key, "1").catch(() => {}); };
+
+export const wasWelcomed = () => flag(WELCOMED_KEY);
+export const markWelcomed = () => raise(WELCOMED_KEY);
+export const isNudgeOff = () => flag(NUDGE_OFF_KEY);
+export const stopNudging = () => raise(NUDGE_OFF_KEY);

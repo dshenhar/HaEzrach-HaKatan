@@ -2,9 +2,10 @@ import SwipeTabs from '@/components/swipeTabs';
 import { fetchArticles, getSitePositions, NewsItem, SitePosition } from "@/state/engagement";
 import { buildInsights, Insights } from "@/state/insights";
 import { getProfile, ReaderProfile } from "@/state/profile";
+import { useQuestionnaire } from "@/state/questionnaire";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, I18nManager, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, I18nManager, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 /** "BeHadrei Haredim" does not fit in a 44px circle */
@@ -27,6 +28,8 @@ export default function AnalyticsPage() {
 	const [refreshing, setRefreshing] = useState(false);
 	// long and static, so it stays out of the way until asked for
 	const [positionsOpen, setPositionsOpen] = useState(false);
+	const [hint, setHint] = useState(false);
+	const { open: askQuestionnaire } = useQuestionnaire();
 
 	const load = useCallback(async () => {
 		let feed: NewsItem[][] = [];
@@ -47,7 +50,45 @@ export default function AnalyticsPage() {
 		setRefreshing(false);
 	};
 
-	if (!profile || !insights) {
+	// Nothing on this page means anything without the questionnaire: every number
+	// here is "compared with what you said you think".
+	if (!profile) {
+		return (
+			<SafeAreaView style={styles.container}>
+				<View style={styles.invite}>
+					<Text style={styles.inviteTitle}>כאן יופיעו הנתונים שלכם</Text>
+					<Text style={styles.inviteBody}>
+						העמוד הזה משווה בין העמדות שהצהרתם עליהן לבין מה שקראתם בפועל: כמה מהיום
+						הגיע מהצד השני, באילו נושאים, ומאילו גופים.
+					</Text>
+					<View style={styles.inviteRow}>
+						<TouchableOpacity style={styles.inviteButton} onPress={askQuestionnaire}
+							accessibilityRole="button">
+							<Text style={styles.inviteButtonText}>למילוי שאלון העמדות</Text>
+						</TouchableOpacity>
+						<Pressable
+							onPress={() => setHint((v) => !v)}
+							onHoverIn={() => setHint(true)}
+							onHoverOut={() => setHint(false)}
+							hitSlop={8}
+							accessibilityRole="button"
+							accessibilityLabel="למה צריך את השאלון"
+						>
+							<Ionicons name="information-circle-outline" size={22} color="#6B7280" />
+						</Pressable>
+					</View>
+					{hint && (
+						<Text style={styles.hint}>
+							השאלון הוא נקודת הייחוס של כל המספרים כאן. בלעדיו אפשר לדעת מה קראתם,
+							אבל לא ביחס למה אתם חושבים. הוא לוקח כדקה, והתשובות נשארות במכשיר שלכם.
+						</Text>
+					)}
+				</View>
+			</SafeAreaView>
+		);
+	}
+
+	if (!insights) {
 		return (
 			<SafeAreaView style={styles.container}>
 				<ActivityIndicator style={{ marginTop: 40 }} />
@@ -244,6 +285,20 @@ export default function AnalyticsPage() {
 }
 
 const styles = StyleSheet.create({
+	invite: { padding: 24, paddingTop: 48, gap: 12 },
+	inviteTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 22, color: "#111827", textAlign: "right" },
+	inviteBody: {
+		fontFamily: "Heebo_400Regular", fontSize: 14, lineHeight: 21,
+		color: "#6B7280", textAlign: "right",
+	},
+	inviteRow: { flexDirection: RTL_ROW as any, alignItems: "center", gap: 12, marginTop: 6 },
+	inviteButton: { backgroundColor: "#DDA01E", borderRadius: 12, paddingVertical: 13, paddingHorizontal: 20 },
+	inviteButtonText: { fontFamily: "Heebo_800ExtraBold", fontSize: 15, color: "#FFFFFF" },
+	hint: {
+		fontFamily: "Heebo_400Regular", fontSize: 12.5, lineHeight: 19, color: "#6B7280",
+		textAlign: "right", backgroundColor: "#F4F4F3", borderRadius: 10, padding: 11,
+	},
+
 	container: { flex: 1, backgroundColor: "#f8f8f8ff" },
 	scroll: { padding: 16, gap: 12, paddingBottom: 40 },
 	title: { fontFamily: "Heebo_800ExtraBold", fontSize: 26, color: "#111827", textAlign: "right" },

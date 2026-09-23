@@ -8,8 +8,10 @@ import {
 import AccessibilityBar from '@/components/accessibilityBar';
 import IntroSplash from '@/components/introSplash';
 import Onboarding from '@/components/onboarding';
+import QuestionnaireInvite from '@/components/questionnaireInvite';
+import { QuestionnaireContext } from '@/state/questionnaire';
 import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@/state/access';
-import { getProfile, ReaderProfile } from '@/state/profile';
+import { getProfile, isNudgeOff, markWelcomed, ReaderProfile, stopNudging, wasWelcomed } from '@/state/profile';
 import { ThemeProvider, useTheme } from '@/state/theme';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -38,9 +40,22 @@ export default function RootLayout() {
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);
 	const [profileChecked, setProfileChecked] = useState(false);
 	const [introOn, setIntroOn] = useState(true);
+	// the questionnaire is an overlay now, opened from wherever it is offered
+	const [asking, setAsking] = useState(false);
+	const [invite, setInvite] = useState<"welcome" | "reminder" | null>(null);
 
 	useEffect(() => {
-		getProfile().then((p) => { setProfile(p); setProfileChecked(true); });
+		Promise.all([getProfile(), wasWelcomed(), isNudgeOff()]).then(([p, welcomed, quiet]) => {
+			setProfile(p);
+			setProfileChecked(true);
+			if (p) return;                       // answered already: nothing to offer
+			if (!welcomed) {
+				setInvite("welcome");
+				markWelcomed();
+			} else if (!quiet) {
+				setInvite("reminder");
+			}
+		});
 	}, []);
 
 	// a font that fails to load falls back to the system font instead of leaving
@@ -53,10 +68,11 @@ export default function RootLayout() {
 
 	if (!fontsReady || !profileChecked) return null;
 
-	// the questionnaire is what gives every personal statistic something to
-	// compare against, so it runs before the app rather than inside settings
-	const app = profile === null ? (
-		<Onboarding onDone={setProfile} />
+	// The app opens for everyone. The questionnaire is what gives every personal
+	// statistic something to compare against, but standing it in the doorway asked
+	// a stranger to declare themselves before seeing anything.
+	const app = asking ? (
+		<Onboarding onDone={(p) => { setProfile(p); setAsking(false); }} />
 	) : (
 		<Stack screenOptions={{ headerShown: false }}>
 			<Stack.Screen name="(tabs)" />
@@ -74,8 +90,18 @@ export default function RootLayout() {
 			{introOn && <IntroSplash onDone={() => setIntroOn(false)} />}
 			{/* above everything, on every screen, as the standard expects */}
 			<AccessibilityBar />
+			{/* only ever to someone who has not answered - see state/questionnaire.ts */}
+			<QuestionnaireInvite
+				open={invite !== null && !introOn && profile === null && !asking}
+				variant={invite ?? "reminder"}
+				onFill={() => { setInvite(null); setAsking(true); }}
+				onDismiss={() => setInvite(null)}
+				onNeverAgain={stopNudging}
+			/>
 		</>
 	);
+
+	const ask = { profile, filled: profile !== null, open: () => setAsking(true) };
 
 	// gestures anywhere in the tree need this at the root, and swipe-between-tabs
 	// is the first thing in the app that uses one
@@ -83,7 +109,9 @@ export default function RootLayout() {
 		return (
 			<GestureHandlerRootView style={styles.root}>
 				<AccessProvider>
-					<ThemeProvider>{shell}</ThemeProvider>
+					<ThemeProvider>
+						<QuestionnaireContext.Provider value={ask}>{shell}</QuestionnaireContext.Provider>
+					</ThemeProvider>
 				</AccessProvider>
 			</GestureHandlerRootView>
 		);
@@ -92,7 +120,9 @@ export default function RootLayout() {
 	return (
 		<AccessProvider>
 			<ThemeProvider>
-				<WebFrame>{shell}</WebFrame>
+				<QuestionnaireContext.Provider value={ask}>
+					<WebFrame>{shell}</WebFrame>
+				</QuestionnaireContext.Provider>
 			</ThemeProvider>
 		</AccessProvider>
 	);

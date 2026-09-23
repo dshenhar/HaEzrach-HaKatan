@@ -8,9 +8,11 @@ import ModeGuide from "./modeGuide";
 import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
+import TourQuestionnaire from "./tourQuestionnaire";
 import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { orderSections } from "@/state/sections";
+import { useQuestionnaire } from "@/state/questionnaire";
 import { ScrollLock } from "@/state/scrollLock";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
@@ -32,7 +34,10 @@ const CROWD_FADE = 48;
 /** scrolled further than this, the crowd steps aside */
 const CROWD_HIDE_AFTER = 12;
 /** the tour the i runs: the anchor's welcome, then each view with its guide */
-const TOUR = ["welcome", "bloc", "citizen"] as const;
+// The tour ends with the questionnaire for a reader who has not answered it, and
+// two steps earlier for everyone else.
+const TOUR_BASE = ["welcome", "bloc", "citizen"] as const;
+type TourStep = (typeof TOUR_BASE)[number] | "questionnaire";
 
 
 export default function NewsFeed() {
@@ -43,6 +48,7 @@ export default function NewsFeed() {
 	const [ratingOpen, setRatingOpen] = useState(false);
 	const [ratingTarget, setRatingTarget] = useState<NewsItem | null>(null);
 	const [refreshing, setRefreshing] = useState<boolean>(false);
+	const [deep, setDeep] = useState(false);
 	// raised while a story's outlet rail is being dragged, so the two scrollers
 	// do not fight over the same finger
 	const [scrollLocked, setScrollLocked] = useState(false);
@@ -86,18 +92,26 @@ export default function NewsFeed() {
 	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
 		const y = e.nativeEvent.contentOffset.y;
 		atTop.current = atTop.current ? y <= CROWD_HIDE_AFTER : y <= 1;
+		// far enough down that the way back is worth a button
+		setDeep(y > 600);
 		syncCrowd();
 	};
+
+	const backToTop = () => scrollRef.current?.scrollTo({ y: 0, animated: true });
 
 	// The i runs the tour over a blurred feed, one step per touch: the welcome, the
 	// bloc view with the man, the citizen view with the woman. The toggle switches
 	// behind the blur to match each guide, and the last touch hands the feed back the
 	// way the reader had it. Tapping the toggle on its own just switches the view.
 	const [tourStep, setTourStep] = useState<number | null>(null);
+	const [tour, setTour] = useState<TourStep[]>([...TOUR_BASE]);
+	const { filled, open: askQuestionnaire } = useQuestionnaire();
 	const tourBlur = useRef(new Animated.Value(0)).current;
 	const modeBeforeTour = useRef<ViewMode>("bloc");
 	const startTour = () => {
 		modeBeforeTour.current = viewMode;
+		// the questionnaire closes the tour, but only for someone it still concerns
+		setTour(filled ? [...TOUR_BASE] : [...TOUR_BASE, "questionnaire"]);
 		setTourStep(0);
 		Animated.timing(tourBlur, {
 			toValue: 1,
@@ -109,25 +123,28 @@ export default function NewsFeed() {
 	// called once a step's picture has finished leaving
 	const advanceTour = (from: number) => {
 		const next = from + 1;
-		if (next < TOUR.length) {
-			const step = TOUR[next];
-			if (step !== "welcome") setViewMode(step);
+		if (next < tour.length) {
+			const step = tour[next];
+			if (step === "bloc" || step === "citizen") setViewMode(step);
 			setTourStep(next);
 			return;
 		}
+		endTour();
+	};
+	const endTour = (then?: () => void) => {
 		setViewMode(modeBeforeTour.current);
 		Animated.timing(tourBlur, {
 			toValue: 0,
 			duration: 260,
 			easing: Easing.in(Easing.cubic),
 			useNativeDriver: true,
-		}).start(() => setTourStep(null));
+		}).start(() => { setTourStep(null); then?.(); });
 	};
 	useEffect(() => {
 		guideOut.current = tourStep !== null;
 		syncCrowd();
 	}, [tourStep]);
-	const tourStepName = tourStep !== null ? TOUR[tourStep] : null;
+	const tourStepName = tourStep !== null ? tour[tourStep] : null;
 
 	const reload = useCallback(() => {
 		fetchArticles(setArticles);
@@ -348,6 +365,19 @@ export default function NewsFeed() {
 			</ScrollView>
 			</ScrollLock.Provider>
 
+			{/* the way back, once the day is long: opposite the accessibility button */}
+			{deep && (
+				<TouchableOpacity
+					style={styles.toTop}
+					onPress={backToTop}
+					accessibilityRole="button"
+					accessibilityLabel="חזרה לראש הפיד"
+					hitSlop={8}
+				>
+					<Ionicons name="chevron-up" size={20} color={t.text} />
+				</TouchableOpacity>
+			)}
+
 			{/* the crowd sits on the tab bar, and the stories fade out behind their heads */}
 			<Animated.View style={[styles.crowd, { height: crowdHeight + CROWD_FADE, opacity: crowdIn }]}>
 				<LinearGradient
@@ -374,6 +404,10 @@ export default function NewsFeed() {
 					<GuideBackdrop opacity={tourBlur} />
 					{tourStepName === "welcome" ? (
 						<WelcomeGuide key="welcome" onDone={() => advanceTour(tourStep)} />
+					) : tourStepName === "questionnaire" ? (
+						<TourQuestionnaire
+							onFill={() => endTour(askQuestionnaire)}
+							onSkip={() => advanceTour(tourStep)} />
 					) : tourStepName !== null ? (
 						<ModeGuide key={tourStepName} mode={tourStepName} onDone={() => advanceTour(tourStep)} />
 					) : null}
@@ -397,6 +431,13 @@ export default function NewsFeed() {
 }
 
 const styles = StyleSheet.create({
+	toTop: {
+		position: "absolute", right: 12, bottom: 92, width: 38, height: 38, borderRadius: 19,
+		alignItems: "center", justifyContent: "center",
+		backgroundColor: "rgba(255,255,255,0.92)", borderWidth: 1, borderColor: "#E3E3E1",
+		boxShadow: "0 2px 8px rgba(0,0,0,0.18)", zIndex: 30,
+	},
+
 	container: { 
 		flex: 1, 
 		alignItems: "center", 
