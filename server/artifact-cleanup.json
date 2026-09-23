@@ -1,0 +1,4 @@
+[
+  {"name": "keep-latest", "action": {"type": "Keep"}, "mostRecentVersions": {"keepCount": 2}},
+  {"name": "drop-older", "action": {"type": "Delete"}, "condition": {"olderThan": "1d"}}
+]

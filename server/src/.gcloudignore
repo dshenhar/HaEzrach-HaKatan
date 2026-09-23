@@ -1,0 +1,12 @@
+# What `gcloud builds submit src` must never upload. The keys and the database
+# dumps live in this folder too; the images only need app/, db/ and worker/.
+.env
+.env.*
+*.dump
+*.orig
+*.bak
+__pycache__/
+*.pyc
+hebrew_classifier/
+Caddyfile
+docker-compose*.yml

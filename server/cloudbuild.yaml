@@ -1,0 +1,11 @@
+# Both images from one upload of src/ - see deploy-gcp.sh.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_API_IMAGE}", "-f", "app/Dockerfile", "."]
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_WORKER_IMAGE}", "-f", "worker/Dockerfile", "."]
+images:
+  - "${_API_IMAGE}"
+  - "${_WORKER_IMAGE}"
+options:
+  logging: CLOUD_LOGGING_ONLY
