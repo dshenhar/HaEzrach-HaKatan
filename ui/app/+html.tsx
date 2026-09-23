@@ -14,7 +14,11 @@ const DESCRIPTION =
 
 export default function Root({ children }: PropsWithChildren) {
     return (
-        <html lang="he" dir="rtl">
+        // lang, but no dir: every row in this app is already laid out right to
+        // left by hand (row-reverse), because react-native-web ignores the RTL
+        // setting the phone build uses. Telling the browser as well flipped all of
+        // it a second time, and the whole app came out mirrored.
+        <html lang="he">
             <head>
                 <meta charSet="utf-8" />
                 <meta httpEquiv="X-UA-Compatible" content="IE=edge" />

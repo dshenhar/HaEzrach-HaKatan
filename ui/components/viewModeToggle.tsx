@@ -103,7 +103,8 @@ const ViewModeToggle = ({ mode, onChange }: Props) => {
 export default ViewModeToggle;
 
 const styles = StyleSheet.create({
-    wrap: { width: "100%", alignSelf: "stretch", paddingHorizontal: 12, paddingTop: 4 },
+    // room under it: inside the feed it now sits right above the first story
+    wrap: { width: "100%", alignSelf: "stretch", paddingHorizontal: 12, paddingTop: 4, paddingBottom: 10 },
     rail: { width: "100%", flexDirection: "row-reverse", borderRadius: 999, padding: PAD, gap: GAP },
     thumb: { position: "absolute", top: PAD, bottom: PAD, borderRadius: 999 },
     seg: {
