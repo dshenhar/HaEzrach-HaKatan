@@ -5,7 +5,7 @@ import { DEV_CODE_KEY } from "./engagement";
 const THEME_KEY = "theme_pref";
 const DEV_KEY = "dev_mode";
 
-export type ThemeName = "light" | "negative";
+export type ThemeName = "light" | "negative" | "contrast";
 
 export type Theme = {
 	name: ThemeName;
@@ -50,6 +50,23 @@ export const NEGATIVE: Theme = {
 	rightSoft: "#2A1B1A", leftSoft: "#17202E",
 };
 
+// The third palette is not a style but an adjustment: black on white, heavier
+// lines, and bloc inks dark enough that the map still reads when the rest does.
+// Every pair here is past 7:1, where the standard asks for 4.5:1.
+export const CONTRAST: Theme = {
+	name: "contrast",
+	bg: "#FFFFFF", surface: "#FFFFFF", surfaceAlt: "#F2F2F2", track: "#DADADA",
+	text: "#000000", textMuted: "#3A3A3A", line: "#6B6B6B",
+	brand: "#046A38", brandInk: "#FFFFFF",
+	select: "#8A5A00", selectInk: "#FFFFFF",
+	right: "#8E1B12", left: "#123A7A",
+	rightSoft: "#FBEFEE", leftSoft: "#EEF2FA",
+};
+
+const PALETTES: Record<ThemeName, Theme> = {
+	light: LIGHT, negative: NEGATIVE, contrast: CONTRAST,
+};
+
 type Ctx = {
 	theme: Theme;
 	setThemeName: (n: ThemeName) => void;
@@ -71,7 +88,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 	useEffect(() => {
 		AsyncStorage.getItem(THEME_KEY).then((v) => {
-			if (v === "negative" || v === "light") setName(v);
+			if (v === "negative" || v === "light" || v === "contrast") setName(v as ThemeName);
 		});
 		// dev mode only comes back on a device that has been given the code
 		Promise.all([AsyncStorage.getItem(DEV_KEY), AsyncStorage.getItem(DEV_CODE_KEY)])
@@ -90,7 +107,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 	return React.createElement(
 		ThemeContext.Provider,
-		{ value: { theme: name === "negative" ? NEGATIVE : LIGHT, setThemeName, devMode, setDevMode } },
+		{ value: { theme: PALETTES[name] ?? LIGHT, setThemeName, devMode, setDevMode } },
 		children,
 	);
 }

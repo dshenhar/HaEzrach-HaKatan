@@ -1,7 +1,8 @@
 {
   "hosting": {
     "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "_comment": "no node_modules ignore: expo exports the icon fonts under assets/node_modules, and ignoring that path served the app with empty squares where every icon should be",
+    "ignore": ["firebase.json", "**/.*"],
     "cleanUrls": true,
     "trailingSlash": false,
     "rewrites": [{ "source": "**", "destination": "/index.html" }],
@@ -11,8 +12,13 @@
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
       },
       {
-        "source": "/index.html",
-        "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+        "_comment": "the page itself is never cached: every deploy changes which bundle it points at, and a stale copy asks for files that no longer exist. The bundle's own name carries its hash, so it can be cached for good.",
+        "source": "**/*.@(html|json)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+      },
+      {
+        "source": "/",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
       }
     ]
   }

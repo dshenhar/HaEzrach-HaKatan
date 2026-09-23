@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { forgetDeviceId, getDeviceId } from "./identity";
 
 export type CompanyItem =  {
 	source: string;
@@ -92,10 +93,6 @@ export const fetchArticles = async (setArticles: React.Dispatch<React.SetStateAc
 	}
 }
 
-export const fetchArticleBypass = async () => {
-
-}
-
 export const saveProfilePreference = async (key: string, value: string) => {
 	try {
 		await AsyncStorage.setItem(key, value);
@@ -159,7 +156,7 @@ export async function saveRating(e: RatingEvent) {
 		console.log("id:", id)
 		const res = fetch(`${URL_BASE}/articles/${id}/vote`, {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: { "Content-Type": "application/json", "X-Voter": await getDeviceId() },
 			body: JSON.stringify({ value: e.value })
 		})
 		console.log(res)
@@ -381,4 +378,26 @@ export function clearAllRatings() {
 	AsyncStorage.removeItem(WATCHES_KEY);
 	// AsyncStorage.setItem(EXPOSURE_KEY, "true");
 	// AsyncStorage.setItem(NOTIFICATIN_KEY, "false");
+}
+
+
+/**
+ * Delete this reader's ratings from the server, and forget the id they were
+ * stored under. What the ratings taught an outlet's position is a running number
+ * that no longer points at anyone, and it fades on its own.
+ */
+export async function forgetMe(): Promise<number | null> {
+	try {
+		const res = await fetch(`${URL_BASE}/me`, {
+			method: "DELETE",
+			headers: { "X-Voter": await getDeviceId() },
+		});
+		if (!res.ok) return null;
+		const body = await res.json();
+		await forgetDeviceId();
+		return body.deleted ?? 0;
+	} catch (err) {
+		console.log("Error deleting ratings:", err);
+		return null;
+	}
 }

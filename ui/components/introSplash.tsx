@@ -1,3 +1,4 @@
+import { useStillness } from '@/state/access';
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, useWindowDimensions, View } from "react-native";
 
@@ -17,6 +18,7 @@ const LEAVE_MS = 900;
  */
 export default function IntroSplash({ onDone }: { onDone: () => void }) {
     const { width, height } = useWindowDimensions();
+    const still = useStillness();
     // the web build draws the app inside a 420px phone frame
     const frame = Math.min(width, 420);
     const logoWidth = Math.round(frame * 0.6);
@@ -28,7 +30,7 @@ export default function IntroSplash({ onDone }: { onDone: () => void }) {
             Animated.delay(HOLD_MS),
             Animated.timing(leave, {
                 toValue: 1,
-                duration: LEAVE_MS,
+                duration: still ? 0 : LEAVE_MS,
                 easing: Easing.inOut(Easing.cubic),
                 useNativeDriver: true,
             }),

@@ -5,8 +5,10 @@ import {
 	Heebo_800ExtraBold,
 	useFonts,
 } from '@expo-google-fonts/heebo';
+import AccessibilityBar from '@/components/accessibilityBar';
 import IntroSplash from '@/components/introSplash';
 import Onboarding from '@/components/onboarding';
+import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@/state/access';
 import { getProfile, ReaderProfile } from '@/state/profile';
 import { ThemeProvider, useTheme } from '@/state/theme';
 import { Stack } from 'expo-router';
@@ -56,8 +58,11 @@ export default function RootLayout() {
 	const app = profile === null ? (
 		<Onboarding onDone={setProfile} />
 	) : (
-		<Stack screenOptions={{ headerStyle: { backgroundColor: "#3c3e75ff" } }}>
-			<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+		<Stack screenOptions={{ headerShown: false }}>
+			<Stack.Screen name="(tabs)" />
+			<Stack.Screen name="privacy" />
+			<Stack.Screen name="terms" />
+			<Stack.Screen name="accessibility" />
 		</Stack>
 	);
 
@@ -67,6 +72,8 @@ export default function RootLayout() {
 		<>
 			{app}
 			{introOn && <IntroSplash onDone={() => setIntroOn(false)} />}
+			{/* above everything, on every screen, as the standard expects */}
+			<AccessibilityBar />
 		</>
 	);
 
@@ -75,15 +82,47 @@ export default function RootLayout() {
 	if (Platform.OS !== 'web') {
 		return (
 			<GestureHandlerRootView style={styles.root}>
-				<ThemeProvider>{shell}</ThemeProvider>
+				<AccessProvider>
+					<ThemeProvider>{shell}</ThemeProvider>
+				</AccessProvider>
 			</GestureHandlerRootView>
 		);
 	}
 
 	return (
-		<ThemeProvider>
-			<WebFrame>{shell}</WebFrame>
-		</ThemeProvider>
+		<AccessProvider>
+			<ThemeProvider>
+				<WebFrame>{shell}</WebFrame>
+			</ThemeProvider>
+		</AccessProvider>
+	);
+}
+
+/**
+ * Holds what the reader asked for in the accessibility panel and remembers it.
+ * On the web the text size is the page's own zoom, because nothing else reaches a
+ * fixed pixel size; on a phone the operating system's setting already does.
+ */
+function AccessProvider({ children }: { children: React.ReactNode }) {
+	const [access, setState] = useState<Access>(DEFAULT_ACCESS);
+
+	useEffect(() => { loadAccess().then(setState); }, []);
+
+	useEffect(() => {
+		if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+		(document.documentElement.style as any).zoom = String(access.zoom);
+	}, [access.zoom]);
+
+	const setAccess = (next: Partial<Access>) => {
+		setState((current) => {
+			const merged = { ...current, ...next };
+			saveAccess(merged);
+			return merged;
+		});
+	};
+
+	return (
+		<AccessContext.Provider value={{ access, setAccess }}>{children}</AccessContext.Provider>
 	);
 }
 

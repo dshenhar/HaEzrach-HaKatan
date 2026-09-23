@@ -1,7 +1,8 @@
 import { clearProfile, ReaderProfile } from '@/state/profile';
-import { getLearningStats, hasValidDevCode, LearningStats, unlockDevMode } from '@/state/engagement';
+import { forgetMe, getLearningStats, hasValidDevCode, LearningStats, unlockDevMode } from '@/state/engagement';
 import { useTheme, useThemeControl } from '@/state/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import Modal from 'react-native-modal';
 import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -22,6 +23,17 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
     const [askingCode, setAskingCode] = React.useState(false);
     const [code, setCode] = React.useState("");
     const [codeWrong, setCodeWrong] = React.useState(false);
+    const router = useRouter();
+    // the reader's own copy of what the server holds about them, and the way out of it
+    const [erasing, setErasing] = React.useState(false);
+    const [erased, setErased] = React.useState<number | null>(null);
+
+    const eraseRatings = async () => {
+        setErasing(true);
+        const gone = await forgetMe();
+        setErasing(false);
+        if (gone !== null) setErased(gone);
+    };
     const [checking, setChecking] = React.useState(false);
 
     const toggleDev = async (on: boolean) => {
@@ -191,6 +203,33 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                             ))}
                         </View>
                     )}
+
+                    <Text style={[styles.section, { color: t.textMuted }]}>מידע ופרטיות</Text>
+                    {([["מדיניות פרטיות", "/privacy"], ["תנאי שימוש", "/terms"],
+                       ["הצהרת נגישות", "/accessibility"]] as const).map(([label, path]) => (
+                        <TouchableOpacity key={path} style={[styles.row, { backgroundColor: t.surfaceAlt }]}
+                            onPress={() => { onClose(); router.push(path); }}
+                            accessibilityRole="link">
+                            <Text style={[styles.rowTitle, { color: t.text, flex: 1 }]}>{label}</Text>
+                            <Ionicons name="chevron-back" size={18} color={t.textMuted} />
+                        </TouchableOpacity>
+                    ))}
+
+                    <TouchableOpacity style={[styles.row, { backgroundColor: t.surfaceAlt }]}
+                        onPress={eraseRatings} disabled={erasing}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.rowTitle, { color: t.text }]}>
+                                {erased === null ? "מחיקת הדירוגים שלי" : "הדירוגים נמחקו"}
+                            </Text>
+                            <Text style={[styles.rowNote, { color: t.textMuted }]}>
+                                {erased === null
+                                    ? "מוחק מהשרת את כל מה שדירגת ואת המזהה של המכשיר"
+                                    : `${erased} דירוגים הוסרו. מה שהם לימדו את המפה הוא מספר שאינו מצביע על אף אחד, והוא דועך מעצמו.`}
+                            </Text>
+                        </View>
+                        <Ionicons name={erased === null ? "trash-outline" : "checkmark"} size={18}
+                            color={t.textMuted} />
+                    </TouchableOpacity>
 
                     <TouchableOpacity onPress={onClose}>
                         <Text style={[styles.close, { color: t.textMuted }]}>סגירה</Text>

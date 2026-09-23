@@ -1,4 +1,4 @@
-import { fetchArticleBypass, getWatches, NewsItem, SitePosition, WatchingEvent } from "./engagement";
+import { getWatches, NewsItem, SitePosition, WatchingEvent } from "./engagement";
 import { ReaderProfile } from "./profile";
 
 export type Insights = {

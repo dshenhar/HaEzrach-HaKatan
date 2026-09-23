@@ -1,3 +1,4 @@
+import { useStillness } from '@/state/access';
 import { useTheme } from '@/state/theme';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -30,6 +31,7 @@ type Props = { mode: ViewMode; onDone: () => void };
 
 export default function ModeGuide({ mode, onDone }: Props) {
     const t = useTheme();
+    const still = useStillness();
     const guide = GUIDES[mode];
     const [area, setArea] = useState<{ w: number; h: number } | null>(null);
     const enter = useRef(new Animated.Value(0)).current;
@@ -42,7 +44,7 @@ export default function ModeGuide({ mode, onDone }: Props) {
         leaving.current = true;
         Animated.timing(leave, {
             toValue: 1,
-            duration: 350,
+            duration: still ? 0 : 350,
             easing: Easing.in(Easing.cubic),
             useNativeDriver: true,
         }).start(() => onDone());
@@ -55,13 +57,13 @@ export default function ModeGuide({ mode, onDone }: Props) {
         Animated.sequence([
             Animated.timing(enter, {
                 toValue: 1,
-                duration: 520,
+                duration: still ? 0 : 520,
                 easing: Easing.out(Easing.back(1.3)),
                 useNativeDriver: true,
             }),
             Animated.timing(pop, {
                 toValue: 1,
-                duration: 260,
+                duration: still ? 0 : 260,
                 easing: Easing.out(Easing.back(1.6)),
                 useNativeDriver: true,
             }),

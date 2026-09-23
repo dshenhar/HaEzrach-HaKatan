@@ -47,8 +47,10 @@ fi
 # lives in the topic's state, so the rating itself expires after a month
 # --async: the policy is applied in the background, and waiting on it once held
 # the whole deploy for ten minutes
-"${G[@]}" firestore fields ttls update expires_at --collection-group=votes \
-  --enable-ttl --database='(default)' --async >/dev/null 2>&1 || true
+for group in votes voters; do
+  "${G[@]}" firestore fields ttls update expires_at --collection-group="$group" \
+    --enable-ttl --database='(default)' --async >/dev/null 2>&1 || true
+done
 
 NUMBER="$("${G[@]}" projects describe "$PROJECT" --format='value(projectNumber)')"
 SA="$NUMBER-compute@developer.gserviceaccount.com"

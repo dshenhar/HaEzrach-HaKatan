@@ -308,8 +308,6 @@ export default function NewsFeed() {
 				<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
 			</View>
 
-			<ViewModeToggle mode={viewMode} onChange={setViewMode} />
-
 			<FeedControls
 				sections={sections}
 				selectedSections={selectedCategories}
@@ -330,6 +328,10 @@ export default function NewsFeed() {
 				ref={scrollRef}
 				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
 			>
+				{/* inside the scroller: on a phone the toggle was holding a strip of
+				    the screen that the stories needed more */}
+				<ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
 				{sortedArticles.map((cluster, index) => {
 					const key = storyKey(cluster, index);
 					return (

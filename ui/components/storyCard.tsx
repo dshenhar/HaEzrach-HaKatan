@@ -1,6 +1,7 @@
 import { NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useStillness } from '@/state/access';
 import { sectionColour } from '@/state/sections';
 import { useDevMode, useTheme } from '@/state/theme';
 import TopicPicker from './topicPicker';
@@ -56,6 +57,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const [topic, setTopic] = useState<string>("");
     const t = useTheme();
     const dev = useDevMode();
+    const still = useStillness();
 
     // In the browser Reanimated animates a change of size by scaling the box, which
     // smeared the text of the story being opened or closed. There the story that is
@@ -64,7 +66,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     // animates real sizes, so there everything glides.
     const wasOpen = useRef(open);
     useEffect(() => { wasOpen.current = open; });
-    const glide = Platform.OS !== "web" || (!open && !wasOpen.current) ? GLIDE : undefined;
+    const glide = still ? undefined
+        : Platform.OS !== "web" || (!open && !wasOpen.current) ? GLIDE : undefined;
 
     // when the story broke, not when this particular outlet got to it.
     // stays above the early return: a hook may not be skipped on some renders
@@ -170,7 +173,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
             </TouchableOpacity>
 
             {open && (
-                <Animated.View entering={FADE_IN} exiting={FADE_OUT}>
+                <Animated.View entering={still ? undefined : FADE_IN}
+                    exiting={still ? undefined : FADE_OUT}>
                     {mode === "bloc" ? (
                         <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
                     ) : (

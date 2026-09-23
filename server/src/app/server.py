@@ -6,10 +6,12 @@ changes a handful of numbers in place (store/learning.py). Nothing here scans th
 articles or averages the ratings, which is what the Postgres version did on every
 request.
 """
+import hashlib
 import hmac
 import os
+import re
+import secrets
 import sys
-import uuid
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -170,12 +172,42 @@ class VoteRequest(BaseModel):
     value: int
 
 
+def _salt() -> str:
+    """A secret of this database's own, made once, for hashing addresses with."""
+    ref = db.client().collection("meta").document("secrets")
+    snap = ref.get()
+    salt = (snap.to_dict() or {}).get("voter_salt") if snap.exists else None
+    if not salt:
+        salt = secrets.token_hex(32)
+        ref.set({"voter_salt": salt}, merge=True)
+    return salt
+
+
+# what the app sends as its own id: our own alphabet, our own length, and nothing
+# a caller can turn into a path or a query
+VOTER_ID = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+
+
 def voter_id(request: Request) -> str:
-    """The same reader across visits: their cookie, or their address until they have one."""
-    cookie = request.cookies.get("anon_id")
-    if cookie:
-        return cookie
-    return f"ip-{request.client.host}" if request.client else str(uuid.uuid4())
+    """The same reader across visits, without holding anything that identifies them.
+
+    The app makes a random id once and keeps it on the device; it arrives in a
+    header. There is no cookie: a cookie would not survive the app and the api
+    being on different addresses anyway, and this way there is nothing to ask
+    consent for.
+
+    A reader whose app has not sent one - a bare request - is told apart by their
+    address, hashed with a secret of this database's own and never stored. Enough
+    to stop one person rating the same article twice, not enough to say who they
+    are or to recognise them anywhere else.
+    """
+    given = request.headers.get("x-voter", "")
+    if VOTER_ID.match(given):
+        return given
+    if not request.client:
+        return secrets.token_urlsafe(16)
+    digest = hmac.new(_salt().encode(), request.client.host.encode(), hashlib.sha256)
+    return f"ip-{digest.hexdigest()[:20]}"
 
 
 @app.post("/articles/{article_id}/vote")
@@ -188,8 +220,6 @@ def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Res
     month, and what it taught stays in the state.
     """
     voter = voter_id(request)
-    response.set_cookie("anon_id", voter, 60 * 60 * 24 * 365, httponly=True,
-                        secure=True, samesite="lax")
     client = db.client()
     article_ref = client.collection("articles").document(str(article_id))
     vote_ref = db.vote_ref(article_id, voter)
@@ -241,10 +271,11 @@ def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Res
                       "n": rating.get("n", 0) + 1}
 
         tx.set(vote_ref, {"article_id": str(article_id), "value": value, "weight": weight,
-                          "site_id": site_id, "topic_id": topic_id,
+                          "site_id": site_id, "topic_id": topic_id, "voter": voter,
                           "created_at": db.now(), "expires_at": db.vote_expiry()})
         record.setdefault("sites", {})[site_id] = done_today + 1
         record.setdefault("pairs", {})[pair] = True
+        record["expires_at"] = db.vote_expiry()   # kept no longer than the ratings
         tx.set(voter_ref, record)
         tx.set(article_ref, {"rating": rating}, merge=True)
         entry = state.to_doc()
@@ -264,6 +295,29 @@ def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Res
         return {"mean_score": round(rating["s"] / rating["w"], 2) if rating["w"] else 0}
 
     return apply(client.transaction())
+
+
+@app.delete("/me")
+def forget_me(request: Request):
+    """Delete what this reader left behind: their ratings and their day's tally.
+
+    What a rating taught is not deleted with it, and the page that offers this says
+    so: an outlet's position is a running number that cannot be traced back to
+    anyone. It halves every 30 days on its own.
+    """
+    voter = request.headers.get("x-voter", "")
+    if not VOTER_ID.match(voter):
+        raise HTTPException(status_code=400, detail="no reader id")
+    client = db.client()
+    writer = db.Writer()
+    deleted = 0
+    for snap in client.collection("votes").where(
+            filter=firestore.FieldFilter("voter", "==", voter)).stream():
+        writer.delete(snap.reference)
+        deleted += 1
+    writer.delete(db.voter_ref(voter))
+    writer.flush()
+    return {"deleted": deleted}
 
 
 # ---- AI summaries ------------------------------------------------------------
@@ -439,12 +493,3 @@ def learning_stats():
     return {"topic_corrections": int(corrections), "cluster_merges": len(merges),
             # every human merge is a pair the threshold should have caught
             "lowest_merged_similarity": lowest}
-
-
-@app.get("/api/bypass")
-async def proxy_ynet(url: str = Query(..., description="Full article URL")):
-    if not url.startswith("https://www.ynet.co.il/") and not url.startswith("https://www.calcalist.co.il/"):
-        raise HTTPException(status_code=400, detail="only ynet and calcalist")
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as http:
-        r = await http.get(url, headers={"User-Agent": "Mozilla/5.0"})
-    return Response(content=r.content, media_type=r.headers.get("content-type", "text/html"))
