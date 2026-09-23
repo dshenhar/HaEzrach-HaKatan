@@ -31,6 +31,8 @@ export type NewsItem = {
 	biasScore: number; // -5 to 5 scale
 	siteBiasScore: number;
 	category: string;
+	/** the section it was filed under: what the feed filters by */
+	section: string;
 	topic: string;
 	link: string;
 	groupId?: string;
@@ -80,6 +82,7 @@ export const fetchArticles = async (setArticles: React.Dispatch<React.SetStateAc
 				biasScore: -1, // -5 to 5 scale
 				siteBiasScore: 5,
 				category: "fail",
+				section: "fail",
 				topic: "fail",
 				link: "",
 				groupId: "1"

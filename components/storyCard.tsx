@@ -1,6 +1,7 @@
 import { NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { sectionColour } from '@/state/sections';
 import { useDevMode, useTheme } from '@/state/theme';
 import TopicPicker from './topicPicker';
 import { ViewMode } from './viewModeToggle';
@@ -69,6 +70,11 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const lead = data[0];
     const sources = data.map((d) => d.source);
     const shownTopic = topic || lead.topic || "";
+    const section = lead.section || "";
+    const dark = t.name === "negative";
+    const sectionInk = sectionColour(section, dark);
+    // a hard offset shadow, no blur - tab and card read as paper lifted off the page
+    const hardShadow = dark ? "3px 3px 0 rgba(0,0,0,0.5)" : "3px 3px 0 rgba(17,24,39,0.18)";
 
     const applyTopic = async (next: string) => {
         setPickerOpen(false);
@@ -103,28 +109,39 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const handleViewerClosed = () => setRatingOpen(true);
 
     return (
-        <Animated.View layout={glide} style={[styles.card, { backgroundColor: t.surfaceAlt },
-            open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
+        <Animated.View layout={glide} style={styles.wrap}>
+            {/* Closed, the story wears its section as a tab tucked behind its top left
+                corner - the same colour the filter strip uses, so the feed can be read by
+                colour before it is read by word. Open, the tab gives way to the issue. */}
+            {!open && !!section && (
+                <View style={styles.tabRow}>
+                    <View style={[styles.tab, { backgroundColor: sectionInk, boxShadow: hardShadow }]}>
+                        <Text style={styles.tabText} numberOfLines={1}>{section}</Text>
+                    </View>
+                </View>
+            )}
+            <View style={[styles.card, { backgroundColor: t.surfaceAlt, boxShadow: hardShadow },
+                open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
             <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
                 <View style={styles.titleRow}>
                     {!!firstPublished && <Text style={[styles.time, { color: t.textMuted }]}>{firstPublished}</Text>}
                     <Text style={[styles.title, { color: t.text }]} numberOfLines={open ? undefined : 2}>{lead.title}</Text>
+                    {open && !!shownTopic && (
+                        <TouchableOpacity
+                            disabled={!dev}
+                            onPress={() => setPickerOpen(true)}
+                            style={[styles.topicPill, { borderColor: t.line, backgroundColor: t.surface },
+                                dev && { borderColor: t.brand, borderStyle: "dashed" }]}
+                        >
+                            <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]} numberOfLines={2}>
+                                {shownTopic}{dev ? "  ✎" : ""}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
                 {!open && (
                     <View style={styles.metaRow}>
                         <Text style={[styles.sources, { color: t.textMuted }]} numberOfLines={1}>{sources.join(" · ")}</Text>
-                        {!!shownTopic && (
-                            <TouchableOpacity
-                                disabled={!dev}
-                                onPress={() => setPickerOpen(true)}
-                                style={[styles.topicPill, { borderColor: t.line, backgroundColor: t.surface },
-                                    dev && { borderColor: t.brand, borderStyle: "dashed" }]}
-                            >
-                                <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]} numberOfLines={1}>
-                                    {shownTopic}{dev ? "  ✎" : ""}
-                                </Text>
-                            </TouchableOpacity>
-                        )}
                     </View>
                 )}
 
@@ -169,6 +186,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                 id={viewerItem?.id || ''}
                 topic={viewerItem?.topic || ''}
             />
+            </View>
         </Animated.View>
     );
 };
@@ -176,9 +194,19 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
 export default StoryCard;
 
 const styles = StyleSheet.create({
+    wrap: { width: "100%", marginBottom: 13, paddingRight: 3 },
+    // the tab sits at the left edge, opposite the headline's own side
+    tabRow: { flexDirection: I18nManager.isRTL ? "row-reverse" : "row", paddingHorizontal: 12 },
+    tab: {
+        paddingHorizontal: 11, paddingTop: 3, paddingBottom: 6, marginBottom: -4,
+        borderTopLeftRadius: 9, borderTopRightRadius: 9,
+    },
+    tabText: {
+        fontFamily: "Heebo_700Bold", fontSize: 10.5, color: "#FFFFFF", letterSpacing: 0.2,
+    },
     card: {
         width: "100%", backgroundColor: "#F4F4F3", borderRadius: 12,
-        padding: 11, marginBottom: 10, gap: 8,
+        padding: 11, gap: 8,
         borderWidth: 1.5, borderColor: "transparent",
     },
     cardOpen: { backgroundColor: "#fff", borderColor: "#111827" },
@@ -191,10 +219,12 @@ const styles = StyleSheet.create({
         fontFamily: "Heebo_500Medium", fontSize: 12, color: "#9CA3AF",
         lineHeight: 20, fontVariant: ["tabular-nums"],
     },
-    // row-reverse puts the first child on the right: outlets there, topic pill left
     metaRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, marginTop: 6 },
+    // the issue sits at the far end of the headline's own row, so the two read as
+    // one line even when the headline runs to three
     topicPill: {
-        borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, maxWidth: 150,
+        borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3,
+        maxWidth: 122, flexShrink: 0, marginTop: 1,
     },
     topicText: { fontFamily: "Heebo_500Medium", fontSize: 10.5 },
     mergeBtn: {

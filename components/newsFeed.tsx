@@ -9,7 +9,8 @@ import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
 import RatingSheet from "./ratingSheet";
-import { fetchArticles, getSitePositions, getTopics, mergeClusters, SitePosition } from "@/state/engagement";
+import { fetchArticles, getSitePositions, getTopics, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
+import { orderSections } from "@/state/sections";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
 import { Alert } from "react-native";
@@ -33,26 +34,11 @@ const CROWD_HIDE_AFTER = 12;
 const TOUR = ["welcome", "bloc", "citizen"] as const;
 
 
-interface NewsItem {
-	id: string;
-	title: string;
-	source: string;
-	time: string;
-	summary: string;
-	biasScore: number; // -5 to 5 scale
-	siteBiasScore: number;
-	category: string;
-	topic: string;
-	link: string;
-	groupId?: string;
-	imageUrl?: string;
-}
-
 export default function NewsFeed() {
 	const [selectedCategories, setSelectedCategories] = useState<string[]>(["הכל"]);
 	const [articles, setArticles] = useState<Array<NewsItem[]>>([]);
 	const [filteredArticles, setFilteredArticles] = useState<Array<NewsItem[]>>([]);
-	const [topics, setTopics] = useState(new Set<string>(["הכל"]));
+	const [sections, setSections] = useState<string[]>([]);
 	const [ratingOpen, setRatingOpen] = useState(false);
 	const [ratingTarget, setRatingTarget] = useState<NewsItem | null>(null);
 	const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -248,7 +234,7 @@ export default function NewsFeed() {
 		return "ערב טוב!"
 	}
 
-	const handleCategoryToggle = (category: string) => {
+	const handleSectionToggle = (category: string) => {
 	if (category === "הכל") {
 		setSelectedCategories(["הכל"]);
 	} else {
@@ -270,27 +256,23 @@ export default function NewsFeed() {
 
 	const onRefresh = () => {
 		setRefreshing(true);
-		setTopics(new Set<string>(["הכל"]));
 		fetchArticles(setArticles);
 		setTimeout(() => {
 			setRefreshing(false);
 		}, 1000);
 	}
 
+	// only the sections today's feed actually has, in the palette's own order
 	useEffect(() => {
-		setTopics((prevTopics) => {
-			const newTopics = new Set(prevTopics);
-			for (const article of articles) {
-				newTopics.add(article[0].topic);
-			}
-			return newTopics;
-		});
+		setSections(orderSections(articles.map((story) => story[0]?.section).filter(Boolean)));
 	}, [articles]);
 
 	useEffect(() => {
-		setFilteredArticles(selectedCategories.includes("הכל") ? articles : articles.filter((item) => selectedCategories.includes(item[0].topic)));
+		setFilteredArticles(selectedCategories.includes("הכל")
+			? articles
+			: articles.filter((story) => selectedCategories.includes(story[0].section)));
 		scrollRef.current?.scrollTo({ y: 0, animated: true })
-	}, [selectedCategories, topics])
+	}, [selectedCategories, articles])
 
 	return (
 		<SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: t.bg }]}>
@@ -325,9 +307,9 @@ export default function NewsFeed() {
 			<ViewModeToggle mode={viewMode} onChange={setViewMode} />
 
 			<FeedControls
-				topics={[...topics].filter((c) => c !== "הכל")}
-				selectedTopics={selectedCategories}
-				onToggleTopic={handleCategoryToggle}
+				sections={sections}
+				selectedSections={selectedCategories}
+				onToggleSection={handleSectionToggle}
 				sort={sort}
 				onSort={setSort}
 			/>

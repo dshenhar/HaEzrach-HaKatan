@@ -1,3 +1,4 @@
+import { sectionColour } from '@/state/sections';
 import { useTheme } from '@/state/theme';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -33,9 +34,9 @@ const SortIcon = ({ colour }: { colour: string }) => (
 );
 
 type Props = {
-    topics: string[];
-    selectedTopics: string[];
-    onToggleTopic: (topic: string) => void;
+    sections: string[];
+    selectedSections: string[];
+    onToggleSection: (section: string) => void;
     sort: SortKey;
     onSort: (key: SortKey) => void;
 }
@@ -46,11 +47,12 @@ type Props = {
  * one of the two strips is open at a time - two open rails stack and swallow the
  * feed on a phone.
  */
-const FeedControls = ({ topics, selectedTopics, onToggleTopic, sort, onSort }: Props) => {
+const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSort }: Props) => {
     const [panel, setPanel] = useState<"none" | "filter" | "sort">("none");
     const t = useTheme();
+    const dark = t.name === "negative";
 
-    const active = selectedTopics.filter((c) => c !== "הכל");
+    const active = selectedSections.filter((c) => c !== "הכל");
     const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? "";
     const sortIsDefault = sort === "newest";
 
@@ -70,10 +72,11 @@ const FeedControls = ({ topics, selectedTopics, onToggleTopic, sort, onSort }: P
 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.chosen}>
-                    {active.map((topic) => (
-                        <TouchableOpacity key={topic} style={[styles.chip, { backgroundColor: t.text }]}
-                            onPress={() => onToggleTopic(topic)}>
-                            <Text style={[styles.chipText, { color: t.surface }]}>{topic}  ✕</Text>
+                    {active.map((section) => (
+                        <TouchableOpacity key={section}
+                            style={[styles.chip, { backgroundColor: sectionColour(section, dark) }]}
+                            onPress={() => onToggleSection(section)}>
+                            <Text style={[styles.chipText, styles.chipOn]}>{section}  ✕</Text>
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
@@ -92,13 +95,18 @@ const FeedControls = ({ topics, selectedTopics, onToggleTopic, sort, onSort }: P
             {panel === "filter" && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.strip}>
-                    {topics.map((topic) => {
-                        const on = active.includes(topic);
+                    {sections.map((section) => {
+                        const colour = sectionColour(section, dark);
+                        const on = active.includes(section);
                         return (
-                            <TouchableOpacity key={topic}
-                                style={[styles.chip, { backgroundColor: on ? t.text : t.surfaceAlt }]}
-                                onPress={() => onToggleTopic(topic)}>
-                                <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>{topic}</Text>
+                            <TouchableOpacity key={section}
+                                style={[styles.chip, styles.sectionChip,
+                                    { borderColor: colour, backgroundColor: on ? colour : t.surface }]}
+                                onPress={() => onToggleSection(section)}>
+                                {/* the dot carries the colour when the chip is off, so the
+                                    strip reads as the same palette either way */}
+                                {!on && <View style={[styles.dot, { backgroundColor: colour }]} />}
+                                <Text style={[styles.chipText, on ? styles.chipOn : { color: t.text }]}>{section}</Text>
                             </TouchableOpacity>
                         );
                     })}
@@ -142,6 +150,11 @@ const styles = StyleSheet.create({
     chosen: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 2 },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     chip: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
+    sectionChip: {
+        flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1.5,
+    },
+    dot: { width: 8, height: 8, borderRadius: 4 },
     chipText: { fontFamily: "Heebo_500Medium", fontSize: 12.5 },
+    chipOn: { color: "#FFFFFF", fontFamily: "Heebo_700Bold" },
     sortNote: { fontFamily: "Heebo_500Medium", fontSize: 10.5, textAlign: "center" },
 });
