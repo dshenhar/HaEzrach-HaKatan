@@ -5,3 +5,6 @@ __pycache__/
 .env
 .env.*
 *.dump
+
+# firebase deploy cache
+.firebase/
