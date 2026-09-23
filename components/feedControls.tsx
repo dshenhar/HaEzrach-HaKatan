@@ -1,7 +1,7 @@
 import { sectionColour } from '@/state/sections';
 import { useTheme } from '@/state/theme';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 export type SortKey = "newest" | "oldest" | "covered" | "outside";
@@ -12,6 +12,31 @@ export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
     { key: "covered", label: "הכי מסוקר למעלה" },
     { key: "outside", label: "מחוץ לתיבת התהודה שלי" },
 ];
+
+/**
+ * A strip that starts where Hebrew starts. Its chips are laid out right to left,
+ * but a browser still opens a horizontal scroller at its left edge, which showed
+ * the end of the list first. Native RTL already starts on the right.
+ */
+const Strip = ({ children, style }: { children: React.ReactNode; style?: any }) => {
+    const ref = useRef<ScrollView>(null);
+    const placed = useRef(false);
+    return (
+        <ScrollView
+            ref={ref}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={style}
+            onContentSizeChange={() => {
+                if (I18nManager.isRTL || placed.current) return;
+                placed.current = true;
+                ref.current?.scrollToEnd({ animated: false });
+            }}
+        >
+            {children}
+        </ScrollView>
+    );
+};
 
 const FilterIcon = ({ colour }: { colour: string }) => (
     <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
@@ -70,8 +95,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                     </Text>
                 </TouchableOpacity>
 
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chosen}>
+                <Strip style={styles.chosen}>
                     {active.map((section) => (
                         <TouchableOpacity key={section}
                             style={[styles.chip, { backgroundColor: sectionColour(section, dark) }]}
@@ -79,7 +103,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                             <Text style={[styles.chipText, styles.chipOn]}>{section}  ✕</Text>
                         </TouchableOpacity>
                     ))}
-                </ScrollView>
+                </Strip>
 
                 <TouchableOpacity
                     style={[styles.control, { borderColor: t.line, backgroundColor: t.surface },
@@ -93,8 +117,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
             </View>
 
             {panel === "filter" && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.strip}>
+                <Strip style={styles.strip}>
                     {sections.map((section) => {
                         const colour = sectionColour(section, dark);
                         const on = active.includes(section);
@@ -110,12 +133,11 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                             </TouchableOpacity>
                         );
                     })}
-                </ScrollView>
+                </Strip>
             )}
 
             {panel === "sort" && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.strip}>
+                <Strip style={styles.strip}>
                     {SORT_OPTIONS.map((opt) => {
                         const on = opt.key === sort;
                         return (
@@ -126,7 +148,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                             </TouchableOpacity>
                         );
                     })}
-                </ScrollView>
+                </Strip>
             )}
 
             {!sortIsDefault && panel === "none" && (

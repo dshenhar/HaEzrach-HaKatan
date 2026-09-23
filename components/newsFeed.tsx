@@ -11,6 +11,7 @@ import StoryCard from "./storyCard";
 import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { orderSections } from "@/state/sections";
+import { ScrollLock } from "@/state/scrollLock";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
 import { Alert } from "react-native";
@@ -42,6 +43,9 @@ export default function NewsFeed() {
 	const [ratingOpen, setRatingOpen] = useState(false);
 	const [ratingTarget, setRatingTarget] = useState<NewsItem | null>(null);
 	const [refreshing, setRefreshing] = useState<boolean>(false);
+	// raised while a story's outlet rail is being dragged, so the two scrollers
+	// do not fight over the same finger
+	const [scrollLocked, setScrollLocked] = useState(false);
 	const scrollRef = useRef<ScrollView>(null);
 	const [positions, setPositions] = useState<Record<string, SitePosition>>({});
 	const [personalOpen, setPersonalOpen] = useState(false);
@@ -315,8 +319,10 @@ export default function NewsFeed() {
 			/>
 
 			<View style={styles.feedArea}>
+			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
 				style={[styles.scrollView, { backgroundColor: t.bg }]}
+				scrollEnabled={!scrollLocked}
 				contentContainerStyle={{ paddingBottom: crowdHeight + CROWD_FADE }}
 				onScroll={onFeedScroll}
 				scrollEventThrottle={16}
@@ -338,6 +344,7 @@ export default function NewsFeed() {
 					);
 				})}
 			</ScrollView>
+			</ScrollLock.Provider>
 
 			{/* the crowd sits on the tab bar, and the stories fade out behind their heads */}
 			<Animated.View style={[styles.crowd, { height: crowdHeight + CROWD_FADE, opacity: crowdIn }]}>
@@ -435,7 +442,7 @@ const styles = StyleSheet.create({
 	},
 	scrollView: {
 		width: "100%",
-		paddingHorizontal: 16,
+		paddingHorizontal: 11,
 		backgroundColor: '#f8f8f8ff',
 		// borderWidth: 2,
 		flex: 1,

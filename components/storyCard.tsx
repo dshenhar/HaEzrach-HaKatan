@@ -14,6 +14,18 @@ import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanim
 // with it, and its expanded part fades in and out. Reanimated's layout animations
 // run natively on the phone's new architecture, where LayoutAnimation did nothing,
 // and through the Web Animations API in the browser.
+/**
+ * An issue's name breaks where a person would break it. Left alone, "אחריות חיילים
+ * וחקירת מחדלים" wrapped its last word onto a line of its own; from four words up
+ * the name is split down the middle so no line is left holding one word.
+ */
+const balance = (name: string): string => {
+    const words = name.split(/\s+/).filter(Boolean);
+    if (words.length < 4) return name;
+    const half = Math.ceil(words.length / 2);
+    return `${words.slice(0, half).join(" ")}\n${words.slice(half).join(" ")}`;
+};
+
 const GLIDE = LinearTransition.duration(240);
 const FADE_IN = FadeIn.duration(220);
 const FADE_OUT = FadeOut.duration(140);
@@ -134,7 +146,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                                 dev && { borderColor: t.brand, borderStyle: "dashed" }]}
                         >
                             <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]} numberOfLines={2}>
-                                {shownTopic}{dev ? "  ✎" : ""}
+                                {balance(shownTopic)}{dev ? "  ✎" : ""}
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -223,10 +235,12 @@ const styles = StyleSheet.create({
     // the issue sits at the far end of the headline's own row, so the two read as
     // one line even when the headline runs to three
     topicPill: {
-        borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3,
-        maxWidth: 122, flexShrink: 0, marginTop: 1,
+        borderWidth: 1, borderRadius: 13, paddingHorizontal: 9, paddingVertical: 3,
+        maxWidth: 132, flexShrink: 0, marginTop: 1,
     },
-    topicText: { fontFamily: "Heebo_500Medium", fontSize: 10.5 },
+    topicText: {
+        fontFamily: "Heebo_500Medium", fontSize: 10.5, lineHeight: 14, textAlign: "center",
+    },
     mergeBtn: {
         borderWidth: 1, borderStyle: "dashed", borderRadius: 8,
         paddingVertical: 6, alignItems: "center", marginTop: 8,
