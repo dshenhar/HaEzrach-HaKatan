@@ -2,9 +2,10 @@
 
     python discover_topics.py [--sample 1200]
 
-Reads the headlines from a Postgres copy of the archive (DATABASE_URL), shows them
-to the model in batches, and asks which public disputes they belong to. A second
-pass merges the batches into one list, each issue with the two ends of its axis.
+Reads the headlines Firestore holds, shows them to the model in batches, and asks
+which public disputes they belong to. A second pass merges the batches into one
+list, each issue with the two ends of its axis. Stories are kept 30 hours, so a
+wider sample means running this over several days and keeping the output.
 
 It proposes; a person decides. Nothing is written anywhere.
 """
@@ -15,11 +16,10 @@ import random
 import sys
 from collections import Counter
 
-import psycopg2
-import psycopg2.extras
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from gpt_models import TAG_MODEL, _post
+from store import db
 
 BATCH = 60
 
@@ -56,15 +56,9 @@ def ask(instructions: str, payload: str, effort: str = "low") -> list[dict]:
 
 
 def main(sample: int) -> None:
-    conn = psycopg2.connect(os.environ["DATABASE_URL"],
-                            cursor_factory=psycopg2.extras.RealDictCursor)
-    with conn.cursor() as cur:
-        cur.execute("""select a.header, a.topic_name, s.name as site
-                       from articles a join sites s on s.id = a.site_id
-                       join clusters c on c.id = a.cluster_id
-                       where c.article_count >= 2 order by a.created_at desc limit 4000""")
-        rows = cur.fetchall()
-    conn.close()
+    from datetime import timedelta
+    stories = db.stories_since(db.now() - timedelta(hours=30))
+    rows = [story["articles"][0] for story in stories if story.get("articles")]
     seen, headlines = set(), []
     for row in rows:                      # one headline per story, the first outlet's
         if row["header"] in seen:

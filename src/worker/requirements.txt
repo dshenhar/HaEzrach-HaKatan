@@ -4,5 +4,3 @@ python-dateutil~=2.9.0.post0
 requests
 numpy>=1.26,<3
 google-cloud-firestore~=2.22
-# only for the one-time move off Postgres (migrate/pg_to_firestore.py)
-psycopg2-binary~=2.9.9

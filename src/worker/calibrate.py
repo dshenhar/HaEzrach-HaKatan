@@ -1,12 +1,12 @@
 """Measure the OpenAI models against the stories and topics already stored.
 
-    python calibrate.py clusters [--days 4]   replay the grouping at a range of
+    python calibrate.py clusters [--hours 30]  replay the grouping at a range of
                                               thresholds and score each one
     python calibrate.py tags [--n 200]        the tagging model against the stored
                                               topics, and against every dev-mode fix
 
-Reads a Postgres copy of the old database (DATABASE_URL) and writes nothing - not
-to Postgres and not to Firestore. Embeddings are computed in memory for the run.
+Reads the stories Firestore holds and writes nothing. Embeddings are computed in
+memory for the run. Stories are kept 30 hours, so that is the window to work with.
 
 The stored stories and topics came from the previous models, so they are a
 reference and not the truth: what matters in the report is where the two disagree
@@ -18,25 +18,30 @@ import os
 import random
 import sys
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import numpy as np
-import psycopg2
-import psycopg2.extras
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from gpt_models import EMBED_MODEL, TAG_MODEL, classify, embed
+from store import db
+from store.taxonomy import GENERAL_TOPIC as GENERAL, SECTION_HINTS, SECTIONS
 
 # the rules being calibrated, as ingest.py applies them
 TIME_WINDOW_HOURS = 12
 SAME_ARTICLE_THRESHOLD = 0.97
-GENERAL_TOPIC = "חדשות כלליות"
+GENERAL_TOPIC = GENERAL
 
 
-def connect():
-    return psycopg2.connect(os.environ["DATABASE_URL"],
-                            cursor_factory=psycopg2.extras.RealDictCursor)
+def stored_articles(hours: int) -> list[dict]:
+    """Every article of the last `hours`, each carrying the story it was put in."""
+    rows = []
+    for story in db.stories_since(db.now() - timedelta(hours=hours), min_articles=1):
+        for article in story.get("articles", []):
+            rows.append({**article, "story_id": story["id"]})
+    rows.sort(key=lambda r: r["created_at"])
+    return rows
 
 
 def _simulate(rows, vectors, threshold):
@@ -103,13 +108,13 @@ def _pairs(groups):
     return out
 
 
-def clusters(days: int) -> None:
-    since = datetime.utcnow() - timedelta(days=days)
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute("select id, site_id, cluster_id, header, subheader, created_at "
-                    "from articles where created_at >= %s order by created_at", (since,))
-        rows = cur.fetchall()
-    print(f"{len(rows)} articles from the last {days} days, embedding with {EMBED_MODEL}")
+def clusters(hours: int) -> None:
+    rows = stored_articles(hours)
+    if not rows:
+        raise SystemExit("no stored stories in that window")
+    for row in rows:
+        row["cluster_id"] = row["story_id"]
+    print(f"{len(rows)} articles from the last {hours} hours, embedding with {EMBED_MODEL}")
     vectors = embed([f"{r['header']}\n{r['subheader']}" for r in rows])
 
     reference = _pairs([r["cluster_id"] for r in rows])
@@ -161,26 +166,23 @@ def clusters(days: int) -> None:
 
 
 def tags(n: int) -> None:
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute("select id, name, pole_right, pole_left from topics")
-        topics = cur.fetchall()
-        cur.execute("""select a.id, a.header, a.subheader, a.topic_name
-                       from articles a join clusters c on c.id = a.cluster_id
-                       where c.article_count >= 2
-                         and a.id not in (select coalesce(article_id, -1) from topic_corrections)
-                       order by a.created_at desc limit %s""", (n,))
-        sample = cur.fetchall()
-        cur.execute("""select c.header, t.name as topic from topic_corrections c
-                       join topics t on t.id = c.topic_id where c.header is not null""")
-        fixes = cur.fetchall()
+    fixes = [{"header": c["header"], "topic": c["topic"]} for c in db.all_corrections()
+             if c.get("header")]
+    fixed = {c.get("article_id") for c in db.all_corrections()}
+    sample = [a for a in reversed(stored_articles(30)) if a["id"] not in fixed][:n]
+    if not sample:
+        raise SystemExit("no stored articles to score")
+    for article in sample:
+        article["topic_name"] = article.get("topic") or GENERAL_TOPIC
 
-    from migrate.pg_to_firestore import DESCRIPTIONS
-    catalogue = {t["name"]: DESCRIPTIONS.get(t["name"], t["name"])
-                 for t in topics if t["name"] != GENERAL_TOPIC}
+    catalogue = {t["name"]: t.get("description") or t["name"]
+                 for t in db.all_topics() if t["name"] != GENERAL_TOPIC}
+    sections = {SECTIONS[key]: hint for key, hint in SECTION_HINTS.items()}
     examples = [(f["header"], f["topic"]) for f in fixes]
 
-    answers = classify([(a["id"], f"{a['header']}\n{a['subheader']}") for a in sample],
-                       catalogue, examples)
+    raw = classify([(a["id"], f"{a['header']}\n{a['subheader']}") for a in sample],
+                   catalogue, sections, examples)
+    answers = {i: (answer or {}).get("topic") for i, answer in raw.items()}
     agree = 0
     changes, disagreements = Counter(), []
     for article in sample:
@@ -205,7 +207,8 @@ def tags(n: int) -> None:
     if fixes:
         # scored with the fixes themselves left out of the prompt, or the test
         # would be the answer key
-        answers = classify([(i, f["header"]) for i, f in enumerate(fixes)], catalogue, [])
+        raw = classify([(i, f["header"]) for i, f in enumerate(fixes)], catalogue, sections, [])
+        answers = {i: (answer or {}).get("topic") for i, answer in raw.items()}
         right = sum(1 for i, f in enumerate(fixes)
                     if (answers.get(i) or GENERAL_TOPIC) == f["topic"])
         print(f"\nagainst the {len(fixes)} dev-mode corrections: {right} right")
@@ -218,7 +221,7 @@ def tags(n: int) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["clusters", "tags"])
-    parser.add_argument("--days", type=int, default=4)
+    parser.add_argument("--hours", type=int, default=30)
     parser.add_argument("--n", type=int, default=200)
     args = parser.parse_args()
-    clusters(args.days) if args.command == "clusters" else tags(args.n)
+    clusters(args.hours) if args.command == "clusters" else tags(args.n)

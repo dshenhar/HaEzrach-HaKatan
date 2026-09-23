@@ -1,5 +1,0 @@
-# Caddy fetches and renews the Let's Encrypt certificate for API_HOST on its own.
-{$API_HOST} {
-	encode gzip
-	reverse_proxy api:8000
-}
