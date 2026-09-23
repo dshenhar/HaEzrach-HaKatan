@@ -68,6 +68,10 @@ class Article(Base):
     embedding = Column(Vector(768))
     link = Column(String(512), nullable=False)
     topic_name = Column(String(64), nullable=False)
+    # who set the topic: the tagging model's name, "correction" when a new article
+    # matched a dev-mode fix, "human" for the fix itself. Empty means not tagged
+    # yet, which the next ingest cycle picks up.
+    topic_model = Column(String(32), nullable=True)
     bias_score = Column(Integer, default=0)
     votes_count = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
@@ -104,7 +108,9 @@ class Cluster(Base):
     __tablename__ = "clusters"
 
     id = Column(Integer, primary_key=True)
-    centroid_embedding = Column(Vector(768), nullable=False)
+    # dropped once the story is older than any new article could join - see
+    # EMBED_KEEP_DAYS in worker/local_ingest.py
+    centroid_embedding = Column(Vector(768), nullable=True)
     article_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, server_default=func.now())
     last_updated = Column(DateTime, server_default=func.now(), nullable=False)
@@ -148,8 +154,9 @@ class TopicCorrection(Base):
     """A human saying "this article is about X, not what the model guessed".
 
     The embedding is copied off the article so a correction keeps teaching even if
-    the article is deleted. New articles are matched against these before the
-    zero-shot classifier runs - see worker/local_ingest.py.
+    the article is deleted. A new article close enough to one takes its topic
+    outright, and the latest ones are shown to the tagging model as precedent -
+    see worker/local_ingest.py.
     """
     __tablename__ = "topic_corrections"
 

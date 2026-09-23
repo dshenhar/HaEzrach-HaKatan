@@ -69,7 +69,7 @@ services:
     volumes:
       - ./db:/app/db
       - hf_cache:/root/.cache/huggingface
-    command: ["python", "local_ingest.py"]
+    command: ["local_ingest.py"]
 
   caddy:
     image: caddy:2

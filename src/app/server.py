@@ -1,27 +1,36 @@
+"""The app's API: the feed, the map, the ratings, and the dev-mode fixes.
+
+Everything it serves is already computed. The feed is one document written by the
+ingest; the map is one document per topic holding every outlet's position; a rating
+changes a handful of numbers in place (store/learning.py). Nothing here scans the
+articles or averages the ratings, which is what the Postgres version did on every
+request.
+"""
+import hmac
 import os
 import sys
-# Get the absolute path to the src directory relative to this file
-module_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, module_dir)
-from sqlalchemy import select, and_, or_, func, Float
-from db.models import (Article, ClusterMerge, ClusterSummary, Cluster, Site,
-                       SiteTopicPriorBias, Topic, TopicCorrection, Vote)
-from db.db_session import SessionLocal
-from getClusters import get_clusters
-from db.summaries import SIDES, articles_for, prompt as summary_prompt, site_blocs
-from fastapi import Depends, FastAPI, Query, HTTPException, Response, Request
-from fastapi.middleware.cors import CORSMiddleware
-import httpx
-from pydantic import BaseModel
-import hmac
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-K = 5
+import httpx
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from google.cloud import firestore
+from pydantic import BaseModel
 
-# Retagging and merging change the feed for every reader, so they need the code
-# the app's dev mode asks for. With no DEV_KEY on the server they are refused.
+from store import db
+from store.learning import State, apply_rating, rater_weight, revise_rating
+from store.positions import overall, positions_for_topic
+from store.summaries import (GEMINI_API_KEY, GEMINI_MODEL, SIDES, articles_for,
+                             prompt as summary_prompt)
+from store.taxonomy import SECTIONS
+
+GENERAL_TOPIC = db.GENERAL_TOPIC
+
+# Retagging and merging change the feed for every reader, so they need the code the
+# app's dev mode asks for. With no DEV_KEY on the server they are refused.
 DEV_KEY = os.environ.get("DEV_KEY", "")
 
 
@@ -30,608 +39,412 @@ def require_dev(request: Request):
     if not DEV_KEY or not hmac.compare_digest(given.encode(), DEV_KEY.encode()):
         raise HTTPException(status_code=403, detail="dev code required")
 
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow all origins (for dev)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+@app.get("/ping")
+def ping():
+    """Keeps an instance warm without touching the database."""
+    return {"ok": True}
+
+
+@app.get("/health")
+def health_check():
+    try:
+        db.client().collection("meta").document("feed").get()
+        return {"status": "healthy", "db": "ok", "timestamp": datetime.now().isoformat()}
+    except Exception as err:
+        return {"status": "degraded", "db": str(err)[:200],
+                "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/feed")
 def get_feed(response: Response):
     response.headers["ngrok-skip-browser-warning"] = "true"
-    formatted_data = get_clusters()
-    return formatted_data
+    return db.read_feed()
 
 
 @app.get("/sites")
 def get_sites():
-    with SessionLocal() as session:
-        sites = session.execute(select(Site.id, Site.name)).scalars().all()
-    return sites
+    return sorted(site["name"] for site in db.all_sites())
 
 
-# not a political axis: outlets have no left/right position on general news, so it
-# is offered as a correction target but kept off the map
-GENERAL_TOPIC = "חדשות כלליות"
+@app.get("/sections")
+def get_sections():
+    """The sections the feed filters by, in the order they are shown."""
+    return [{"id": key, "name": name} for key, name in SECTIONS.items()]
 
 
 @app.get("/topics")
 def get_topics(include_general: bool = False):
-    with SessionLocal() as session:
-        topics = session.execute(select(Topic.name)).scalars().all()
-    return topics if include_general else [t for t in topics if t != GENERAL_TOPIC]
+    names = [t["name"] for t in db.all_topics()]
+    return names if include_general else [n for n in names if n != GENERAL_TOPIC]
 
 
 @app.get("/topics/poles")
 def get_topic_poles():
     """What each end of a topic's axis means, so the app never labels it wrong."""
-    with SessionLocal() as session:
-        rows = session.execute(select(Topic.name, Topic.pole_right, Topic.pole_left)).all()
-    return {r.name: {"right": r.pole_right or "בעד", "left": r.pole_left or "נגד"} for r in rows}
-
-
-# Zero on purpose: leaning even slightly one way puts an outlet in that bloc.
-# There is no neutral band - the app's claim is that the blocs are a construction,
-# and a comfortable "centre" bucket would let outlets sit out the argument.
-BREAKING_POINT = 0.0
+    return {t["name"]: {"right": t.get("pole_right") or "בעד",
+                        "left": t.get("pole_left") or "נגד"}
+            for t in db.all_topics()}
 
 
 @app.get("/sites/bias")
 def get_sites_bias():
-    """Each site's overall position, and the bloc that falls out of it.
-
-    Same blend as /ranks/{topic} - prior weighted against rated articles - just
-    averaged across every topic. The bloc is derived here rather than stored on
-    the row, so it moves as readers rate articles.
-    """
-    with SessionLocal() as session:
-        site_names = {s.id: s.name for s in session.execute(select(Site.id, Site.name)).all()}
-        topic_ids = [t.id for t in session.execute(select(Topic.id)).all()]
-
-        stmt = (
-            select(
-                Article.site_id,
-                Article.topic_id,
-                func.count(Article.id).filter(Article.votes_count > 0).label("n_rated"),
-                func.avg(Article.bias_score.cast(Float) / func.nullif(Article.votes_count, 0)).label("avg_bias"),
-            )
-            .group_by(Article.site_id, Article.topic_id)
-        )
-        rated = {(r.site_id, r.topic_id): (r.n_rated, r.avg_bias or 0.0)
-                 for r in session.execute(stmt)}
-
-        priors = {(r.site_id, r.topic_id): r.prior_bias
-                  for r in session.execute(select(SiteTopicPriorBias)).scalars()}
-
-    results = []
-    for s_id, name in site_names.items():
-        scores = []
-        for t_id in topic_ids:
-            n_rated, avg_bias = rated.get((s_id, t_id), (0, 0.0))
-            prior = priors.get((s_id, t_id))
-            if prior is None and n_rated == 0:
-                continue                      # nothing known about this pair
-            w = n_rated / (n_rated + K) if n_rated > 0 else 0.0
-            scores.append(w * avg_bias + (1 - w) * (prior or 0.0))
-
-        if not scores:
-            results.append({"source": name, "bias": None, "bloc": "unknown", "topics_scored": 0})
-            continue
-
-        bias = sum(scores) / len(scores)
-        bloc = "right" if bias >= BREAKING_POINT else "left"
-        results.append({
-            "source": name,
-            "bias": round(bias, 3),
-            "bloc": bloc,
-            "topics_scored": len(scores),
-        })
-
+    """Each outlet's position across every topic, and the bloc that falls out of it."""
+    names = {site["id"]: site["name"] for site in db.all_sites()}
+    scored = overall(db.all_topic_states())
+    results = [{"source": names.get(site_id, site_id), **info}
+               for site_id, info in scored.items() if site_id in names]
+    for site_id, name in names.items():
+        if site_id not in scored:
+            results.append({"source": name, "bias": None, "bloc": "unknown",
+                            "topics_scored": 0})
     results.sort(key=lambda r: (r["bias"] is None, -(r["bias"] or 0)))
     return results
 
 
-# Gemini first because its free tier costs nothing; Claude only when Gemini is out
-# of quota or unset, so paid credits are spent only when there is no free option.
-# Either way a summary is computed once and stored, so no story is ever paid for twice.
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-3.6-flash"
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
-CLAUDE_MODEL = "claude-sonnet-5"
-
-
-
-
-async def _gemini(client, prompt: str) -> str | None:
-    r = await client.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-        headers={"x-goog-api-key": GEMINI_API_KEY, "content-type": "application/json"},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "maxOutputTokens": 300,
-                "temperature": 0.3,
-                # 3.x flash reasons against the same budget and would truncate
-                "thinkingConfig": {"thinkingBudget": 0},
-            },
-        },
-    )
-    r.raise_for_status()
-    parts = r.json()["candidates"][0].get("content", {}).get("parts", [])
-    return "".join(p.get("text", "") for p in parts if not p.get("thought")).strip() or None
-
-
-async def _claude(client, prompt: str) -> str | None:
-    r = await client.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={"x-api-key": CLAUDE_API_KEY, "anthropic-version": "2023-06-01",
-                 "content-type": "application/json"},
-        json={"model": CLAUDE_MODEL, "max_tokens": 300,
-              "messages": [{"role": "user", "content": prompt}]},
-    )
-    r.raise_for_status()
-    return "".join(b.get("text", "") for b in r.json().get("content", [])).strip() or None
-
-
-async def _summarise(articles: list[tuple[str, str]], bloc: str) -> str | None:
-    prompt = summary_prompt(articles, bloc)
-    last_error = None
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        for name, key, fn in (("gemini", GEMINI_API_KEY, _gemini),
-                              ("claude", CLAUDE_API_KEY, _claude)):
-            if not key:
-                continue
-            try:
-                text = await fn(client, prompt)
-                if text:
-                    return text
-            except Exception as err:
-                print(f"summary via {name} failed: {err}")
-                last_error = err
-
-    if last_error:
-        raise last_error
-    return None
-
-
-@app.get("/clusters/{cluster_id}/summary/{bloc}")
-async def get_bloc_summary(cluster_id: int, bloc: str):
-    """One line on how one bloc framed a story - or, for "all", on the story as
-    every outlet that covered it told it (the citizen view).
-
-    Returns summary=None when no key is configured or the bloc did not cover the
-    story - the app hides the box rather than showing an empty one.
-    """
-    if bloc not in SIDES:
-        raise HTTPException(status_code=400, detail="bloc must be right, left or all")
-
-    with SessionLocal() as session:
-        stored = session.get(ClusterSummary, (cluster_id, bloc))
-        if stored:
-            return {"summary": stored.summary, "cached": True}
-
-    if not (GEMINI_API_KEY or CLAUDE_API_KEY):
-        return {"summary": None, "reason": "no summary key set (GEMINI_API_KEY or CLAUDE_API_KEY)"}
-
-    with SessionLocal() as session:
-        rows = session.execute(
-            select(Article.header, Article.subheader, Article.site_id)
-            .where(Article.cluster_id == cluster_id)
-        ).all()
-        if not rows:
-            raise HTTPException(status_code=404, detail="cluster not found")
-
-        blocs = site_blocs(session, {r.site_id for r in rows})
-
-    articles = articles_for(rows, blocs, bloc)
-    if not articles:
-        return {"summary": None, "reason": "bloc did not cover this story"}
-
-    try:
-        text = await _summarise(articles, bloc)
-    except httpx.HTTPStatusError as err:
-        # surface what the provider actually said - "request failed" hid a
-        # billing error behind a generic message for a while
-        try:
-            detail = err.response.json().get("error", {}).get("message", err.response.text[:200])
-        except Exception:
-            detail = err.response.text[:200]
-        print(f"summary failed for cluster {cluster_id}/{bloc}: {detail}")
-        return {"summary": None, "reason": detail}
-    except Exception as err:
-        print(f"summary failed for cluster {cluster_id}/{bloc}: {err}")
-        return {"summary": None, "reason": str(err)[:200]}
-
-    if not text:
-        return {"summary": None, "reason": "no provider returned a summary"}
-
-    with SessionLocal() as session:
-        session.merge(ClusterSummary(cluster_id=cluster_id, bloc=bloc, summary=text[:2048],
-                                     article_count=len(articles)))
-        session.commit()
-    return {"summary": text, "cached": False, "articles": len(articles)}
-
-
-class TopicFix(BaseModel):
-    topic: str
-
-
-@app.patch("/clusters/{cluster_id}/topic", dependencies=[Depends(require_dev)])
-def set_cluster_topic(cluster_id: int, fix: TopicFix):
-    """Reassign a story's topic and keep the correction as a labelled example.
-
-    Rewrites every article in the cluster and records one TopicCorrection per
-    article, carrying its embedding - that is what the ingest worker matches new
-    articles against. The stored summaries survive: the topic label does not
-    change what the headlines say.
-    """
-    with SessionLocal() as session:
-        row = session.execute(
-            select(Topic.id, Topic.name).where(Topic.name == fix.topic)
-        ).one_or_none()
-        if row is None:
-            raise HTTPException(status_code=404, detail="topic not found")
-        # read the values out now: the objects detach when the session closes
-        topic_id, topic_name = row.id, row.name
-
-        articles = session.execute(
-            select(Article).where(Article.cluster_id == cluster_id)
-        ).scalars().all()
-        if not articles:
-            raise HTTPException(status_code=404, detail="cluster not found")
-
-        taught = 0
-        for article in articles:
-            if article.topic_id == topic_id:
-                continue
-            if article.embedding is not None:
-                session.add(TopicCorrection(
-                    article_id=article.id,
-                    topic_id=topic_id,
-                    previous_topic_id=article.topic_id,
-                    embedding=article.embedding,
-                    header=article.header[:512],
-                ))
-                taught += 1
-            article.topic_id = topic_id
-            article.topic_name = topic_name[:64]
-        count = len(articles)
-        session.commit()
-
-    return {"cluster_id": cluster_id, "topic": topic_name,
-            "articles_updated": count, "examples_learned": taught}
-
-
-class MergeRequest(BaseModel):
-    keep: int
-    merge: int
-
-
-@app.post("/clusters/merge", dependencies=[Depends(require_dev)])
-def merge_clusters(req: MergeRequest):
-    """Fold one story into another and remember that a human joined them."""
-    if req.keep == req.merge:
-        raise HTTPException(status_code=400, detail="same cluster")
-
-    with SessionLocal() as session:
-        keep = session.get(Cluster, req.keep)
-        merge = session.get(Cluster, req.merge)
-        if keep is None or merge is None:
-            raise HTTPException(status_code=404, detail="cluster not found")
-
-        similarity = None
-        try:
-            import numpy as _np
-            a = _np.asarray(keep.centroid_embedding, dtype=float)
-            b = _np.asarray(merge.centroid_embedding, dtype=float)
-            similarity = float(a @ b / (_np.linalg.norm(a) * _np.linalg.norm(b)))
-        except Exception:
-            pass
-
-        moving = session.execute(
-            select(Article).where(Article.cluster_id == merge.id)
-        ).scalars().all()
-        # articles has UNIQUE(cluster_id, site_id): a site already in the kept
-        # cluster cannot move, so it is left unclustered rather than dropped
-        taken = {
-            a.site_id for a in session.execute(
-                select(Article).where(Article.cluster_id == keep.id)
-            ).scalars()
-        }
-        moved = 0
-        for article in moving:
-            if article.site_id in taken:
-                article.cluster_id = None
-                continue
-            article.cluster_id = keep.id
-            taken.add(article.site_id)
-            moved += 1
-
-        keep.article_count = len(taken)
-        keep.last_updated = max(keep.last_updated, merge.last_updated)
-        session.add(ClusterMerge(kept_cluster_id=keep.id, merged_cluster_id=merge.id,
-                                 similarity=similarity))
-        # the headlines changed, so the summaries no longer describe the story
-        session.query(ClusterSummary).filter(
-            ClusterSummary.cluster_id.in_([keep.id, merge.id])
-        ).delete(synchronize_session=False)
-        session.delete(merge)
-        session.commit()
-
-    return {"kept": req.keep, "moved": moved, "similarity": similarity}
-
-
-@app.post("/dev/unlock", dependencies=[Depends(require_dev)])
-def dev_unlock():
-    """Lets the app check a dev code before it turns dev mode on."""
-    return {"ok": True}
-
-
-@app.get("/dev/learning")
-def learning_stats():
-    """What the app has been taught so far."""
-    with SessionLocal() as session:
-        corrections = session.execute(select(func.count(TopicCorrection.id))).scalar_one()
-        merges = session.execute(select(func.count(ClusterMerge.id))).scalar_one()
-        lowest = session.execute(
-            select(func.min(ClusterMerge.similarity)).where(ClusterMerge.similarity.isnot(None))
-        ).scalar_one()
-    return {
-        "topic_corrections": corrections,
-        "cluster_merges": merges,
-        # every human merge is a pair the threshold should have caught
-        "lowest_merged_similarity": lowest,
-    }
+def _topic_doc(topic: str) -> tuple[str, dict]:
+    match = next((t for t in db.all_topics() if t["name"] == topic), None)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    return match["id"], db.topic_state(match["id"])
 
 
 @app.get("/ranks/{topic}")
 def get_ranks(topic: str):
-    with SessionLocal() as session:
-        # the map draws the curated roster only; everything else is still scored
-        site_names = {
-            s.id: s.name
-            for s in session.execute(
-                select(Site.id, Site.name).where(Site.in_roster.is_(True))
-            ).all()
-        }
-        topic_record = session.query(Topic.id).filter(Topic.name == topic).first()
-        if not topic_record:
-            raise HTTPException(status_code=404, detail="Topic not found")
-        topic_id = topic_record[0]
-
-        subq = (
-            session.query(
-                Article.site_id,
-                func.max(Article.created_at).label("latest_time")
-            )
-            .filter(Article.topic_id == topic_id)
-            .group_by(Article.site_id)
-            .subquery()
-        )
-
-        # Join and select only site_id and title
-        query = (
-            session.query(Article.site_id, Article.header)
-            .join(subq, (Article.site_id == subq.c.site_id) &
-                  (Article.created_at == subq.c.latest_time))
-            .all()
-        )
-        latest_articles = {q.site_id: q.header for q in query}
-        print(latest_articles)
-
-        stmt = (
-            select(
-                Article.site_id,
-                func.count(Article.id).label("n_covered"),
-                # only articles someone actually voted on carry evidence; counting the
-                # rest pulled every well-covered site toward 0 and buried the prior
-                func.count(Article.id).filter(Article.votes_count > 0).label("n_rated"),
-                func.avg(Article.bias_score.cast(Float) / func.nullif(Article.votes_count, 0)).label("avg_bias"),
-            )
-            .where(Article.topic_id == topic_id)
-            .group_by(Article.site_id)
-        )
-
-        stmt_prior = (
-            select(
-                SiteTopicPriorBias.site_id,
-                SiteTopicPriorBias.prior_bias,
-            )
-            .where(SiteTopicPriorBias.topic_id == topic_id)
-        )
-
-        article_stats = {
-            row.site_id: (row.n_covered, row.n_rated, row.avg_bias or 0.0)
-            for row in session.execute(stmt)
-        }
-
-        priors = {
-            row.site_id: row.prior_bias
-            for row in session.execute(stmt_prior)
-        }
-
+    """One topic's map: where each outlet on the roster stands, and what it last ran."""
+    topic_id, state = _topic_doc(topic)
+    sites = {s["id"]: s for s in db.all_sites() if s.get("in_roster")}
+    positions = positions_for_topic(state)
+    entries = state.get("sites") or {}
     results = []
-
-    for s_id in site_names.keys():
-        n_covered, n_rated, avg_bias = article_stats.get(s_id, (0, 0, 0.0))
-        prior_bias = priors.get(s_id, 0.0)
-
-        # the prior holds until readers have actually rated something
-        w_articles = n_rated / (n_rated + K) if n_rated > 0 else 0.0
-        w_prior = 1.0 - w_articles
-
-        bias = w_articles * avg_bias + w_prior * prior_bias
-
+    for site_id, site in sites.items():
+        entry = entries.get(site_id, {})
+        raters = int(entry.get("raters", 0))
         results.append({
-            "source": site_names[s_id],
-            "bias": round(bias, 3),
-            "article_count": n_covered,
-            "rated_count": n_rated,
-            "confidence": round(min(1.0, n_rated / 20), 2),
-            "latest_article_header": latest_articles.get(s_id, "")
+            "source": site["name"],
+            "bias": positions.get(site_id, round(float(entry.get("prior", 0.0)), 3)),
+            "article_count": int(entry.get("articles", 0)),
+            "rated_count": raters,
+            "confidence": round(min(1.0, raters / 20), 2),
+            "latest_article_header": (entry.get("latest") or {}).get("header", ""),
         })
     return results
 
 
 @app.get("/ranks/site/{site}")
 def get_ranks_by_site(site: str):
-    with SessionLocal() as session:
-        topics_names = {
-            t.id: t.name
-            for t in session.execute(select(Topic.id, Topic.name)).all()
-        }
-        site_record = session.query(Site.id).filter(Site.name == site).first()
-        if not site_record:
-            raise HTTPException(status_code=404, detail="Site not found")
-        site_id = site_record[0]
-
-        stmt = (
-            select(
-                Article.topic_id,
-                func.count(Article.id).label("n_covered"),
-                func.count(Article.id).filter(Article.votes_count > 0).label("n_rated"),
-                func.avg(Article.bias_score.cast(Float) / func.nullif(Article.votes_count, 0)).label("avg_bias"),
-            )
-            .where(Article.site_id == site_id)
-            .group_by(Article.topic_id)
-        )
-
-        stmt_prior = (
-            select(
-                SiteTopicPriorBias.topic_id,
-                SiteTopicPriorBias.prior_bias,
-            )
-            .where(SiteTopicPriorBias.site_id == site_id)
-        )
-
-        article_stats = {
-            row.topic_id: (row.n_covered, row.n_rated, row.avg_bias or 0.0)
-            for row in session.execute(stmt)
-        }
-
-        priors = {
-            row.topic_id: row.prior_bias
-            for row in session.execute(stmt_prior)
-        }
-
+    """One outlet, topic by topic - what the analytics page draws."""
+    match = next((s for s in db.all_sites() if s["name"] == site), None)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Site not found")
+    names = {t["id"]: t["name"] for t in db.all_topics()}
     results = []
-
-    for t_id in topics_names.keys():
-        n_covered, n_rated, avg_bias = article_stats.get(t_id, (0, 0, 0.0))
-        prior_bias = priors.get(t_id, 0.0)
-
-        w_articles = n_rated / (n_rated + K) if n_rated > 0 else 0.0
-        w_prior = 1.0 - w_articles
-
-        bias = w_articles * avg_bias + w_prior * prior_bias
-
+    for topic_id, state in db.all_topic_states().items():
+        entry = (state.get("sites") or {}).get(match["id"])
+        if entry is None or topic_id not in names:
+            continue
+        raters = int(entry.get("raters", 0))
         results.append({
-            "topic": topics_names[t_id],
-            "bias": round(bias, 3),
-            "article_count": n_covered,
-            "rated_count": n_rated,
-            "confidence": round(min(1.0, n_rated / 20), 2),
+            "topic": names[topic_id],
+            "bias": positions_for_topic(state).get(match["id"], 0.0),
+            "article_count": int(entry.get("articles", 0)),
+            "rated_count": raters,
+            "confidence": round(min(1.0, raters / 20), 2),
         })
     return results
 
+
+# ---- ratings -----------------------------------------------------------------
 
 class VoteRequest(BaseModel):
     value: int
 
 
-def get_anonymous_id(request: Request) -> uuid.UUID:
-    anon = request.cookies.get("anon_id")
-    if anon:
-        return uuid.UUID(anon)
-    return uuid.uuid4()
+def voter_id(request: Request) -> str:
+    """The same reader across visits: their cookie, or their address until they have one."""
+    cookie = request.cookies.get("anon_id")
+    if cookie:
+        return cookie
+    return f"ip-{request.client.host}" if request.client else str(uuid.uuid4())
 
 
 @app.post("/articles/{article_id}/vote")
-async def add_vote(article_id: int, vote: VoteRequest, request: Request, response: Response):
-    with SessionLocal() as session:
-        anon_id = get_anonymous_id(request)
-        ip = request.client.host
-        response.set_cookie("anon_id", str(anon_id), 60 * 60 * 24 * 365, httponly=True, secure=True, samesite="lax")
+def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Response):
+    """One reader's verdict on one article, folded into the outlet's position.
 
-        article = session.get(Article, article_id)
-        if not article:
+    Everything happens in a single transaction: the article's own score, the
+    reader's record for the day, and the state the outlet's position on this topic
+    is learned from. No history is kept - the rating itself is dropped after a
+    month, and what it taught stays in the state.
+    """
+    voter = voter_id(request)
+    response.set_cookie("anon_id", voter, 60 * 60 * 24 * 365, httponly=True,
+                        secure=True, samesite="lax")
+    client = db.client()
+    article_ref = client.collection("articles").document(str(article_id))
+    vote_ref = db.vote_ref(article_id, voter)
+    voter_ref = db.voter_ref(voter)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    value = max(-5, min(5, int(vote.value)))
+
+    @firestore.transactional
+    def apply(tx):
+        article_snap = article_ref.get(transaction=tx)
+        if not article_snap.exists:
             raise HTTPException(status_code=404, detail="article not found")
+        article = article_snap.to_dict()
+        topic_id = str(article.get("topic_id"))
+        site_id = str(article.get("site_id"))
+        state_ref = db.topic_state_ref(topic_id)
 
-        cur_vote = session.execute(select(Vote).where(
-            and_(
-                Vote.article_id == article_id,
-                or_(
-                    Vote.anonymous_id == anon_id,
-                    Vote.ip_address == ip,
-                )
-            )
-        )).scalar_one_or_none()
-        if cur_vote:
-            if cur_vote.value == vote.value:
-                return {"status": "no_change"}
-            article.bias_score += (vote.value - cur_vote.value)
-            cur_vote.value = vote.value
+        vote_snap = vote_ref.get(transaction=tx)
+        voter_snap = voter_ref.get(transaction=tx)
+        state_snap = state_ref.get(transaction=tx)
+        story_ref = (client.collection("stories").document(str(article["story_id"]))
+                     if article.get("story_id") else None)
+        story_snap = story_ref.get(transaction=tx) if story_ref else None
+
+        previous = vote_snap.to_dict() if vote_snap.exists else None
+        if previous and previous.get("value") == value:
+            return {"status": "no_change"}
+
+        record = voter_snap.to_dict() if voter_snap.exists else {}
+        if record.get("day") != today:
+            record = {"day": today, "sites": {}, "pairs": record.get("pairs", {})}
+        done_today = int((record.get("sites") or {}).get(site_id, 0))
+        weight = rater_weight(done_today)
+        pair = f"{site_id}:{topic_id}"
+        first_time = pair not in (record.get("pairs") or {})
+
+        state = State.from_doc(((state_snap.to_dict() or {}).get("sites") or {}).get(site_id))
+        if previous:
+            state = revise_rating(state, previous["value"], value, previous.get("weight", 1.0))
         else:
-            new_vote = Vote(
-                article_id=article_id,
-                value=vote.value,
-                anonymous_id=anon_id,
-                ip_address=ip,
-            )
-            session.add(new_vote)
-            article.bias_score += vote.value
-            article.votes_count += 1
+            state = apply_rating(state, value, weight, first_time_rater=first_time)
 
-        session.commit()
-        return {"mean_score": article.bias_score / article.votes_count}
+        rating = article.get("rating") or {"w": 0.0, "s": 0.0, "n": 0}
+        if previous:
+            rating["s"] = rating.get("s", 0.0) + previous.get("weight", 1.0) * (value - previous["value"])
+        else:
+            rating = {"w": rating.get("w", 0.0) + weight,
+                      "s": rating.get("s", 0.0) + weight * value,
+                      "n": rating.get("n", 0) + 1}
+
+        tx.set(vote_ref, {"article_id": str(article_id), "value": value, "weight": weight,
+                          "site_id": site_id, "topic_id": topic_id,
+                          "created_at": db.now(), "expires_at": db.vote_expiry()})
+        record.setdefault("sites", {})[site_id] = done_today + 1
+        record.setdefault("pairs", {})[pair] = True
+        tx.set(voter_ref, record)
+        tx.set(article_ref, {"rating": rating}, merge=True)
+        entry = state.to_doc()
+        stored = ((state_snap.to_dict() or {}).get("sites") or {}).get(site_id, {})
+        # how many of this outlet's articles on this topic anyone has rated
+        entry["rated"] = int(stored.get("rated", 0)) + (1 if not previous and rating["n"] == 1 else 0)
+        tx.set(state_ref, {"sites": {site_id: entry}}, merge=True)
+        # the feed carries a copy of the score, so the story keeps it in step until
+        # the next ingest rebuilds the feed document
+        if story_snap is not None and story_snap.exists:
+            story = story_snap.to_dict()
+            articles = story.get("articles", [])
+            for entry in articles:
+                if str(entry.get("id")) == str(article_id):
+                    entry["rating"] = rating
+            tx.set(story_ref, {"articles": articles}, merge=True)
+        return {"mean_score": round(rating["s"] / rating["w"], 2) if rating["w"] else 0}
+
+    return apply(client.transaction())
+
+
+# ---- AI summaries ------------------------------------------------------------
+# Written during the ingest, before any reader asks. This path only covers a story
+# whose summary is missing - one that joined the feed between two cycles.
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("TAG_MODEL", "gpt-5.6-luna")
+
+
+async def _openai(prompt: str) -> str | None:
+    async with httpx.AsyncClient(timeout=90) as http:
+        r = await http.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={"model": OPENAI_MODEL, "reasoning_effort": "none",
+                  "max_completion_tokens": 300,
+                  "messages": [{"role": "user", "content": prompt}]},
+        )
+        r.raise_for_status()
+        return (r.json()["choices"][0]["message"].get("content") or "").strip() or None
+
+
+async def _gemini(prompt: str) -> str | None:
+    async with httpx.AsyncClient(timeout=60) as http:
+        r = await http.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+            headers={"x-goog-api-key": GEMINI_API_KEY, "content-type": "application/json"},
+            json={"contents": [{"parts": [{"text": prompt}]}],
+                  "generationConfig": {"maxOutputTokens": 300, "temperature": 0.3,
+                                       "thinkingConfig": {"thinkingBudget": 0}}},
+        )
+        r.raise_for_status()
+        parts = r.json()["candidates"][0].get("content", {}).get("parts", [])
+        return "".join(p.get("text", "") for p in parts if not p.get("thought")).strip() or None
+
+
+@app.get("/clusters/{story_id}/summary/{bloc}")
+async def get_bloc_summary(story_id: str, bloc: str):
+    """One line on how one bloc framed a story, or on the story as everyone told it."""
+    if bloc not in SIDES:
+        raise HTTPException(status_code=400, detail="bloc must be right, left or all")
+    story = db.get_story(story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+
+    stored = (story.get("summaries") or {}).get(bloc)
+    if stored and stored.get("text"):
+        return {"summary": stored["text"], "cached": True}
+    if not (OPENAI_API_KEY or GEMINI_API_KEY):
+        return {"summary": None, "reason": "no summary key set"}
+
+    blocs = {site_id: info["bloc"] for site_id, info in overall(db.all_topic_states()).items()}
+    rows = [{"header": a["header"], "subheader": a.get("subheader"),
+             "site_id": str(a["site_id"])} for a in story.get("articles", [])]
+    articles = articles_for(rows, blocs, bloc)
+    if not articles:
+        return {"summary": None, "reason": "bloc did not cover this story"}
+
+    text, failure = None, None
+    for provider in ([_openai] if OPENAI_API_KEY else []) + ([_gemini] if GEMINI_API_KEY else []):
+        try:
+            text = await provider(summary_prompt(articles, bloc))
+            if text:
+                break
+        except Exception as err:
+            print(f"summary failed for {story_id}/{bloc}: {err}")
+            failure = str(err)[:200]
+    if not text and failure:
+        return {"summary": None, "reason": failure}
+    if not text:
+        return {"summary": None, "reason": "no summary came back"}
+
+    db.client().collection("stories").document(str(story_id)).set(
+        {"summaries": {bloc: {"text": text[:2048], "count": len(articles)}}}, merge=True)
+    return {"summary": text, "cached": False, "articles": len(articles)}
+
+
+# ---- dev mode ----------------------------------------------------------------
+
+class TopicFix(BaseModel):
+    topic: str
+
+
+@app.patch("/clusters/{story_id}/topic", dependencies=[Depends(require_dev)])
+def set_story_topic(story_id: str, fix: TopicFix):
+    """Reassign a story's topic and keep the correction as a labelled example."""
+    topic = next((t for t in db.all_topics() if t["name"] == fix.topic), None)
+    if topic is None:
+        raise HTTPException(status_code=404, detail="topic not found")
+    story = db.get_story(story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+
+    writer = db.Writer()
+    taught = 0
+    for article in story.get("articles", []):
+        if article.get("topic_id") != topic["id"] and article.get("v"):
+            db.add_correction({"article_id": article["id"], "topic": topic["name"],
+                               "topic_id": topic["id"], "header": article["header"][:512],
+                               "v": article["v"], "created_at": db.now()})
+            taught += 1
+        article["topic"] = topic["name"]
+        article["topic_id"] = topic["id"]
+        article["topic_model"] = "human"
+        writer.set(db.client().collection("articles").document(str(article["id"])),
+                   {"topic": topic["name"], "topic_id": topic["id"], "topic_model": "human"},
+                   merge=True)
+    writer.set(db.client().collection("stories").document(str(story_id)),
+               {"topic": topic["name"], "articles": story["articles"]}, merge=True)
+    writer.flush()
+    return {"cluster_id": story_id, "topic": topic["name"],
+            "articles_updated": len(story.get("articles", [])), "examples_learned": taught}
+
+
+class MergeRequest(BaseModel):
+    keep: str
+    merge: str
+
+
+@app.post("/clusters/merge", dependencies=[Depends(require_dev)])
+def merge_stories(req: MergeRequest):
+    """Fold one story into another and remember that a human joined them."""
+    if str(req.keep) == str(req.merge):
+        raise HTTPException(status_code=400, detail="same story")
+    keep = db.get_story(req.keep)
+    merge = db.get_story(req.merge)
+    if keep is None or merge is None:
+        raise HTTPException(status_code=404, detail="story not found")
+
+    similarity = None
+    a, b = db.unpack(keep.get("centroid")), db.unpack(merge.get("centroid"))
+    if a is not None and b is not None:
+        import numpy as np
+        similarity = float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+    taken = {str(art["site_id"]) for art in keep.get("articles", [])}
+    moved = 0
+    writer = db.Writer()
+    for article in merge.get("articles", []):
+        if str(article["site_id"]) in taken:
+            continue            # one article per outlet in a story
+        keep["articles"].append(article)
+        taken.add(str(article["site_id"]))
+        moved += 1
+        writer.set(db.client().collection("articles").document(str(article["id"])),
+                   {"story_id": keep["id"]}, merge=True)
+    # the headlines changed, so the stored summaries no longer describe the story
+    writer.set(db.client().collection("stories").document(str(req.keep)),
+               {"articles": keep["articles"], "article_count": len(keep["articles"]),
+                "summaries": {}}, merge=True)
+    writer.delete(db.client().collection("stories").document(str(req.merge)))
+    writer.flush()
+    db.client().collection("merges").add(
+        {"kept": str(req.keep), "merged": str(req.merge), "similarity": similarity,
+         "created_at": db.now()})
+    return {"kept": req.keep, "moved": moved, "similarity": similarity}
+
+
+@app.post("/dev/unlock", dependencies=[Depends(require_dev)])
+def dev_unlock():
+    return {"ok": True}
+
+
+@app.get("/dev/learning")
+def learning_stats():
+    """What the app has been taught so far."""
+    client = db.client()
+    corrections = client.collection("corrections").count().get()[0][0].value
+    merges = list(client.collection("merges").stream())
+    lowest = min((m.to_dict().get("similarity") for m in merges
+                  if m.to_dict().get("similarity") is not None), default=None)
+    return {"topic_corrections": int(corrections), "cluster_merges": len(merges),
+            # every human merge is a pair the threshold should have caught
+            "lowest_merged_similarity": lowest}
 
 
 @app.get("/api/bypass")
-async def proxy_ynet(url: str = Query(..., description="Full Ynet URL")):
-    # Security check: only allow ynet.co.il or calcalist.co.il
-    print("in the ynet/calcalist server")
+async def proxy_ynet(url: str = Query(..., description="Full article URL")):
     if not url.startswith("https://www.ynet.co.il/") and not url.startswith("https://www.calcalist.co.il/"):
-        raise HTTPException(status_code=400, detail="Only ynet.co.il or calcalist.co.il URLs are allowed")
-
-    try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url, timeout=10)
-            html = r.text
-
-        return Response(content=html, media_type="text/html")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching {url}: {e}")
-
-
-@app.get("/")
-def home():
-    return {"msg": "Hebrew News Clustering API is running!"}
-
-
-@app.get("/health")
-def health_check():
-    """Health check endpoint for monitoring and readiness probes"""
-    try:
-        # Check database connection
-        with SessionLocal() as session:
-            session.execute(select(1))
-        db_status = "ok"
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-
-    return {
-        "status": "healthy",
-        "db": db_status,
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        raise HTTPException(status_code=400, detail="only ynet and calcalist")
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as http:
+        r = await http.get(url, headers={"User-Agent": "Mozilla/5.0"})
+    return Response(content=r.content, media_type=r.headers.get("content-type", "text/html"))

@@ -1,8 +1,8 @@
 feedparser~=6.0.12
-SQLAlchemy>=2.0,<2.1
 bs4~=0.0.2
 python-dateutil~=2.9.0.post0
 requests
+numpy>=1.26,<3
+google-cloud-firestore~=2.22
+# only for the one-time move off Postgres (migrate/pg_to_firestore.py)
 psycopg2-binary~=2.9.9
-pgvector~=0.4.2
-sentence-transformers

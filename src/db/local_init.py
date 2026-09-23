@@ -82,11 +82,19 @@ topics = [
     GENERAL_TOPIC,
 ]
 
+# No vector indexes. Nothing searches articles by vector, and a new article is
+# matched only against the stories of the last few hours - a few hundred rows, which
+# an exact scan handles in milliseconds. An HNSW index there was the wrong tool: it
+# applies the time filter AFTER its approximate search, so the nearest story inside
+# the window could be missed and a duplicate story opened.
+DROP_INDEXES = [
+    "DROP INDEX IF EXISTS clusters_centroid_hnsw;",
+    "DROP INDEX IF EXISTS articles_embedding_hnsw;",
+]
+
 INDEXES = [
-    """CREATE INDEX IF NOT EXISTS clusters_centroid_hnsw
-       ON clusters USING hnsw (centroid_embedding vector_cosine_ops);""",
-    """CREATE INDEX IF NOT EXISTS articles_embedding_hnsw
-       ON articles USING hnsw (embedding vector_cosine_ops);""",
+    "CREATE INDEX IF NOT EXISTS idx_clusters_created ON clusters (created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_articles_created ON articles (created_at);",
     "CREATE INDEX IF NOT EXISTS idx_articles_topic_site ON articles (topic_id, site_id);",
     "CREATE INDEX IF NOT EXISTS idx_articles_topic_site_created ON articles (topic_id, site_id, created_at);",
     "CREATE INDEX IF NOT EXISTS idx_votes_article ON votes (article_id);",
@@ -123,11 +131,13 @@ def main():
             "in_roster boolean NOT NULL DEFAULT false"))
         conn.execute(text(
             "ALTER TABLE IF EXISTS cluster_summaries ADD COLUMN IF NOT EXISTS article_count integer"))
+        conn.execute(text("ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS topic_model varchar(32)"))
+        conn.execute(text("ALTER TABLE IF EXISTS clusters ALTER COLUMN centroid_embedding DROP NOT NULL"))
 
     Base.metadata.create_all(engine)
 
     with engine.begin() as conn:
-        for stmt in INDEXES:
+        for stmt in DROP_INDEXES + INDEXES:
             conn.execute(text(stmt))
 
     Session = sessionmaker(bind=engine)
