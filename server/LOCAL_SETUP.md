@@ -1,4 +1,6 @@
-# Running and changing the 360News server
+# Running and changing the server
+
+Everything below runs from `server/` in this repository.
 
 The server has no machine of its own any more. It is three things inside the
 project's own Google Cloud, which is the same project Firebase shows:

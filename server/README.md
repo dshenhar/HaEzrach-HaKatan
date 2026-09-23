@@ -1,4 +1,4 @@
-# 360-news-server
+# The server
 
 The server behind חדשות האזרח הקטן: it reads the Israeli news sites every half
 hour, groups the coverage into stories, works out what each story is about, and
