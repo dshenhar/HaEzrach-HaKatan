@@ -69,19 +69,30 @@ SEEN_HOURS = 24
 
 # ---- scraping ----------------------------------------------------------------
 
-def scrape(sites: list[dict], seen: dict, translate: bool = True) -> list[dict]:
-    """Every site's feed, minus what was already stored in the last day."""
+def scrape(sites: list[dict], seen: dict, translate: bool = True,
+           newest: dict | None = None) -> list[dict]:
+    """Every site's feed, minus what was already stored in the last day.
+
+    newest, when given, collects each outlet's freshest item whether or not it is
+    new to us - which is what tells a quiet newsroom apart from a feed that has
+    stopped moving."""
     from concurrent.futures import ThreadPoolExecutor
 
     cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=SEEN_HOURS)
     known_links = set(seen.get("links", []))
     known_headers = set(seen.get("headers", []))
 
+    # An outlet may publish more than one feed - mako splits its news by section,
+    # and one section's feed had been abandoned while the others kept going. A site
+    # can name several, and they are read as one.
+    jobs = [(site["name"], url)
+            for site in sites
+            for url in (site.get("feeds") or [site.get("domain")])]
     with ThreadPoolExecutor(max_workers=10) as pool:
-        feeds = dict(zip(
-            [s["name"] for s in sites],
-            pool.map(lambda s: fetch_entries(s["name"], s.get("domain")), sites),
-        ))
+        fetched = list(pool.map(lambda job: (job[0], fetch_entries(job[0], job[1])), jobs))
+    feeds: dict[str, list] = {}
+    for name, entries in fetched:
+        feeds.setdefault(name, []).extend(entries)
 
     fresh, untranslated = [], 0
     for site in sites:
@@ -91,6 +102,10 @@ def scrape(sites: list[dict], seen: dict, translate: bool = True) -> list[dict]:
             parsed = parse_entry(entry, site["name"])
             if not parsed:
                 continue
+            if newest is not None:
+                first = newest.get(site["name"])
+                if first is None or first < parsed["created_at"]:
+                    newest[site["name"]] = parsed["created_at"]
             if parsed["link"] in known_links or parsed["header"] in known_headers:
                 continue
             if parsed["created_at"] < cutoff:
@@ -120,6 +135,33 @@ def scrape(sites: list[dict], seen: dict, translate: bool = True) -> list[dict]:
     if untranslated:
         print(f"  ! {untranslated} פריטים בערבית דולגו")
     return fresh
+
+
+SILENT_AFTER_HOURS = 24
+
+
+def note_health(sites: list[dict], newest: dict) -> None:
+    """How fresh each outlet's feed is, and who has stopped moving.
+
+    Three of the largest outlets in the country were pointed at feeds that had
+    stopped updating - one of them in May - and nothing noticed, because a feed
+    full of old items looks exactly like a newsroom having a quiet day. What is
+    measured here is the age of the newest item an outlet offers, which tells the
+    two apart.
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    ages = {name: (now - when).total_seconds() / 3600 for name, when in newest.items()}
+    db.client().collection("meta").document("health").set(
+        {"newest_item_hours": {name: round(age, 1) for name, age in ages.items()},
+         "checked_at": db.now()}, merge=True)
+
+    stale = [f"{site['name']} ({ages[site['name']]:.0f}h)" for site in sites
+             if site["name"] in ages and ages[site["name"]] > SILENT_AFTER_HOURS]
+    unreachable = [site["name"] for site in sites if site["name"] not in ages]
+    if stale:
+        print(f"  ! STALE FEEDS: {', '.join(stale)}")
+    if unreachable:
+        print(f"  ! NOTHING CAME BACK FROM: {', '.join(unreachable)}")
 
 
 def remember(fresh: list[dict], seen: dict) -> None:
@@ -492,7 +534,8 @@ def cycle() -> None:
     seen = db.seen()
 
     print("scraping:")
-    fresh = scrape(sites, seen)
+    newest: dict = {}
+    fresh = scrape(sites, seen, newest=newest)
     if not fresh:
         print("no new articles")
         return
@@ -562,6 +605,7 @@ def cycle() -> None:
         writer.article({k: v for k, v in article.items() if k != "v"})
     writer.flush()
     remember(fresh, seen)
+    note_health(sites, newest)
     note_coverage([stories.by_id[s] for s in stories.dirty], topics)
 
     print(f"\nstored   {len(placed)} (new story {stats['new']}, joined {stats['joined']}, "
