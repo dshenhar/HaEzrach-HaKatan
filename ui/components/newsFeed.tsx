@@ -85,7 +85,6 @@ export default function NewsFeed() {
 	const [positions, setPositions] = useState<Record<string, SitePosition>>({});
 	const [personalOpen, setPersonalOpen] = useState(false);
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);
-	const [now, setNow] = useState(new Date());
 	const [allTopics, setAllTopics] = useState<string[]>([]);
 	const [mergeSource, setMergeSource] = useState<{ id: string | number; title: string } | null>(null);
 	const [sort, setSort] = useState<SortKey>("newest");
@@ -196,19 +195,6 @@ export default function NewsFeed() {
 		getSitePositions().then(setPositions);
 		getProfile().then(setProfile);
 		getTopics(true).then(setAllTopics);   // the picker may say "not political"
-	}, []);
-
-	// tick on the minute boundary rather than every 60s from mount, so the
-	// displayed minute never lags the real one
-	useEffect(() => {
-		let timer: ReturnType<typeof setTimeout>;
-		const schedule = () => {
-			const d = new Date();
-			const msToNextMinute = (60 - d.getSeconds()) * 1000 - d.getMilliseconds();
-			timer = setTimeout(() => { setNow(new Date()); schedule(); }, msToNextMinute);
-		};
-		schedule();
-		return () => clearTimeout(timer);
 	}, []);
 
 	const clusterTime = (cluster: NewsItem[]) =>
@@ -416,22 +402,7 @@ export default function NewsFeed() {
 		}
 	};
 
-	const clock = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-	const dateLabel = now.toLocaleDateString("he-IL", { day: "numeric", month: "long" });
-
-
 	const brandInk = t.name === "negative" ? BRAND_INK_DARK : BRAND_INK;
-
-	const greet = () => {
-	const curHour = new Date().getHours();
-		if (6 <= curHour && curHour < 12) {
-			return "בוקר טוב!"
-		}
-		if (12 <= curHour && curHour < 18) {
-			return "צהריים טובים!"
-		}
-		return "ערב טוב!"
-	}
 
 	const handleSectionToggle = (category: string) => {
 	if (category === "הכל") {
@@ -520,9 +491,6 @@ export default function NewsFeed() {
 							<Ionicons name="person-circle-outline" size={30} color={t.text} />
 						</TouchableOpacity>
 					</View>
-					<Text style={[styles.subtitle, { color: t.textMuted }]}>
-						{greet()} <Text style={styles.dot}>·</Text> {dateLabel} <Text style={styles.dot}>·</Text> <Text style={styles.clock}>{clock}</Text>
-					</Text>
 					<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
 				</View>
 
@@ -640,11 +608,12 @@ const styles = StyleSheet.create({
 		width: "100%", 
 		backgroundColor: '#f8f8f8ff',
 	},
-	header: { 
-		paddingHorizontal: 16, 
-		paddingTop: 8, 
-		paddingBottom: 4, 
-		width: "100%" 
+	header: {
+		paddingHorizontal: 16,
+		paddingTop: 8,
+		paddingBottom: 2,
+		gap: 2,
+		width: "100%"
 	},
 	devBar: { width: "100%", paddingVertical: 5, alignItems: "center" },
 	devBarText: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#04310F" },
@@ -657,8 +626,6 @@ const styles = StyleSheet.create({
 		justifyContent: "space-between",
 		gap: 10,
 	},
-	dot: { color: "#C9C6BF" },
-	clock: { fontFamily: "Heebo_700Bold", fontVariant: ["tabular-nums"] },
 	// row-reverse puts the mark on the right of the words, as the logo has it
 	brand: {
 		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
@@ -674,15 +641,6 @@ const styles = StyleSheet.create({
 		fontFamily: "Heebo_700Bold", 
 		fontSize: 30, 
 		fontWeight: "bold", 
-		textAlign: "right" 
-	},
-	subtitle: {
- 
-		fontFamily: "Heebo_400Regular", 
-		fontSize: 14, 
-		marginHorizontal: 5,
-		marginVertical: 2,
-		color: "#6b7280", 
 		textAlign: "right" 
 	},
 	scrollView: {

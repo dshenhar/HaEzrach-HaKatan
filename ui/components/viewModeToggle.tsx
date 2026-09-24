@@ -113,7 +113,9 @@ const styles = StyleSheet.create({
     // room under it: inside the feed it now sits right above the first story
     wrap: { width: "100%", alignSelf: "stretch", paddingHorizontal: 12, paddingTop: 4, paddingBottom: 10 },
     wrapCompact: { flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
-    railCompact: { padding: 3 },
+    // the same padding as the full-size rail: in the controls it is now the one
+    // thing on its side of the rail, and the thumb is drawn against PAD
+    railCompact: { padding: PAD },
     rail: { width: "100%", flexDirection: "row-reverse", borderRadius: 999, padding: PAD, gap: GAP },
     thumb: { position: "absolute", top: PAD, bottom: PAD, borderRadius: 999 },
     seg: {
@@ -124,7 +126,7 @@ const styles = StyleSheet.create({
         flexDirection: "row-reverse", alignItems: "center", justifyContent: "center",
         gap: 8, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 6,
     },
-    segCompact: { paddingVertical: 7, gap: 5 },
+    segCompact: { paddingVertical: 8, gap: 5 },
     segText: { fontFamily: "Heebo_700Bold", fontSize: 13.5, flexShrink: 0 },
-    segTextCompact: { fontSize: 11.5 },
+    segTextCompact: { fontSize: 12.5 },
 });

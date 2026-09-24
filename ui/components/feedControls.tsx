@@ -3,7 +3,7 @@ import ViewModeToggle, { ViewMode } from './viewModeToggle';
 import { useTheme } from '@/state/theme';
 import React, { useRef, useState } from 'react';
 import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Circle, Line } from 'react-native-svg';
 
 export type SortKey = "newest" | "oldest" | "covered" | "outside";
 
@@ -60,15 +60,6 @@ const FilterIcon = ({ colour }: { colour: string }) => (
     </Svg>
 );
 
-const SortIcon = ({ colour }: { colour: string }) => (
-    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-        <Path d="M7 4v16M7 4l-3 3.5M7 4l3 3.5" stroke={colour} strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round" />
-        <Path d="M17 20V4M17 20l-3-3.5M17 20l3-3.5" stroke={colour} strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-);
-
 type Props = {
     sections: string[];
     selectedSections: string[];
@@ -83,14 +74,15 @@ type Props = {
 }
 
 /**
- * One rail, right to left: the filter control sits at the right edge, the sort
- * control at the left, and whatever the reader has chosen fills the middle. Only
- * one of the two strips is open at a time - two open rails stack and swallow the
- * feed on a phone.
+ * One rail, right to left: the view the reader is in takes the right of it and most
+ * of its width, and everything that narrows the feed - which sections, in which
+ * order - sits behind a single control on its left. Two controls of their own were
+ * two thirds of a rail spent on housekeeping, above a header that was already
+ * taking a third of a phone's screen off the news.
  */
 const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSort,
                        mode, onMode, blocFilter, onBlocFilter }: Props) => {
-    const [panel, setPanel] = useState<"none" | "filter" | "sort">("none");
+    const [open, setOpen] = useState(false);
     const t = useTheme();
     const dark = t.name === "negative";
 
@@ -101,27 +93,22 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
     return (
         <View style={[styles.wrap, { backgroundColor: t.bg }]}>
             <View style={styles.rail}>
-                <TouchableOpacity
-                    style={[styles.control, { borderColor: t.line, backgroundColor: t.surface },
-                        panel === "filter" && { backgroundColor: t.text, borderColor: t.text }]}
-                    onPress={() => setPanel(panel === "filter" ? "none" : "filter")}
-                >
-                    <FilterIcon colour={panel === "filter" ? t.surface : t.text} />
-                    <Text style={[styles.controlText, { color: panel === "filter" ? t.surface : t.text }]}>
-                        סינון{active.length ? ` · ${active.length}` : ""}
-                    </Text>
-                </TouchableOpacity>
-
                 <ViewModeToggle mode={mode} onChange={onMode} compact />
 
+                {/* the border turns gold when the feed the reader is looking at is not
+                    the whole feed, so a filter left on is never left on unnoticed */}
                 <TouchableOpacity
                     style={[styles.control, { borderColor: t.line, backgroundColor: t.surface },
-                        panel === "sort" && { backgroundColor: t.text, borderColor: t.text },
-                        !sortIsDefault && panel !== "sort" && { borderColor: t.brand }]}
-                    onPress={() => setPanel(panel === "sort" ? "none" : "sort")}
+                        !open && (active.length > 0 || !sortIsDefault) && { borderColor: t.brand },
+                        open && { backgroundColor: t.text, borderColor: t.text }]}
+                    onPress={() => setOpen(!open)}
+                    accessibilityRole="button"
+                    accessibilityLabel="סינון ומיון"
                 >
-                    <SortIcon colour={panel === "sort" ? t.surface : t.text} />
-                    <Text style={[styles.controlText, { color: panel === "sort" ? t.surface : t.text }]}>מיון</Text>
+                    <FilterIcon colour={open ? t.surface : t.text} />
+                    <Text style={[styles.controlText, { color: open ? t.surface : t.text }]}>
+                        סינון{active.length ? ` · ${active.length}` : ""}
+                    </Text>
                 </TouchableOpacity>
             </View>
 
@@ -147,7 +134,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                 </Strip>
             )}
 
-            {active.length > 0 && panel !== "filter" && (
+            {active.length > 0 && !open && (
                 <Strip style={styles.chosen}>
                     {active.map((section) => (
                         <TouchableOpacity key={section}
@@ -159,7 +146,10 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                 </Strip>
             )}
 
-            {panel === "filter" && (
+            {open && (
+                <Text style={[styles.panelLabel, { color: t.textMuted }]}>מדורים</Text>
+            )}
+            {open && (
                 <Strip style={styles.strip}>
                     {sections.map((section) => {
                         const colour = sectionColour(section, dark);
@@ -179,14 +169,17 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                 </Strip>
             )}
 
-            {panel === "sort" && (
+            {open && (
+                <Text style={[styles.panelLabel, { color: t.textMuted }]}>סדר הצגה</Text>
+            )}
+            {open && (
                 <Strip style={styles.strip}>
                     {SORT_OPTIONS.map((opt) => {
                         const on = opt.key === sort;
                         return (
                             <TouchableOpacity key={opt.key}
                                 style={[styles.chip, { backgroundColor: on ? t.text : t.surfaceAlt }]}
-                                onPress={() => { onSort(opt.key); setPanel("none"); }}>
+                                onPress={() => onSort(opt.key)}>
                                 <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>{opt.label}</Text>
                             </TouchableOpacity>
                         );
@@ -194,7 +187,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                 </Strip>
             )}
 
-            {!sortIsDefault && panel === "none" && (
+            {!sortIsDefault && !open && (
                 <Text style={[styles.sortNote, { color: t.textMuted }]}>ממוין: {sortLabel}</Text>
             )}
         </View>
@@ -212,6 +205,11 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13,
     },
     controlText: { fontFamily: "Heebo_700Bold", fontSize: 12.5 },
+    // the two halves of the one panel, each said once and quietly
+    panelLabel: {
+        fontFamily: "Heebo_700Bold", fontSize: 10.5, textAlign: "right",
+        paddingHorizontal: 16, marginBottom: -3,
+    },
     chosen: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     chip: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
