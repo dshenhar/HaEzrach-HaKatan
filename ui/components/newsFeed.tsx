@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
 	},
 	scrollView: {
 		width: "100%",
-		paddingHorizontal: 11,
+		paddingHorizontal: 6,
 		backgroundColor: '#f8f8f8ff',
 		// borderWidth: 2,
 		flex: 1,

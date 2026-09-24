@@ -140,7 +140,7 @@ export default BlocView;
 const styles = StyleSheet.create({
     // row-reverse puts the first column - the right bloc - on the right
     split: { flexDirection: "row-reverse", gap: 8, alignItems: "flex-start" },
-    col: { flex: 1, borderRadius: 4, padding: 10, gap: 7 },
+    col: { flex: 1, borderRadius: 7, padding: 10, gap: 7 },
     colOpen: { borderWidth: 1, borderColor: "rgba(17,24,39,0.12)" },
     colHead: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "baseline" },
     colLabel: { fontFamily: "Heebo_800ExtraBold", fontSize: 13.5 },
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
         textDecorationLine: "underline", textAlign: "right",
     },
     aiBox: {
-        backgroundColor: "#FFFFFF", borderRadius: 3, padding: 8,
+        backgroundColor: "#FFFFFF", borderRadius: 5, padding: 8,
         boxShadow: "0 1px 4px rgba(0,0,0,0.10)",
     },
     aiText: {
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     },
     empty: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#6B7280", lineHeight: 16 },
 
-    unaligned: { backgroundColor: "#F4F4F3", borderRadius: 4, padding: 10, marginTop: 8, gap: 7 },
+    unaligned: { backgroundColor: "#F4F4F3", borderRadius: 7, padding: 10, marginTop: 8, gap: 7 },
     unalignedTitle: {
         fontFamily: "Heebo_700Bold", fontSize: 12, color: "#111827", textAlign: "right",
     },
