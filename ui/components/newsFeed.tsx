@@ -37,12 +37,35 @@ const CROWD_RATIO = 1200 / 604;
 const CROWD_FADE = 48;
 /** scrolled further than this, the crowd steps aside */
 const CROWD_HIDE_AFTER = 12;
+/**
+ * Where on the screen the feed asks "which story is the reader on", as a share of
+ * the visible height. A little above the middle: the story that opens grows
+ * downwards, and it needs the room below it.
+ */
+const ANCHOR = 0.32;
+/** a scroll that has not moved for this long has stopped, and the story opens */
+const SETTLE_MS = 150;
+/** how long after a story opens the feed keeps correcting the scroll under it */
+const HOLD_MS = 1200;
+/** a scroll this much further than the feed is holding is the reader's own */
+const LET_GO = 40;
 /** the tour the i runs: the anchor's welcome, then each view with its guide */
 // The tour ends with the questionnaire for a reader who has not answered it, and
 // two steps earlier for everyone else.
 const TOUR_BASE = ["welcome", "bloc", "citizen"] as const;
 type TourStep = (typeof TOUR_BASE)[number] | "questionnaire";
 
+
+/**
+ * A callback the cards can hold on to: its identity never changes, so a story that
+ * has not itself changed does not re-render when the feed does, and it still runs
+ * against the latest state.
+ */
+function useStable<T extends (...args: any[]) => any>(fn: T): T {
+	const held = useRef(fn);
+	held.current = fn;
+	return useCallback(((...args: any[]) => held.current(...args)) as T, []);
+}
 
 export default function NewsFeed() {
 	const [selectedCategories, setSelectedCategories] = useState<string[]>(["הכל"]);
@@ -101,6 +124,7 @@ export default function NewsFeed() {
 		// far enough down that the way back is worth a button
 		setDeep(y > 600);
 		syncCrowd();
+		trackScroll(y);
 	};
 
 	const backToTop = () => scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -243,6 +267,136 @@ export default function NewsFeed() {
 		syncCrowd();
 	}, [openStory, sortedArticles]);
 
+	// ---------------------------------------------------------------------------
+	// The scroll decides which story is open.
+	//
+	// Reaching a headline used to cost two touches: one to open the story, one to
+	// open a bloc. The first of them is now the scroll itself - wherever it comes to
+	// rest, that story opens onto its two blocs, and the reader's touch is spent on
+	// the side they actually want to read. A story closed by hand stays closed until
+	// the reader has moved on to another one.
+	//
+	// Nothing here measures where a story sits on the screen directly: react-native-web
+	// reports a layout only when a view changes size, never when it merely moves. The
+	// feed keeps each story's height instead and adds them up, which changes only when
+	// a story opens or folds - exactly when a layout is reported.
+	const [focusKey, setFocusKey] = useState<string | null>(null);
+	const [scrolling, setScrolling] = useState(false);
+	// a story the scroll opened folds the last one away without an animation, so the
+	// list's height changes in one frame and the scroll can be paid back in the same
+	const [autoOpened, setAutoOpened] = useState(false);
+	const order = useRef<string[]>([]);
+	order.current = sortedArticles.map(storyKey);
+	const heights = useRef<Record<string, number>>({});
+	const shut = useRef<Record<string, number>>({});   // what each story measures folded
+	const topH = useRef(0);              // the header and the controls, above the list
+	const viewportH = useRef(0);
+	const scrollY = useRef(0);
+	const focusRef = useRef<string | null>(null);
+	const openRef = useRef<string | null>(null);
+	openRef.current = openStory;
+	const dismissed = useRef<string | null>(null);
+	const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const moving = useRef(false);
+	// while a story opens, the place on the screen the feed is holding still
+	const hold = useRef<{ key: string; offset: number; until: number } | null>(null);
+
+	/** where a story starts, counted down the list from under the controls */
+	const topOf = (key: string) => {
+		let y = topH.current;
+		for (const k of order.current) {
+			if (k === key) break;
+			y += heights.current[k] ?? 0;
+		}
+		return y;
+	};
+
+	/** the story the anchor line is crossing, if the list has reached it yet */
+	const storyAt = (y: number) => {
+		const line = y + viewportH.current * ANCHOR;
+		let top = topH.current;
+		for (const k of order.current) {
+			const h = heights.current[k] ?? 0;
+			if (line >= top && line < top + h) return k;
+			top += h;
+		}
+		return null;
+	};
+
+	const measure = useStable((key: string, h: number) => {
+		heights.current[key] = h;
+		if (key !== openRef.current) shut.current[key] = h;
+		// The feed has already moved the scroll by what it expects the fold to save.
+		// This is the second line: if a story ends up a different height than that,
+		// the one the reader stopped on is put back where they left it.
+		const held = hold.current;
+		if (!held) return;
+		if (Date.now() > held.until) { hold.current = null; return; }
+		const want = Math.max(0, topOf(held.key) - held.offset);
+		if (Math.abs(want - scrollY.current) > 1) {
+			scrollRef.current?.scrollTo({ y: want, animated: false });
+		}
+	});
+
+	/** the scroll has come to rest: open whatever it rested on */
+	const rest = useStable(() => {
+		moving.current = false;
+		setScrolling(false);
+		const key = focusRef.current;
+		if (!key || key === openRef.current || key === dismissed.current) return;
+
+		// The story that was open folds away in the same breath. If it sits higher up
+		// the list, the whole feed would ride up past the reader's eyes by however
+		// much it saves, so the scroll pays that back in the same frame - the story
+		// they stopped on does not move at all, it only grows.
+		const gone = openRef.current;
+		const above = gone && gone !== key && topOf(gone) < topOf(key);
+		const saved = above ? (heights.current[gone!] ?? 0) - (shut.current[gone!] ?? 0) : 0;
+
+		hold.current = { key, offset: topOf(key) - scrollY.current, until: Date.now() + HOLD_MS };
+		setAutoOpened(true);
+		setOpenStory(key);
+		if (saved > 0) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current - saved), animated: false });
+	});
+
+	const trackScroll = useStable((y: number) => {
+		scrollY.current = y;
+		// a scroll that is not where the feed is holding the list is the reader's own,
+		// and the feed stops holding it at once
+		const held = hold.current;
+		if (held && Math.abs(y - (topOf(held.key) - held.offset)) > LET_GO) hold.current = null;
+		const key = storyAt(y);
+		if (key !== focusRef.current) {
+			focusRef.current = key;
+			setFocusKey(key);
+			// the story the reader folded away is forgotten once they have left it
+			if (key !== dismissed.current) dismissed.current = null;
+		}
+		if (!moving.current) { moving.current = true; setScrolling(true); }
+		if (settle.current) clearTimeout(settle.current);
+		settle.current = setTimeout(rest, SETTLE_MS);
+	});
+
+	const toggleStory = useStable((key: string) => {
+		hold.current = null;
+		setAutoOpened(false);
+		setOpenStory((current) => {
+			if (current === key) { dismissed.current = key; return null; }
+			dismissed.current = null;
+			return key;
+		});
+	});
+
+	// one lasting pair of callbacks per story, so that scrolling past one story does
+	// not re-render the fifty others
+	const bound = useRef<Record<string, { toggle: () => void; measure: (h: number) => void }>>({});
+	const handlers = (key: string) => (bound.current[key] ||= {
+		toggle: () => toggleStory(key),
+		measure: (h: number) => measure(key, h),
+	});
+	const armMerge = useStable((id: string | number, title: string) => handleArmMerge(id, title));
+	useEffect(() => () => { if (settle.current) clearTimeout(settle.current); }, []);
+
 	// first tap arms a story, second tap picks the one to fold it into
 	const handleArmMerge = async (clusterId: string | number, title: string) => {
 		if (!mergeSource) {
@@ -328,46 +482,6 @@ export default function NewsFeed() {
 					</Text>
 				</View>
 			)}
-			<View style={styles.header}>
-				<View style={styles.headerTop}>
-					<TouchableOpacity onPress={startTour} hitSlop={10} accessibilityLabel="על האפליקציה">
-						<Ionicons name="information-circle-outline" size={30} color={t.text} />
-					</TouchableOpacity>
-					{/* the name set rather than drawn: "חדשות" leads, "האזרח הקטן" sits
-					    under it, and the book with the dove stands to their right */}
-					<View style={styles.brand} accessibilityLabel="חדשות האזרח הקטן">
-						<Image
-							source={t.name === "negative" ? MARK_LIGHT : MARK_INK}
-							style={styles.mark}
-							resizeMode="contain"
-						/>
-						<View style={styles.brandWords}>
-							<Text style={[styles.brandTop, { color: brandInk }]}>חדשות</Text>
-							<Text style={[styles.brandBottom, { color: brandInk }]}>האזרח הקטן</Text>
-						</View>
-					</View>
-					<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}>
-						<Ionicons name="person-circle-outline" size={30} color={t.text} />
-					</TouchableOpacity>
-				</View>
-				<Text style={[styles.subtitle, { color: t.textMuted }]}>
-					{greet()} <Text style={styles.dot}>·</Text> {dateLabel} <Text style={styles.dot}>·</Text> <Text style={styles.clock}>{clock}</Text>
-				</Text>
-				<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
-			</View>
-
-			<FeedControls
-				sections={sections}
-				selectedSections={selectedCategories}
-				onToggleSection={handleSectionToggle}
-				sort={sort}
-				onSort={setSort}
-				mode={viewMode}
-				onMode={setViewMode}
-				blocFilter={blocFilter}
-				onBlocFilter={setBlocFilter}
-			/>
-
 			<View style={styles.feedArea}>
 			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
@@ -375,24 +489,75 @@ export default function NewsFeed() {
 				scrollEnabled={!scrollLocked}
 				contentContainerStyle={{ paddingBottom: crowdHeight + CROWD_FADE }}
 				onScroll={onFeedScroll}
+				onLayout={(e) => { viewportH.current = e.nativeEvent.layout.height; }}
 				scrollEventThrottle={16}
 				showsVerticalScrollIndicator={false}
 				ref={scrollRef}
 				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
 			>
+				{/* the name, the day and the controls scroll away with the list: on a
+				    phone they were taking a third of the screen off the news */}
+				<View onLayout={(e) => { topH.current = e.nativeEvent.layout.height; }}>
+				<View style={styles.header}>
+					<View style={styles.headerTop}>
+						<TouchableOpacity onPress={startTour} hitSlop={10} accessibilityLabel="על האפליקציה">
+							<Ionicons name="information-circle-outline" size={30} color={t.text} />
+						</TouchableOpacity>
+						{/* the name set rather than drawn: "חדשות" leads, "האזרח הקטן" sits
+						    under it, and the book with the dove stands to their right */}
+						<View style={styles.brand} accessibilityLabel="חדשות האזרח הקטן">
+							<Image
+								source={t.name === "negative" ? MARK_LIGHT : MARK_INK}
+								style={styles.mark}
+								resizeMode="contain"
+							/>
+							<View style={styles.brandWords}>
+								<Text style={[styles.brandTop, { color: brandInk }]}>חדשות</Text>
+								<Text style={[styles.brandBottom, { color: brandInk }]}>האזרח הקטן</Text>
+							</View>
+						</View>
+						<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}>
+							<Ionicons name="person-circle-outline" size={30} color={t.text} />
+						</TouchableOpacity>
+					</View>
+					<Text style={[styles.subtitle, { color: t.textMuted }]}>
+						{greet()} <Text style={styles.dot}>·</Text> {dateLabel} <Text style={styles.dot}>·</Text> <Text style={styles.clock}>{clock}</Text>
+					</Text>
+					<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
+				</View>
+
+				<FeedControls
+					sections={sections}
+					selectedSections={selectedCategories}
+					onToggleSection={handleSectionToggle}
+					sort={sort}
+					onSort={setSort}
+					mode={viewMode}
+					onMode={setViewMode}
+					blocFilter={blocFilter}
+					onBlocFilter={setBlocFilter}
+				/>
+				</View>
+
+				<View style={styles.cards}>
 				{sortedArticles.map((cluster, index) => {
 					const key = storyKey(cluster, index);
+					const bind = handlers(key);
 					return (
 						<StoryCard key={key} data={cluster} positions={positions}
 						setRatingOpen={setRatingOpen} setRatingTarget={setRatingTarget}
 						mode={viewMode}
 						topics={allTopics}
 						mergeArmed={mergeSource?.id === cluster[0]?.groupId}
-						onArmMerge={handleArmMerge}
+						onArmMerge={armMerge}
 						open={openStory === key}
-						onToggle={() => setOpenStory((current) => (current === key ? null : key))} />
+						focused={scrolling && focusKey === key && openStory !== key}
+						instant={autoOpened}
+						onMeasure={bind.measure}
+						onToggle={bind.toggle} />
 					);
 				})}
+				</View>
 			</ScrollView>
 			</ScrollLock.Provider>
 
@@ -522,11 +687,12 @@ const styles = StyleSheet.create({
 	},
 	scrollView: {
 		width: "100%",
-		paddingHorizontal: 6,
 		backgroundColor: '#f8f8f8ff',
 		// borderWidth: 2,
 		flex: 1,
 	},
+	// the stories keep the narrow side margin the header does not want
+	cards: { paddingHorizontal: 6 },
 	feedArea: { flex: 1, width: "100%" },
 	crowd: {
 		position: "absolute",

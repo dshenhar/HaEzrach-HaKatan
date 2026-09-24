@@ -10,7 +10,8 @@ import { ViewMode } from './viewModeToggle';
 import { ArticleViewer } from './articleViewer';
 import BlocView from './blocView';
 import CitizenCarousel from './citizenCarousel';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeOut, LinearTransition, useAnimatedStyle,
+    useSharedValue, withTiming } from 'react-native-reanimated';
 
 // A story's change of size glides instead of jumping, the stories below it glide
 // with it, and its expanded part fades in and out. Reanimated's layout animations
@@ -29,6 +30,9 @@ const balance = (name: string): string => {
 };
 
 const GLIDE = LinearTransition.duration(240);
+/** how much the story the scroll has settled on swells, and how quickly */
+const LIFT = 0.022;
+const LIFT_MS = 170;
 const FADE_IN = FadeIn.duration(220);
 const FADE_OUT = FadeOut.duration(140);
 
@@ -45,6 +49,12 @@ type Props = {
     /** the feed keeps one story open at a time, so it decides which */
     open: boolean;
     onToggle: () => void;
+    /** the scroll is resting on this story and is about to open it */
+    focused?: boolean;
+    /** the feed adds the stories' heights up to know where each one sits */
+    onMeasure?: (height: number) => void;
+    /** the scroll opened this one, so the fold that pays for it happens at once */
+    instant?: boolean;
 }
 
 /**
@@ -52,7 +62,8 @@ type Props = {
  * how many. Opening it is what reveals the two ways of reading the same story.
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
-                    topics = [], mergeArmed, onArmMerge, open, onToggle }: Props) => {
+                    topics = [], mergeArmed, onArmMerge, open, onToggle,
+                    focused = false, onMeasure, instant = false }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
@@ -65,9 +76,34 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     // changing size - and an open one, whose content keeps settling - simply resizes
     // while its expanded part fades, and the stories around it still glide. The phone
     // animates real sizes, so there everything glides.
+    // A story under the reader's thumb swells a little while the feed is moving, so
+    // that the scroll coming to rest on it and the story opening read as one gesture
+    // rather than as something the app decided on its own.
+    const lift = useSharedValue(0);
+    useEffect(() => {
+        const want = focused && !open ? 1 : 0;
+        lift.value = still ? want : withTiming(want, { duration: LIFT_MS, easing: Easing.out(Easing.quad) });
+    }, [focused, open, still]);
+    const swell = useAnimatedStyle(() => ({ transform: [{ scale: 1 + lift.value * LIFT }] }));
+
     const wasOpen = useRef(open);
     useEffect(() => { wasOpen.current = open; });
-    const glide = still ? undefined
+
+    // react-native-web reports a layout through a ResizeObserver, which came back
+    // the best part of a second late - long enough for the feed's map of where each
+    // story starts to be wrong about the one the scroll is resting on. Opening or
+    // folding is the moment that map has to be right, so the card measures itself
+    // there and then instead of waiting to be told.
+    const box = useRef<any>(null);
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => {
+            box.current?.measure?.((_x: number, _y: number, _w: number, h: number) => {
+                if (h) onMeasure?.(h);
+            });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [open]);
+    const glide = still || instant ? undefined
         : Platform.OS !== "web" || (!open && !wasOpen.current) ? GLIDE : undefined;
 
     // when the story broke, not when this particular outlet got to it.
@@ -128,7 +164,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const handleViewerClosed = () => setRatingOpen(true);
 
     return (
-        <Animated.View layout={glide} style={styles.wrap}>
+        <Animated.View ref={box} layout={glide} style={styles.wrap}
+            onLayout={(e) => onMeasure?.(e.nativeEvent.layout.height)}>
+        <Animated.View style={swell}>
             {/* The story wears its section as a tab at its top left corner - the same
                 colour the filter strip uses, so the feed can be read by colour before it
                 is read by word. Closed the tab is tucked behind the card and points up;
@@ -204,7 +242,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
 
             {open && (
                 <Animated.View entering={still ? undefined : FADE_IN}
-                    exiting={still ? undefined : FADE_OUT}>
+                    exiting={still || instant ? undefined : FADE_OUT}>
+                    {/* the story's own headline above, the blocs' telling of it below */}
+                    <View style={[styles.rule, { backgroundColor: t.line }]} />
                     {mode === "bloc" ? (
                         <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
                     ) : (
@@ -234,13 +274,16 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
             />
             </View>
         </Animated.View>
+        </Animated.View>
     );
 };
 
-export default StoryCard;
+export default React.memo(StoryCard);
 
 const styles = StyleSheet.create({
-    wrap: { width: "100%", marginBottom: 13, paddingRight: 3 },
+    // the space below a story is padding rather than margin, so the height the feed
+    // measures is the room the story actually takes up in the list
+    wrap: { width: "100%", paddingBottom: 13, paddingRight: 3 },
     // the tab sits at the left edge, opposite the headline's own side
     tabRow: { flexDirection: I18nManager.isRTL ? "row-reverse" : "row", paddingHorizontal: 12 },
     // half way between the app's original rounding and a printed page's cut corner
@@ -269,6 +312,7 @@ const styles = StyleSheet.create({
         borderWidth: 1.5, borderColor: "transparent",
     },
     cardOpen: { backgroundColor: "#fff", borderColor: "#111827" },
+    rule: { height: 1, backgroundColor: "#E3E3E1", marginBottom: 9, marginTop: 1 },
     head: { gap: 6 },
     // row-reverse: the time at the right edge, the issue to its left
     metaLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
