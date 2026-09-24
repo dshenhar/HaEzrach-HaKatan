@@ -24,6 +24,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 
 // The logo is navy ink, so negative mode swaps in a pale copy of it.
+// the navy the logo is drawn in, sampled off the file itself, so the words and the
+// mark beside them are the same ink
+const BRAND_INK = "#192F50";
+const BRAND_INK_DARK = "#C7D4E8";
 const MARK_INK = require("../assets/images/mark-ink.png");
 const MARK_LIGHT = require("../assets/images/mark-light.png");
 const MARK_RATIO = 426 / 372;
@@ -262,6 +266,8 @@ export default function NewsFeed() {
 	const dateLabel = now.toLocaleDateString("he-IL", { day: "numeric", month: "long" });
 
 
+	const brandInk = t.name === "negative" ? BRAND_INK_DARK : BRAND_INK;
+
 	const greet = () => {
 	const curHour = new Date().getHours();
 		if (6 <= curHour && curHour < 12) {
@@ -336,8 +342,8 @@ export default function NewsFeed() {
 							resizeMode="contain"
 						/>
 						<View style={styles.brandWords}>
-							<Text style={[styles.brandTop, { color: t.text }]}>חדשות</Text>
-							<Text style={[styles.brandBottom, { color: t.text }]}>האזרח הקטן</Text>
+							<Text style={[styles.brandTop, { color: brandInk }]}>חדשות</Text>
+							<Text style={[styles.brandBottom, { color: brandInk }]}>האזרח הקטן</Text>
 						</View>
 					</View>
 					<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}>

@@ -233,15 +233,17 @@ const styles = StyleSheet.create({
     wrap: { width: "100%", marginBottom: 13, paddingRight: 3 },
     // the tab sits at the left edge, opposite the headline's own side
     tabRow: { flexDirection: I18nManager.isRTL ? "row-reverse" : "row", paddingHorizontal: 12 },
+    // squarer than a card in an app usually is: a newspaper's furniture is cut,
+    // not rounded, and the whole feed reads as print rather than as software
     tab: {
         paddingHorizontal: 11, paddingTop: 3, paddingBottom: 6, marginBottom: -4,
-        borderTopLeftRadius: 9, borderTopRightRadius: 9,
+        borderTopLeftRadius: 3, borderTopRightRadius: 3,
     },
     tabText: {
         fontFamily: "Heebo_700Bold", fontSize: 10.5, color: "#FFFFFF", letterSpacing: 0.2,
     },
     card: {
-        width: "100%", backgroundColor: "#F4F4F3", borderRadius: 12,
+        width: "100%", backgroundColor: "#F4F4F3", borderRadius: 4,
         padding: 11, gap: 8,
         borderWidth: 1.5, borderColor: "transparent",
     },
