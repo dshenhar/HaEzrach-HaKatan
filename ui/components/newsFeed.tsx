@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AppState } from "react-native";
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, useWindowDimensions, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { I18nManager } from "react-native";
-import FeedControls, { SortKey } from "./feedControls";
+import FeedControls, { BlocFilter, SortKey } from "./feedControls";
 import ViewModeToggle, { ViewMode } from "./viewModeToggle";
 import ModeGuide from "./modeGuide";
 import WelcomeGuide from "./welcomeGuide";
@@ -24,9 +24,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 
 // The logo is navy ink, so negative mode swaps in a pale copy of it.
-const LOGO_INK = require("../assets/images/logo-ink.png");
-const LOGO_LIGHT = require("../assets/images/logo-light.png");
-const LOGO_RATIO = 600 / 186;
+const MARK_INK = require("../assets/images/mark-ink.png");
+const MARK_LIGHT = require("../assets/images/mark-light.png");
+const MARK_RATIO = 426 / 372;
 const CROWD = require("../assets/images/parlament.png");
 const CROWD_RATIO = 1200 / 604;
 /** how far above the crowd the list starts fading out */
@@ -49,6 +49,8 @@ export default function NewsFeed() {
 	const [ratingTarget, setRatingTarget] = useState<NewsItem | null>(null);
 	const [refreshing, setRefreshing] = useState<boolean>(false);
 	const [deep, setDeep] = useState(false);
+	// the bloc view's own filter: who told the story, not what it is about
+	const [blocFilter, setBlocFilter] = useState<BlocFilter>("all");
 	// raised while a story's outlet rail is being dragged, so the two scrollers
 	// do not fight over the same finger
 	const [scrollLocked, setScrollLocked] = useState(false);
@@ -193,8 +195,24 @@ export default function NewsFeed() {
 		return known.filter((a) => positions[a.source]?.bloc === other).length / known.length;
 	};
 
+	/** who told a story: the two counts the ring draws and the bloc filter reads */
+	const split = (cluster: NewsItem[]) => ({
+		right: cluster.filter((a) => positions[a.source]?.bloc === "right").length,
+		left: cluster.filter((a) => positions[a.source]?.bloc === "left").length,
+	});
+
 	const sortedArticles = useMemo(() => {
-		const list = [...filteredArticles];
+		let list = [...filteredArticles];
+		// A story only one bloc is telling is the most interesting thing the feed
+		// knows, and this is where a reader goes looking for it.
+		if (viewMode === "bloc" && blocFilter !== "all") {
+			list = list.filter((cluster) => {
+				const { right, left } = split(cluster);
+				if (blocFilter === "both") return right > 0 && left > 0;
+				if (blocFilter === "right") return right > 0 && left === 0;
+				return left > 0 && right === 0;
+			});
+		}
 		switch (sort) {
 			case "oldest":
 				return list.sort((a, b) => clusterTime(a) - clusterTime(b));
@@ -207,7 +225,7 @@ export default function NewsFeed() {
 			default:
 				return list.sort((a, b) => clusterTime(b) - clusterTime(a));
 		}
-	}, [filteredArticles, sort, positions, profile]);
+	}, [filteredArticles, sort, positions, profile, viewMode, blocFilter]);
 
 	// One story open at a time: opening another closes the first, and switching
 	// between the bloc and citizen views closes whatever was open.
@@ -309,12 +327,19 @@ export default function NewsFeed() {
 					<TouchableOpacity onPress={startTour} hitSlop={10} accessibilityLabel="על האפליקציה">
 						<Ionicons name="information-circle-outline" size={30} color={t.text} />
 					</TouchableOpacity>
-					<Image
-						source={t.name === "negative" ? LOGO_LIGHT : LOGO_INK}
-						style={styles.logo}
-						resizeMode="contain"
-						accessibilityLabel="חדשות האזרח הקטן"
-					/>
+					{/* the name set rather than drawn: "חדשות" leads, "האזרח הקטן" sits
+					    under it, and the book with the dove stands to their right */}
+					<View style={styles.brand} accessibilityLabel="חדשות האזרח הקטן">
+						<Image
+							source={t.name === "negative" ? MARK_LIGHT : MARK_INK}
+							style={styles.mark}
+							resizeMode="contain"
+						/>
+						<View style={styles.brandWords}>
+							<Text style={[styles.brandTop, { color: t.text }]}>חדשות</Text>
+							<Text style={[styles.brandBottom, { color: t.text }]}>האזרח הקטן</Text>
+						</View>
+					</View>
 					<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}>
 						<Ionicons name="person-circle-outline" size={30} color={t.text} />
 					</TouchableOpacity>
@@ -331,6 +356,10 @@ export default function NewsFeed() {
 				onToggleSection={handleSectionToggle}
 				sort={sort}
 				onSort={setSort}
+				mode={viewMode}
+				onMode={setViewMode}
+				blocFilter={blocFilter}
+				onBlocFilter={setBlocFilter}
 			/>
 
 			<View style={styles.feedArea}>
@@ -345,10 +374,6 @@ export default function NewsFeed() {
 				ref={scrollRef}
 				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
 			>
-				{/* inside the scroller: on a phone the toggle was holding a strip of
-				    the screen that the stories needed more */}
-				<ViewModeToggle mode={viewMode} onChange={setViewMode} />
-
 				{sortedArticles.map((cluster, index) => {
 					const key = storyKey(cluster, index);
 					return (
@@ -463,10 +488,16 @@ const styles = StyleSheet.create({
 	},
 	dot: { color: "#C9C6BF" },
 	clock: { fontFamily: "Heebo_700Bold", fontVariant: ["tabular-nums"] },
-	logo: {
-		height: 38,
-		width: 38 * LOGO_RATIO,
+	// row-reverse puts the mark on the right of the words, as the logo has it
+	brand: {
+		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
+		alignItems: "center",
+		gap: 8,
 	},
+	mark: { height: 40, width: 40 * MARK_RATIO },
+	brandWords: { alignItems: "flex-end" },
+	brandTop: { fontFamily: "Heebo_800ExtraBold", fontSize: 21, lineHeight: 23 },
+	brandBottom: { fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 15 },
 	title: {
  
 		fontFamily: "Heebo_700Bold", 

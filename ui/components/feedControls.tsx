@@ -1,10 +1,21 @@
 import { sectionColour } from '@/state/sections';
+import ViewModeToggle, { ViewMode } from './viewModeToggle';
 import { useTheme } from '@/state/theme';
 import React, { useRef, useState } from 'react';
 import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 export type SortKey = "newest" | "oldest" | "covered" | "outside";
+
+/** Which stories the bloc view shows, by who told them. */
+export type BlocFilter = "all" | "both" | "right" | "left";
+
+export const BLOC_FILTERS: { key: BlocFilter; label: string; dot?: string }[] = [
+    { key: "all", label: "הכל" },
+    { key: "both", label: "שני הצדדים", dot: "#DDA01E" },
+    { key: "right", label: "רק ימין", dot: "#C0392F" },
+    { key: "left", label: "רק שמאל", dot: "#2B5EA7" },
+];
 
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
     { key: "newest", label: "מחדש לישן" },
@@ -64,6 +75,11 @@ type Props = {
     onToggleSection: (section: string) => void;
     sort: SortKey;
     onSort: (key: SortKey) => void;
+    mode: ViewMode;
+    onMode: (mode: ViewMode) => void;
+    /** only the bloc view asks who told a story, so only it offers this */
+    blocFilter: BlocFilter;
+    onBlocFilter: (filter: BlocFilter) => void;
 }
 
 /**
@@ -72,7 +88,8 @@ type Props = {
  * one of the two strips is open at a time - two open rails stack and swallow the
  * feed on a phone.
  */
-const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSort }: Props) => {
+const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSort,
+                       mode, onMode, blocFilter, onBlocFilter }: Props) => {
     const [panel, setPanel] = useState<"none" | "filter" | "sort">("none");
     const t = useTheme();
     const dark = t.name === "negative";
@@ -95,15 +112,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                     </Text>
                 </TouchableOpacity>
 
-                <Strip style={styles.chosen}>
-                    {active.map((section) => (
-                        <TouchableOpacity key={section}
-                            style={[styles.chip, { backgroundColor: sectionColour(section, dark) }]}
-                            onPress={() => onToggleSection(section)}>
-                            <Text style={[styles.chipText, styles.chipOn]}>{section}  ✕</Text>
-                        </TouchableOpacity>
-                    ))}
-                </Strip>
+                <ViewModeToggle mode={mode} onChange={onMode} compact />
 
                 <TouchableOpacity
                     style={[styles.control, { borderColor: t.line, backgroundColor: t.surface },
@@ -115,6 +124,40 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                     <Text style={[styles.controlText, { color: panel === "sort" ? t.surface : t.text }]}>מיון</Text>
                 </TouchableOpacity>
             </View>
+
+            {/* who told the story is a question only the bloc view asks */}
+            {mode === "bloc" && (
+                <Strip style={styles.strip}>
+                    {BLOC_FILTERS.map((option) => {
+                        const on = option.key === blocFilter;
+                        return (
+                            <TouchableOpacity key={option.key}
+                                style={[styles.chip, styles.sectionChip,
+                                    { borderColor: on ? t.text : t.line,
+                                      backgroundColor: on ? t.text : t.surface }]}
+                                onPress={() => onBlocFilter(option.key)}>
+                                {!!option.dot && (
+                                    <View style={[styles.dot, { backgroundColor: option.dot }]} />
+                                )}
+                                <Text style={[styles.chipText,
+                                    { color: on ? t.surface : t.text }]}>{option.label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </Strip>
+            )}
+
+            {active.length > 0 && panel !== "filter" && (
+                <Strip style={styles.chosen}>
+                    {active.map((section) => (
+                        <TouchableOpacity key={section}
+                            style={[styles.chip, { backgroundColor: sectionColour(section, dark) }]}
+                            onPress={() => onToggleSection(section)}>
+                            <Text style={[styles.chipText, styles.chipOn]}>{section}  ✕</Text>
+                        </TouchableOpacity>
+                    ))}
+                </Strip>
+            )}
 
             {panel === "filter" && (
                 <Strip style={styles.strip}>
@@ -169,7 +212,7 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13,
     },
     controlText: { fontFamily: "Heebo_700Bold", fontSize: 12.5 },
-    chosen: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 2 },
+    chosen: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     chip: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
     sectionChip: {

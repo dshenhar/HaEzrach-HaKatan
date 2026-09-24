@@ -16,7 +16,12 @@ export const EXPLAIN: Record<ViewMode, { title: string; body: string }> = {
     },
 };
 
-type Props = { mode: ViewMode; onChange: (m: ViewMode) => void }
+type Props = {
+    mode: ViewMode;
+    onChange: (m: ViewMode) => void;
+    /** the size it takes in the controls rail, beside the filter and the sort */
+    compact?: boolean;
+}
 
 const PAD = 5;
 const GAP = 6;
@@ -34,7 +39,7 @@ export const OUTLINE: any = Platform.select({
     },
 });
 
-const ViewModeToggle = ({ mode, onChange }: Props) => {
+const ViewModeToggle = ({ mode, onChange, compact }: Props) => {
     const t = useTheme();
     const [railWidth, setRailWidth] = useState(0);
 
@@ -56,8 +61,9 @@ const ViewModeToggle = ({ mode, onChange }: Props) => {
     const onRailLayout = (e: LayoutChangeEvent) => setRailWidth(e.nativeEvent.layout.width);
 
     return (
-        <View style={styles.wrap}>
-            <View style={[styles.rail, { backgroundColor: t.track }]} onLayout={onRailLayout}>
+        <View style={[styles.wrap, compact && styles.wrapCompact]}>
+            <View style={[styles.rail, { backgroundColor: t.track }, compact && styles.railCompact]}
+                onLayout={onRailLayout}>
                 {half > 0 && (
                     <Animated.View
                         pointerEvents="none"
@@ -81,13 +87,14 @@ const ViewModeToggle = ({ mode, onChange }: Props) => {
                     return (
                         <TouchableOpacity
                             key={key}
-                            style={styles.seg}
+                            style={[styles.seg, compact && styles.segCompact]}
                             onPress={() => onChange(key)}
                             activeOpacity={0.9}
                         >
                             <Text
                                 numberOfLines={1}
-                                style={[styles.segText, { color: on ? t.selectInk : t.textMuted },
+                                style={[styles.segText, compact && styles.segTextCompact,
+                                    { color: on ? t.selectInk : t.textMuted },
                                     on && OUTLINE]}
                             >
                                 {EXPLAIN[key].title}
@@ -105,6 +112,8 @@ export default ViewModeToggle;
 const styles = StyleSheet.create({
     // room under it: inside the feed it now sits right above the first story
     wrap: { width: "100%", alignSelf: "stretch", paddingHorizontal: 12, paddingTop: 4, paddingBottom: 10 },
+    wrapCompact: { flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
+    railCompact: { padding: 3 },
     rail: { width: "100%", flexDirection: "row-reverse", borderRadius: 999, padding: PAD, gap: GAP },
     thumb: { position: "absolute", top: PAD, bottom: PAD, borderRadius: 999 },
     seg: {
@@ -115,5 +124,7 @@ const styles = StyleSheet.create({
         flexDirection: "row-reverse", alignItems: "center", justifyContent: "center",
         gap: 8, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 6,
     },
+    segCompact: { paddingVertical: 7, gap: 5 },
     segText: { fontFamily: "Heebo_700Bold", fontSize: 13.5, flexShrink: 0 },
+    segTextCompact: { fontSize: 11.5 },
 });

@@ -3,6 +3,7 @@ import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState }
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useStillness } from '@/state/access';
 import { sectionColour } from '@/state/sections';
+import CoverageRing from './coverageRing';
 import { useDevMode, useTheme } from '@/state/theme';
 import TopicPicker from './topicPicker';
 import { ViewMode } from './viewModeToggle';
@@ -86,6 +87,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const sources = data.map((d) => d.source);
     const shownTopic = topic || lead.topic || "";
     const section = lead.section || "";
+    // how the coverage split, which is what the ring draws
+    const rightCount = data.filter((d) => positions[d.source]?.bloc === "right").length;
+    const leftCount = data.filter((d) => positions[d.source]?.bloc === "left").length;
     const dark = t.name === "negative";
     const sectionInk = sectionColour(section, dark);
     // a hard offset shadow, no blur - tab and card read as paper lifted off the page
@@ -138,20 +142,35 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
             <View style={[styles.card, { backgroundColor: t.surfaceAlt, boxShadow: hardShadow },
                 open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
             <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
-                <View style={styles.titleRow}>
-                    {!!firstPublished && <Text style={[styles.time, { color: t.textMuted }]}>{firstPublished}</Text>}
-                    <Text style={[styles.title, { color: t.text }]} numberOfLines={open ? undefined : 2}>{lead.title}</Text>
-                    {open && !!shownTopic && (
-                        <TouchableOpacity
-                            disabled={!dev}
-                            onPress={() => setPickerOpen(true)}
-                            style={[styles.topicPill, { borderColor: t.line, backgroundColor: t.surface },
-                                dev && { borderColor: t.brand, borderStyle: "dashed" }]}
-                        >
-                            <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]} numberOfLines={2}>
-                                {balance(shownTopic)}{dev ? "  ✎" : ""}
-                            </Text>
-                        </TouchableOpacity>
+                <View style={styles.head}>
+                    <View style={styles.headText}>
+                        <View style={styles.metaLine}>
+                            {!!firstPublished && (
+                                <Text style={[styles.time, { color: t.textMuted }]}>{firstPublished}</Text>
+                            )}
+                            {/* the issue, out where it can be read without opening the story */}
+                            {!!shownTopic && shownTopic !== "חדשות כלליות" && (
+                                <TouchableOpacity
+                                    disabled={!dev}
+                                    onPress={() => setPickerOpen(true)}
+                                    style={[styles.topicPill, { borderColor: t.line, backgroundColor: t.surface },
+                                        dev && { borderColor: t.brand, borderStyle: "dashed" }]}
+                                >
+                                    <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]}
+                                        numberOfLines={1}>
+                                        {shownTopic}{dev ? "  ✎" : ""}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        <Text style={[styles.title, { color: t.text }]}
+                            numberOfLines={open ? undefined : 3}>{lead.title}</Text>
+                    </View>
+
+                    {/* only the bloc view is about who told it, so only it wears the ring */}
+                    {mode === "bloc" && (
+                        <CoverageRing right={rightCount} left={leftCount}
+                            rightInk={t.right} leftInk={t.left} text={String(data.length)} />
                     )}
                 </View>
                 {!open && (
@@ -226,7 +245,10 @@ const styles = StyleSheet.create({
         borderWidth: 1.5, borderColor: "transparent",
     },
     cardOpen: { backgroundColor: "#fff", borderColor: "#111827" },
-    titleRow: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 9 },
+    // the ring on the left, the time, the issue and the headline on the right
+    head: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 10 },
+    headText: { flex: 1, gap: 5 },
+    metaLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
     title: {
         flex: 1, fontFamily: "Heebo_700Bold", fontSize: 14.5, fontWeight: "700",
         lineHeight: 20, color: "#111827", textAlign: "right",
