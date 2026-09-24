@@ -143,35 +143,36 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                 open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
             <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
                 <View style={styles.head}>
-                    <View style={styles.headText}>
-                        <View style={styles.metaLine}>
-                            {!!firstPublished && (
-                                <Text style={[styles.time, { color: t.textMuted }]}>{firstPublished}</Text>
-                            )}
-                            {/* the issue, out where it can be read without opening the story */}
-                            {!!shownTopic && shownTopic !== "חדשות כלליות" && (
-                                <TouchableOpacity
-                                    disabled={!dev}
-                                    onPress={() => setPickerOpen(true)}
-                                    style={[styles.topicPill, { borderColor: t.line, backgroundColor: t.surface },
-                                        dev && { borderColor: t.brand, borderStyle: "dashed" }]}
-                                >
-                                    <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]}
-                                        numberOfLines={1}>
-                                        {shownTopic}{dev ? "  ✎" : ""}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
+                    {/* the time on top, the issue to its left; under them the ring sits
+                        on the headline's own line rather than above it */}
+                    <View style={styles.metaLine}>
+                        {!!firstPublished && (
+                            <Text style={[styles.time, { color: t.textMuted }]}>{firstPublished}</Text>
+                        )}
+                        {!!shownTopic && shownTopic !== "חדשות כלליות" && (
+                            <TouchableOpacity
+                                disabled={!dev}
+                                onPress={() => setPickerOpen(true)}
+                                style={[styles.topicPill, { borderColor: t.line, backgroundColor: t.surface },
+                                    dev && { borderColor: t.brand, borderStyle: "dashed" }]}
+                            >
+                                <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]}
+                                    numberOfLines={1}>
+                                    {shownTopic}{dev ? "  ✎" : ""}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <View style={styles.titleRow}>
+                        {/* only the bloc view is about who told it, so only it wears the ring */}
+                        {mode === "bloc" && (
+                            <CoverageRing right={rightCount} left={leftCount}
+                                rightInk={t.right} leftInk={t.left} text={String(data.length)} />
+                        )}
                         <Text style={[styles.title, { color: t.text }]}
                             numberOfLines={open ? undefined : 3}>{lead.title}</Text>
                     </View>
-
-                    {/* only the bloc view is about who told it, so only it wears the ring */}
-                    {mode === "bloc" && (
-                        <CoverageRing right={rightCount} left={leftCount}
-                            rightInk={t.right} leftInk={t.left} text={String(data.length)} />
-                    )}
                 </View>
                 {!open && (
                     <View style={styles.metaRow}>
@@ -245,10 +246,11 @@ const styles = StyleSheet.create({
         borderWidth: 1.5, borderColor: "transparent",
     },
     cardOpen: { backgroundColor: "#fff", borderColor: "#111827" },
-    // the ring on the left, the time, the issue and the headline on the right
-    head: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 10 },
-    headText: { flex: 1, gap: 5 },
+    head: { gap: 6 },
+    // row-reverse: the time at the right edge, the issue to its left
     metaLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+    // and the ring beside the headline, on its first line
+    titleRow: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 10 },
     title: {
         flex: 1, fontFamily: "Heebo_700Bold", fontSize: 14.5, fontWeight: "700",
         lineHeight: 20, color: "#111827", textAlign: "right",
