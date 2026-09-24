@@ -129,9 +129,11 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
 
     return (
         <Animated.View layout={glide} style={styles.wrap}>
-            {/* Closed, the story wears its section as a tab tucked behind its top left
-                corner - the same colour the filter strip uses, so the feed can be read by
-                colour before it is read by word. Open, the tab gives way to the issue. */}
+            {/* The story wears its section as a tab at its top left corner - the same
+                colour the filter strip uses, so the feed can be read by colour before it
+                is read by word. Closed the tab is tucked behind the card and points up;
+                opening the card flips the same tab inside it, hanging down off the top
+                edge, so it reads as the one label following the story it belongs to. */}
             {!open && !!section && (
                 <View style={styles.tabRow}>
                     <View style={[styles.tab, { backgroundColor: sectionInk, boxShadow: hardShadow }]}>
@@ -141,6 +143,14 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
             )}
             <View style={[styles.card, { backgroundColor: t.surfaceAlt, boxShadow: hardShadow },
                 open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
+            {open && !!section && (
+                <Animated.View style={styles.tabRowIn}
+                    entering={still ? undefined : FADE_IN} exiting={still ? undefined : FADE_OUT}>
+                    <View style={[styles.tab, styles.tabDown, { backgroundColor: sectionInk, boxShadow: hardShadow }]}>
+                        <Text style={styles.tabText} numberOfLines={1}>{section}</Text>
+                    </View>
+                </Animated.View>
+            )}
             <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
                 <View style={styles.head}>
                     {/* the time on top, the issue to its left; under them the ring sits
@@ -237,6 +247,18 @@ const styles = StyleSheet.create({
     tab: {
         paddingHorizontal: 11, paddingTop: 3, paddingBottom: 6, marginBottom: -4,
         borderTopLeftRadius: 6, borderTopRightRadius: 6,
+    },
+    // open, the same tab hangs from the inside of the card's top edge: the card's own
+    // padding is cancelled so it starts exactly where the closed one ended, and the
+    // half pixel makes up the difference between the card's border and the tab row's
+    tabRowIn: {
+        flexDirection: I18nManager.isRTL ? "row-reverse" : "row",
+        marginTop: -11, marginHorizontal: -0.5,
+    },
+    tabDown: {
+        paddingTop: 6, paddingBottom: 3, marginBottom: 0,
+        borderTopLeftRadius: 0, borderTopRightRadius: 0,
+        borderBottomLeftRadius: 6, borderBottomRightRadius: 6,
     },
     tabText: {
         fontFamily: "Heebo_700Bold", fontSize: 10.5, color: "#FFFFFF", letterSpacing: 0.2,
