@@ -61,6 +61,9 @@ TOPIC_DESCRIPTIONS = {
     "טיפולי המרה": "טיפולי המרה, איסור על טיפולי המרה ויחס הממסד לקהילה הגאה",
 }
 
+# The file outlets publish for Google, read as if it were a feed
+import sitemap as news_sitemap
+
 # Kan11 has no RSS url and is fetched by a scraper in the original worker.
 try:
     from kan11RssFetcher import generate_feed
@@ -173,8 +176,18 @@ def translate_to_hebrew(header: str, subheader: str) -> tuple[str, str] | None:
     return None
 
 
-UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+# Who we are. The crawler used to introduce itself as Chrome on a Mac, which was
+# both untrue and, it turns out, worse at its job: channel 13 serves its news
+# sitemap to a crawler that names itself and refuses one wearing a browser's
+# clothes. Saying who we are and how to be told to stop is the honest thing and
+# the effective one.
+UA = "HaEzrachHaKatanBot/1.0 (+https://haezrach-hakatan.web.app; haezrachh@gmail.com)"
+# The one exception, and it is inherited rather than chosen: Haaretz's edge
+# refuses anything it does not recognise, and it is the largest outlet on the
+# left. Worth replacing with a word from them - everything else here is honest.
+BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+AS_BROWSER = {"הארץ"}
 FEED_TIMEOUT = 15
 
 
@@ -191,23 +204,30 @@ def fetch_entries(site_name, url):
         except Exception as err:
             print(f"  ! {site_name}: scraper failed: {err}")
             return []
-    if site_name == "כאן 11":
-        if generate_feed is None:
-            return []
-        try:
-            return generate_feed().get("entries", [])
-        except Exception as err:
-            print(f"  ! {site_name}: scraper failed: {err}")
-            return []
     if not url:
+        # the public broadcaster used to be read off its own lobby page; it has a
+        # news sitemap now, and this stays only for the day that address moves
+        if site_name == "כאן 11" and generate_feed is not None:
+            try:
+                return generate_feed().get("entries", [])
+            except Exception as err:
+                print(f"  ! {site_name}: scraper failed: {err}")
         return []
+    agent = BROWSER_UA if site_name in AS_BROWSER else UA
+    head = {"User-Agent": agent, "Accept-Language": "he-IL,he;q=0.9,en;q=0.8"}
     try:
-        r = requests.get(url, headers={"User-Agent": UA}, timeout=FEED_TIMEOUT)
+        r = requests.get(url, headers=head, timeout=FEED_TIMEOUT)
         r.raise_for_status()
-        return feedparser.parse(r.content).get("entries", [])
     except Exception as err:
         print(f"  ! {site_name}: {err}")
         return []
+    found = feedparser.parse(r.content).get("entries", [])
+    if found:
+        return found
+    # Not a feed, then - but perhaps the file they publish for Google. Several
+    # outlets here wall their RSS off from anything in a datacentre and leave the
+    # news sitemap open, because Googlebot has to be able to read it.
+    return news_sitemap.entries(r.content)
 
 
 def parse_entry(entry, site_name):

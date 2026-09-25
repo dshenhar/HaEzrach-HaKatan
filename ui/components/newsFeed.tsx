@@ -29,6 +29,8 @@ const BRAND_INK = "#192F50";
 const BRAND_INK_DARK = "#C7D4E8";
 const MARK_INK = require("../assets/images/mark-ink.png");
 const MARK_LIGHT = require("../assets/images/mark-light.png");
+/** the doodled paper the feed is printed on - light theme only, where it is paper */
+const PAPER = require("../assets/images/paper.webp");
 const MARK_RATIO = 426 / 372;
 /** room under the last story, so the tab bar never sits on a headline */
 const TAIL = 120;
@@ -426,9 +428,12 @@ export default function NewsFeed() {
 				</View>
 			)}
 			<View style={styles.feedArea}>
+			{t.name === "light" && (
+				<Image source={PAPER} style={styles.paper} resizeMode="cover" />
+			)}
 			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
-				style={[styles.scrollView, { backgroundColor: t.bg }]}
+				style={[styles.scrollView, { backgroundColor: t.name === "light" ? "transparent" : t.bg }]}
 				scrollEnabled={!scrollLocked}
 				contentContainerStyle={{ paddingBottom: TAIL }}
 				onScroll={onFeedScroll}
@@ -608,5 +613,13 @@ const styles = StyleSheet.create({
 	// the stories keep the narrow side margin the header does not want
 	cards: { paddingHorizontal: 6 },
 	feedArea: { flex: 1, width: "100%" },
+	// it sits still while the feed moves over it, so it reads as the page rather
+	// than as something in the list
+	// width and height spelled out: react-native-web otherwise stamps the asset's
+	// own 760 square on it inline, which beats anything a stylesheet says
+	paper: {
+		position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+		opacity: 0.7, pointerEvents: "none",
+	},
 	tour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 });

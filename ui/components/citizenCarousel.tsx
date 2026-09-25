@@ -116,7 +116,7 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
                                 <>
                                     {!!item.summary && <Text style={styles.summary}>{plain(item.summary)}</Text>}
                                     <TouchableOpacity onPress={() => onOpenArticle(item)}>
-                                        <Text style={styles.go}>לכתבה המלאה ←</Text>
+                                        <Text style={styles.go}>{"לכתבה המלאה  \u2196"}</Text>
                                     </TouchableOpacity>
                                 </>
                             )}
