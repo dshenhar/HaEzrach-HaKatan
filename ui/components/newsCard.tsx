@@ -1,5 +1,5 @@
 import { slideItemColors, slideWidth } from '@/state/constants';
-import { NewsItem, URL_BASE } from '@/state/engagement';
+import { isRatable, NewsItem, URL_BASE } from '@/state/engagement';
 import React, { Dispatch, SetStateAction } from 'react';
 import { Alert, Dimensions, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import RateBar from './ui/rateBar';
@@ -30,6 +30,7 @@ const NewsCard = ({slide, index, expanded, setExpanded, setViewerOpen, setViewer
     };
 
     const handleLongPress = () => {
+        if (!isRatable(slide)) return;
         setRatingTarget(slide);
         setRatingOpen(true);
     }

@@ -1,4 +1,4 @@
-import { NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
+import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useStillness } from '@/state/access';
@@ -138,8 +138,14 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
         if (!ok) setTopic(lead.topic || "");
     };
 
+    // General news has no two sides to be on, so a reader who has just read one is
+    // not asked to place it. The read is still counted - what they saw is theirs
+    // to see on the analytics page either way.
+    const asking = useRef(false);
+
     const handleOpenArticle = (item: NewsItem) => {
         setRatingTarget(item);
+        asking.current = isRatable(item);
 
         // react-native-webview has no web build - on web the in-app viewer renders
         // "does not support this platform". Open the real site in a tab instead,
@@ -147,7 +153,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
         if (Platform.OS === "web") {
             Linking.openURL(item.link);
             saveWatch({ id: item.id, site: item.source, topic: item.topic, date: Date.now() });
-            setRatingOpen(true);
+            if (asking.current) setRatingOpen(true);
             return;
         }
 
@@ -161,7 +167,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     // iOS presents one modal at a time, so the rating sheet waits for the viewer
     // to finish dismissing. Opening it immediately deadlocked both and left the
     // card unable to open any further article.
-    const handleViewerClosed = () => setRatingOpen(true);
+    const handleViewerClosed = () => { if (asking.current) setRatingOpen(true); };
 
     return (
         <Animated.View ref={box} layout={glide} style={styles.wrap}
@@ -197,7 +203,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                         {!!firstPublished && (
                             <Text style={[styles.time, { color: t.textMuted }]}>{firstPublished}</Text>
                         )}
-                        {!!shownTopic && shownTopic !== "חדשות כלליות" && (
+                        {!!shownTopic && shownTopic !== GENERAL_TOPIC && (
                             <TouchableOpacity
                                 disabled={!dev}
                                 onPress={() => setPickerOpen(true)}

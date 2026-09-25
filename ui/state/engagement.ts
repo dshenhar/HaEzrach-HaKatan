@@ -307,6 +307,17 @@ export async function getTopicPoles(): Promise<TopicPoles> {
 	}
 }
 
+/**
+ * The one topic with no two sides to it: where a story lands when it is not about
+ * anything the map argues over - a road accident, a storm, a rescued dog. It is a
+ * place to put a story, not a question, so nothing about it is ever put to a vote.
+ */
+export const GENERAL_TOPIC = "חדשות כלליות";
+
+/** whether there is anything to ask a reader about this article at all */
+export const isRatable = (item?: { topic?: string } | null) =>
+	!!item?.topic && item.topic !== GENERAL_TOPIC;
+
 /** includeGeneral adds "חדשות כלליות" - a correction target, never a map axis */
 export async function getTopics(includeGeneral = false): Promise<string[]> {
 	try {

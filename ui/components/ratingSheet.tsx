@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Modal, View, Text, StyleSheet, Pressable, Animated, Easing, TouchableOpacity } from "react-native";
 import Slider from "@react-native-community/slider";
-import { saveRating, NewsItem, RatingEvent } from "@/state/engagement";
+import { isRatable, saveRating, NewsItem, RatingEvent } from "@/state/engagement";
 import { Toast } from "toastify-react-native";
 
 interface RatingSheetProps {
@@ -38,9 +38,13 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 		setVal(0);
 	}
 
+	// Nothing to ask about a road accident: the sheet stays shut on a story whose
+	// topic has no two sides, wherever it was opened from.
+	const asked = open && isRatable(ratingTarget);
+
 	// Animate sheet in/out
 	useEffect(() => {
-	if (open) {
+	if (asked) {
 		Animated.timing(slideAnim, {
 		toValue: 1,
 		duration: 250,
@@ -55,7 +59,7 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 		useNativeDriver: true,
 		}).start();
 	}
-	}, [open]);
+	}, [asked]);
 
 	const handleSubmit = () => {
 		onOpenChange(false);
@@ -75,7 +79,7 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 
 	return (
 		<Modal
-			visible={open}
+			visible={asked}
 			transparent
 			animationType="none"
 			onRequestClose={handleClose}
