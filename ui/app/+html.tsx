@@ -28,6 +28,19 @@ export default function Root({ children }: PropsWithChildren) {
                 <meta name="description" content={DESCRIPTION} />
                 <meta name="theme-color" content="#f8f8f8" />
 
+                {/* Installed to a home screen the app runs standalone, and the
+                    phone - not the app - then opens an outlet's article in its own
+                    reader over us, with a Done that comes back here. That is the
+                    nearest thing to an in-app browser the web has, and unlike a
+                    frame it leaves the outlet's page whole and its own. */}
+                <link rel="manifest" href="/manifest.json" />
+                <link rel="icon" href="/favicon.png" />
+                <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+                <meta name="mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+                <meta name="apple-mobile-web-app-title" content="האזרח הקטן" />
+
                 {/* what WhatsApp, Telegram, Slack and Facebook read */}
                 <meta property="og:type" content="website" />
                 <meta property="og:site_name" content={TITLE} />
