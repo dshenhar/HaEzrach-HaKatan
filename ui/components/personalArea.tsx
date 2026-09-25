@@ -267,9 +267,12 @@ const styles = StyleSheet.create({
     codeButtonText: { fontFamily: "Heebo_700Bold", fontSize: 14 },
 
     positions: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13 },
+    // the issue at the right where the reading starts, the score at the far left in
+    // a column of its own - side by side they read as one word with a number stuck
+    // to the end of it
     posRow: {
-        flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-        paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
+        flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center",
+        gap: 14, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
     },
     posTopic: { fontFamily: "Heebo_400Regular", fontSize: 13, flex: 1, textAlign: "right" },
     posScore: { fontFamily: "Heebo_800ExtraBold", fontSize: 12 },

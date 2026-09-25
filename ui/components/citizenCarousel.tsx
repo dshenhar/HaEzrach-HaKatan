@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     // at the right edge instead of hugging the left
     rail: { flexDirection: RTL_ROW, flexGrow: 1, gap: 9, paddingHorizontal: RAIL_PAD },
     slide: {
-        width: 232, backgroundColor: "#F4F4F3", borderRadius: 12, padding: 11, gap: 5,
+        width: 232, backgroundColor: "#E9EEF6", borderRadius: 12, padding: 11, gap: 5,
         borderWidth: 1.5, borderColor: "transparent",
     },
     slideOpen: { width: 282, backgroundColor: "#fff", borderColor: "#111827" },
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     summary: {
         fontFamily: "Heebo_400Regular",
         fontSize: 11.5, lineHeight: 17, color: "#6B7280", textAlign: "right",
-        borderTopWidth: 1, borderTopColor: "#E3E3E1", paddingTop: 6, marginTop: 2,
+        borderTopWidth: 1, borderTopColor: "#DCE3ED", paddingTop: 6, marginTop: 2,
     },
     go: {
  fontFamily: "Heebo_800ExtraBold", fontSize: 11.5, fontWeight: "800", color: "#16A34A", textAlign: "right", marginTop: 2 },

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, useWindowDimensions, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { I18nManager } from "react-native";
 import FeedControls, { BlocFilter, SortKey } from "./feedControls";
 import ViewModeToggle, { ViewMode } from "./viewModeToggle";
@@ -20,7 +20,7 @@ import { Alert } from "react-native";
 import PersonalArea from "./personalArea";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 
 // The logo is navy ink, so negative mode swaps in a pale copy of it.
@@ -31,12 +31,8 @@ const BRAND_INK_DARK = "#C7D4E8";
 const MARK_INK = require("../assets/images/mark-ink.png");
 const MARK_LIGHT = require("../assets/images/mark-light.png");
 const MARK_RATIO = 426 / 372;
-const CROWD = require("../assets/images/parlament.png");
-const CROWD_RATIO = 1200 / 604;
-/** how far above the crowd the list starts fading out */
-const CROWD_FADE = 48;
-/** scrolled further than this, the crowd steps aside */
-const CROWD_HIDE_AFTER = 12;
+/** room under the last story, so the tab bar never sits on a headline */
+const TAIL = 120;
 /**
  * Where on the screen the feed asks "which story is the reader on", as a share of
  * the visible height. A little above the middle: the story that opens grows
@@ -91,38 +87,11 @@ export default function NewsFeed() {
 	const [viewMode, setViewMode] = useState<ViewMode>("bloc");
 	const t = useTheme();
 	const dev = useDevMode();
-	// the web build draws the app inside a 420px phone frame
-	const { width: windowWidth } = useWindowDimensions();
-	const crowdWidth = Math.round(Math.min(windowWidth, 420) * 0.68);
-	const crowdHeight = Math.round(crowdWidth / CROWD_RATIO);
 
-	// The crowd sits on the tab bar only while the feed is at its very top: the
-	// first scroll sends it down behind the bar, and it comes back only once the
-	// list is all the way up again (the gap between the two thresholds keeps it
-	// from flickering around the top). It also steps aside while the tour is
-	// running or a story is open, so nothing has to share the screen with it.
-	const crowdIn = useRef(new Animated.Value(1)).current;
-	const crowdShown = useRef(true);
-	const atTop = useRef(true);
-	const guideOut = useRef(false);
-	const storyOpen = useRef(false);
-	const syncCrowd = () => {
-		const show = atTop.current && !guideOut.current && !storyOpen.current;
-		if (show === crowdShown.current) return;
-		crowdShown.current = show;
-		Animated.timing(crowdIn, {
-			toValue: show ? 1 : 0,
-			duration: show ? 320 : 220,
-			easing: Easing.out(Easing.cubic),
-			useNativeDriver: true,
-		}).start();
-	};
 	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
 		const y = e.nativeEvent.contentOffset.y;
-		atTop.current = atTop.current ? y <= CROWD_HIDE_AFTER : y <= 1;
 		// far enough down that the way back is worth a button
 		setDeep(y > 600);
-		syncCrowd();
 		trackScroll(y);
 	};
 
@@ -133,6 +102,10 @@ export default function NewsFeed() {
 	// behind the blur to match each guide, and the last touch hands the feed back the
 	// way the reader had it. Tapping the toggle on its own just switches the view.
 	const [tourStep, setTourStep] = useState<number | null>(null);
+	// the band the blur leaves clear, which is wherever the toggle has ended up
+	const toggleBox = useRef<View>(null);
+	const [spot, setSpot] = useState<{ y: number; h: number } | null>(null);
+	const insets = useSafeAreaInsets();
 	const [tour, setTour] = useState<TourStep[]>([...TOUR_BASE]);
 	const { filled, open: askQuestionnaire } = useQuestionnaire();
 	const tourBlur = useRef(new Animated.Value(0)).current;
@@ -141,13 +114,23 @@ export default function NewsFeed() {
 		modeBeforeTour.current = viewMode;
 		// the questionnaire closes the tour, but only for someone it still concerns
 		setTour(filled ? [...TOUR_BASE] : [...TOUR_BASE, "questionnaire"]);
-		setTourStep(0);
-		Animated.timing(tourBlur, {
-			toValue: 1,
-			duration: 300,
-			easing: Easing.out(Easing.cubic),
-			useNativeDriver: true,
-		}).start();
+		// The toggle scrolls with the feed now, so the tour brings it back on screen
+		// before it starts - the guides point at it, and the blur leaves a clear band
+		// where it lands. measureInWindow counts from the top of the screen; the
+		// overlay starts under the notch, which is what the inset takes off again.
+		scrollRef.current?.scrollTo({ y: 0, animated: true });
+		setTimeout(() => {
+			toggleBox.current?.measureInWindow?.((_x, y, _w, h) => {
+				setSpot(h ? { y: y - insets.top, h } : null);
+			});
+			setTourStep(0);
+			Animated.timing(tourBlur, {
+				toValue: 1,
+				duration: 300,
+				easing: Easing.out(Easing.cubic),
+				useNativeDriver: true,
+			}).start();
+		}, 330);
 	};
 	// called once a step's picture has finished leaving
 	const advanceTour = (from: number) => {
@@ -169,10 +152,6 @@ export default function NewsFeed() {
 			useNativeDriver: true,
 		}).start(() => { setTourStep(null); then?.(); });
 	};
-	useEffect(() => {
-		guideOut.current = tourStep !== null;
-		syncCrowd();
-	}, [tourStep]);
 	const tourStepName = tourStep !== null ? tour[tourStep] : null;
 
 	const reload = useCallback(() => {
@@ -246,12 +225,6 @@ export default function NewsFeed() {
 	const storyKey = (cluster: NewsItem[], index: number) => String(cluster[0]?.groupId ?? index);
 	const [openStory, setOpenStory] = useState<string | null>(null);
 	useEffect(() => { setOpenStory(null); }, [viewMode]);
-	useEffect(() => {
-		// a story that dropped out of the feed on a refresh no longer keeps the crowd away
-		storyOpen.current = openStory !== null
-			&& sortedArticles.some((cluster, i) => storyKey(cluster, i) === openStory);
-		syncCrowd();
-	}, [openStory, sortedArticles]);
 
 	// ---------------------------------------------------------------------------
 	// The scroll decides which story is open.
@@ -446,6 +419,10 @@ export default function NewsFeed() {
 
 	return (
 		<SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: t.bg }]}>
+			{/* a cold light over the whole page, brightest where the day starts */}
+			{!!t.sheen && (
+				<LinearGradient colors={t.sheen} style={StyleSheet.absoluteFill} pointerEvents="none" />
+			)}
 			{dev && (
 				<View style={[styles.devBar, { backgroundColor: t.brand }]}>
 					<Text style={styles.devBarText}>
@@ -456,9 +433,9 @@ export default function NewsFeed() {
 			<View style={styles.feedArea}>
 			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
-				style={[styles.scrollView, { backgroundColor: t.bg }]}
+				style={[styles.scrollView, { backgroundColor: t.sheen ? "transparent" : t.bg }]}
 				scrollEnabled={!scrollLocked}
-				contentContainerStyle={{ paddingBottom: crowdHeight + CROWD_FADE }}
+				contentContainerStyle={{ paddingBottom: TAIL }}
 				onScroll={onFeedScroll}
 				onLayout={(e) => { viewportH.current = e.nativeEvent.layout.height; }}
 				scrollEventThrottle={16}
@@ -504,6 +481,7 @@ export default function NewsFeed() {
 					onMode={setViewMode}
 					blocFilter={blocFilter}
 					onBlocFilter={setBlocFilter}
+					toggleRef={toggleBox}
 				/>
 				</View>
 
@@ -542,30 +520,13 @@ export default function NewsFeed() {
 				</TouchableOpacity>
 			)}
 
-			{/* the crowd sits on the tab bar, and the stories fade out behind their heads */}
-			<Animated.View style={[styles.crowd, { height: crowdHeight + CROWD_FADE, opacity: crowdIn }]}>
-				<LinearGradient
-					colors={[t.bg + "00", t.bg, t.bg]}
-					locations={[0, (CROWD_FADE + crowdHeight * 0.3) / (crowdHeight + CROWD_FADE), 1]}
-					style={StyleSheet.absoluteFill}
-				/>
-				<Animated.Image
-					source={CROWD}
-					resizeMode="contain"
-					style={{
-						width: crowdWidth,
-						height: crowdHeight,
-						transform: [{ translateY: crowdIn.interpolate({ inputRange: [0, 1], outputRange: [crowdHeight * 0.5, 0] }) }],
-					}}
-				/>
-			</Animated.View>
 			</View>
 
 			{/* over the whole screen, header and toggle included; the blur stays put while
 			    the pictures change, and each picture moves the tour on when touched */}
 			{tourStep !== null && (
 				<View style={styles.tour}>
-					<GuideBackdrop opacity={tourBlur} />
+					<GuideBackdrop opacity={tourBlur} hole={spot} />
 					{tourStepName === "welcome" ? (
 						<WelcomeGuide key="welcome" onDone={() => advanceTour(tourStep)} />
 					) : tourStepName === "questionnaire" ? (
@@ -598,15 +559,15 @@ const styles = StyleSheet.create({
 	toTop: {
 		position: "absolute", right: 12, bottom: 92, width: 38, height: 38, borderRadius: 19,
 		alignItems: "center", justifyContent: "center",
-		backgroundColor: "rgba(255,255,255,0.92)", borderWidth: 1, borderColor: "#E3E3E1",
-		boxShadow: "0 2px 8px rgba(0,0,0,0.18)", zIndex: 30,
+		backgroundColor: "rgba(255,255,255,0.92)", borderWidth: 1, borderColor: "#DCE3ED",
+		boxShadow: "0 2px 10px rgba(24,45,82,0.16)", zIndex: 30,
 	},
 
 	container: { 
 		flex: 1, 
 		alignItems: "center", 
 		width: "100%", 
-		backgroundColor: '#f8f8f8ff',
+		backgroundColor: '#F2F5FA',
 	},
 	header: {
 		paddingHorizontal: 16,
@@ -645,22 +606,12 @@ const styles = StyleSheet.create({
 	},
 	scrollView: {
 		width: "100%",
-		backgroundColor: '#f8f8f8ff',
+		backgroundColor: '#F2F5FA',
 		// borderWidth: 2,
 		flex: 1,
 	},
 	// the stories keep the narrow side margin the header does not want
 	cards: { paddingHorizontal: 6 },
 	feedArea: { flex: 1, width: "100%" },
-	crowd: {
-		position: "absolute",
-		left: 0,
-		right: 0,
-		bottom: 0,
-		alignItems: "center",
-		justifyContent: "flex-end",
-		// scrolling keeps working through the crowd
-		pointerEvents: "none",
-	},
 	tour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 });

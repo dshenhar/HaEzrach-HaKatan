@@ -3,6 +3,7 @@ import ViewModeToggle, { ViewMode } from './viewModeToggle';
 import { useTheme } from '@/state/theme';
 import React, { useRef, useState } from 'react';
 import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import type { View as RNView } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 
 export type SortKey = "newest" | "oldest" | "covered" | "outside";
@@ -71,6 +72,8 @@ type Props = {
     /** only the bloc view asks who told a story, so only it offers this */
     blocFilter: BlocFilter;
     onBlocFilter: (filter: BlocFilter) => void;
+    /** the tour measures the toggle through this, to leave it out of its blur */
+    toggleRef?: React.RefObject<RNView | null>;
 }
 
 /**
@@ -81,7 +84,7 @@ type Props = {
  * taking a third of a phone's screen off the news.
  */
 const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSort,
-                       mode, onMode, blocFilter, onBlocFilter }: Props) => {
+                       mode, onMode, blocFilter, onBlocFilter, toggleRef }: Props) => {
     const [open, setOpen] = useState(false);
     const t = useTheme();
     const dark = t.name === "negative";
@@ -93,7 +96,9 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
     return (
         <View style={[styles.wrap, { backgroundColor: t.bg }]}>
             <View style={styles.rail}>
-                <ViewModeToggle mode={mode} onChange={onMode} compact />
+                <View ref={toggleRef} style={styles.togglePlace}>
+                    <ViewModeToggle mode={mode} onChange={onMode} compact />
+                </View>
 
                 {/* the border turns gold when the feed the reader is looking at is not
                     the whole feed, so a filter left on is never left on unnoticed */}
@@ -197,7 +202,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
 export default FeedControls;
 
 const styles = StyleSheet.create({
-    wrap: { width: "100%", paddingTop: 10, paddingBottom: 4, gap: 8 },
+    wrap: { width: "100%", paddingTop: 10, paddingBottom: 11, gap: 8 },
     // row-reverse puts the first child at the right edge
     rail: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingHorizontal: 16 },
     control: {
@@ -205,6 +210,8 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13,
     },
     controlText: { fontFamily: "Heebo_700Bold", fontSize: 12.5 },
+    // only here so the tour has something to measure; the toggle sizes itself
+    togglePlace: { flex: 1, flexDirection: "row" },
     // the two halves of the one panel, each said once and quietly
     panelLabel: {
         fontFamily: "Heebo_700Bold", fontSize: 10.5, textAlign: "right",

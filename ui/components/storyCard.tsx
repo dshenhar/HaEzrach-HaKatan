@@ -128,8 +128,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const leftCount = data.filter((d) => positions[d.source]?.bloc === "left").length;
     const dark = t.name === "negative";
     const sectionInk = sectionColour(section, dark);
-    // a hard offset shadow, no blur - tab and card read as paper lifted off the page
-    const hardShadow = dark ? "3px 3px 0 rgba(0,0,0,0.5)" : "3px 3px 0 rgba(17,24,39,0.18)";
+    // a hard offset shadow, no blur - tab and card read as paper lifted off the page,
+    // and the card's own top edge catches the light the shadow is cast by
+    const hardShadow = `3px 3px 0 ${t.shadow}`;
 
     const applyTopic = async (next: string) => {
         setPickerOpen(false);
@@ -179,7 +180,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                     </View>
                 </View>
             )}
-            <View style={[styles.card, { backgroundColor: t.surfaceAlt, boxShadow: hardShadow },
+            <View style={[styles.card, { backgroundColor: t.surfaceAlt, borderColor: t.edge, boxShadow: hardShadow },
                 open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
             {open && !!section && (
                 <Animated.View style={styles.tabRowIn}
@@ -296,10 +297,14 @@ const styles = StyleSheet.create({
     // half pixel makes up the difference between the card's border and the tab row's
     tabRowIn: {
         flexDirection: I18nManager.isRTL ? "row-reverse" : "row",
-        marginTop: -11, marginHorizontal: -0.5,
+        marginTop: -11, marginHorizontal: -0.5, zIndex: 2,
     },
+    // The tab hangs into the line below it rather than standing on top of it: it
+    // costs the open story 8 points of room instead of 23, and the headline starts
+    // where it does on a folded one. The line it hangs into holds the time at the
+    // far right and the issue beside it, neither of which reaches this far left.
     tabDown: {
-        paddingTop: 6, paddingBottom: 3, marginBottom: 0,
+        paddingTop: 5, paddingBottom: 3, marginBottom: -15,
         borderTopLeftRadius: 0, borderTopRightRadius: 0,
         borderBottomLeftRadius: 6, borderBottomRightRadius: 6,
     },
@@ -307,7 +312,7 @@ const styles = StyleSheet.create({
         fontFamily: "Heebo_700Bold", fontSize: 10.5, color: "#FFFFFF", letterSpacing: 0.2,
     },
     card: {
-        width: "100%", backgroundColor: "#F4F4F3", borderRadius: 8,
+        width: "100%", backgroundColor: "#E9EEF6", borderRadius: 8,
         padding: 11, gap: 8,
         borderWidth: 1.5, borderColor: "transparent",
     },
