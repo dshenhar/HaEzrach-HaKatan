@@ -21,7 +21,6 @@ import PersonalArea from "./personalArea";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TouchableOpacity } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 
 // The logo is navy ink, so negative mode swaps in a pale copy of it.
 // the navy the logo is drawn in, sampled off the file itself, so the words and the
@@ -419,10 +418,6 @@ export default function NewsFeed() {
 
 	return (
 		<SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: t.bg }]}>
-			{/* a cold light over the whole page, brightest where the day starts */}
-			{!!t.sheen && (
-				<LinearGradient colors={t.sheen} style={StyleSheet.absoluteFill} pointerEvents="none" />
-			)}
 			{dev && (
 				<View style={[styles.devBar, { backgroundColor: t.brand }]}>
 					<Text style={styles.devBarText}>
@@ -433,7 +428,7 @@ export default function NewsFeed() {
 			<View style={styles.feedArea}>
 			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
-				style={[styles.scrollView, { backgroundColor: t.sheen ? "transparent" : t.bg }]}
+				style={[styles.scrollView, { backgroundColor: t.bg }]}
 				scrollEnabled={!scrollLocked}
 				contentContainerStyle={{ paddingBottom: TAIL }}
 				onScroll={onFeedScroll}
@@ -559,15 +554,15 @@ const styles = StyleSheet.create({
 	toTop: {
 		position: "absolute", right: 12, bottom: 92, width: 38, height: 38, borderRadius: 19,
 		alignItems: "center", justifyContent: "center",
-		backgroundColor: "rgba(255,255,255,0.92)", borderWidth: 1, borderColor: "#DCE3ED",
-		boxShadow: "0 2px 10px rgba(24,45,82,0.16)", zIndex: 30,
+		backgroundColor: "rgba(255,255,255,0.92)", borderWidth: 1, borderColor: "#E3E3E1",
+		boxShadow: "0 2px 8px rgba(0,0,0,0.18)", zIndex: 30,
 	},
 
 	container: { 
 		flex: 1, 
 		alignItems: "center", 
 		width: "100%", 
-		backgroundColor: '#F2F5FA',
+		backgroundColor: '#f8f8f8ff',
 	},
 	header: {
 		paddingHorizontal: 16,
@@ -606,7 +601,7 @@ const styles = StyleSheet.create({
 	},
 	scrollView: {
 		width: "100%",
-		backgroundColor: '#F2F5FA',
+		backgroundColor: '#f8f8f8ff',
 		// borderWidth: 2,
 		flex: 1,
 	},

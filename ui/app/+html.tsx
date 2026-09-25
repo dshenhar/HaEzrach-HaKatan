@@ -26,7 +26,7 @@ export default function Root({ children }: PropsWithChildren) {
 
                 <title>{TITLE}</title>
                 <meta name="description" content={DESCRIPTION} />
-                <meta name="theme-color" content="#F2F5FA" />
+                <meta name="theme-color" content="#f8f8f8" />
 
                 {/* what WhatsApp, Telegram, Slack and Facebook read */}
                 <meta property="og:type" content="website" />

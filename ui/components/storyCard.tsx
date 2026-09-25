@@ -128,9 +128,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const leftCount = data.filter((d) => positions[d.source]?.bloc === "left").length;
     const dark = t.name === "negative";
     const sectionInk = sectionColour(section, dark);
-    // a hard offset shadow, no blur - tab and card read as paper lifted off the page,
-    // and the card's own top edge catches the light the shadow is cast by
-    const hardShadow = `3px 3px 0 ${t.shadow}`;
+    // a hard offset shadow, no blur - tab and card read as paper lifted off the page
+    const hardShadow = dark ? "3px 3px 0 rgba(0,0,0,0.5)" : "3px 3px 0 rgba(17,24,39,0.18)";
 
     const applyTopic = async (next: string) => {
         setPickerOpen(false);
@@ -180,7 +179,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                     </View>
                 </View>
             )}
-            <View style={[styles.card, { backgroundColor: t.surfaceAlt, borderColor: t.edge, boxShadow: hardShadow },
+            <View style={[styles.card, { backgroundColor: t.surfaceAlt, boxShadow: hardShadow },
                 open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
             {open && !!section && (
                 <Animated.View style={styles.tabRowIn}
@@ -312,7 +311,7 @@ const styles = StyleSheet.create({
         fontFamily: "Heebo_700Bold", fontSize: 10.5, color: "#FFFFFF", letterSpacing: 0.2,
     },
     card: {
-        width: "100%", backgroundColor: "#E9EEF6", borderRadius: 8,
+        width: "100%", backgroundColor: "#F4F4F3", borderRadius: 8,
         padding: 11, gap: 8,
         borderWidth: 1.5, borderColor: "transparent",
     },

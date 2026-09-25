@@ -26,28 +26,16 @@ export type Theme = {
 	left: string;
 	rightSoft: string;
 	leftSoft: string;
-	/** the wash behind the feed, top to bottom; a flat ground leaves it out */
-	sheen?: [string, string];
-	/** the light edge along the top of a card, which the hard shadow answers */
-	edge: string;
-	/** what a card's shadow is made of - ink, not black */
-	shadow: string;
 };
 
-// Paper, but held under a cold light. The ground and the folded stories are the
-// same blue-grey a screen is, a shade apart; an open story is white, so opening one
-// is a sheet catching the light. The gold stays exactly where it was - it is the
-// one warm thing in the app, and it now has nothing to compete with.
 export const LIGHT: Theme = {
 	name: "light",
-	bg: "#F2F5FA", surface: "#ffffff", surfaceAlt: "#E9EEF6", track: "#DDE4EE",
-	text: "#111827", textMuted: "#64748B", line: "#DCE3ED",
+	bg: "#f8f8f8", surface: "#ffffff", surfaceAlt: "#F4F4F3", track: "#E4E3DF",
+	text: "#111827", textMuted: "#6B7280", line: "#E3E3E1",
 	brand: "#22C55E", brandInk: "#04310F",
 	select: "#DDA01E", selectInk: "#FFFFFF",
 	right: "#C0392F", left: "#2B5EA7",
 	rightSoft: "#FBEDEB", leftSoft: "#EDF1F9",
-	sheen: ["#E7EDF7", "#F7F9FC"],
-	edge: "rgba(255,255,255,0.75)", shadow: "rgba(24,45,82,0.17)",
 };
 
 // Not a dimmer light theme: the ground goes dark and the two bloc inks lift so
@@ -60,8 +48,6 @@ export const NEGATIVE: Theme = {
 	select: "#E4A92B", selectInk: "#FFFFFF",
 	right: "#E8837A", left: "#8FB4E8",
 	rightSoft: "#2A1B1A", leftSoft: "#17202E",
-	sheen: ["#101018", "#0C0C0F"],
-	edge: "rgba(255,255,255,0.06)", shadow: "rgba(0,0,0,0.5)",
 };
 
 // The third palette is not a style but an adjustment: black on white, heavier
@@ -75,8 +61,6 @@ export const CONTRAST: Theme = {
 	select: "#8A5A00", selectInk: "#FFFFFF",
 	right: "#8E1B12", left: "#123A7A",
 	rightSoft: "#FBEFEE", leftSoft: "#EEF2FA",
-	// no wash and no soft edge here: this palette is an adjustment, not a look
-	edge: "transparent", shadow: "rgba(0,0,0,0.45)",
 };
 
 const PALETTES: Record<ThemeName, Theme> = {

@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     },
     aiBox: {
         backgroundColor: "#FFFFFF", borderRadius: 5, padding: 8,
-        boxShadow: "0 1px 4px rgba(24,45,82,0.12)",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.10)",
     },
     aiText: {
         fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17,
@@ -170,13 +170,13 @@ const styles = StyleSheet.create({
     },
     empty: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#6B7280", lineHeight: 16 },
 
-    unaligned: { backgroundColor: "#EDF1F7", borderRadius: 7, padding: 10, marginTop: 8, gap: 7 },
+    unaligned: { backgroundColor: "#F4F4F3", borderRadius: 7, padding: 10, marginTop: 8, gap: 7 },
     unalignedTitle: {
         fontFamily: "Heebo_700Bold", fontSize: 12, color: "#111827", textAlign: "right",
     },
     unalignedNote: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#6B7280", textAlign: "right" },
     pill: {
-        backgroundColor: "#fff", borderRadius: 999, borderWidth: 1, borderColor: "#DCE3ED",
+        backgroundColor: "#fff", borderRadius: 999, borderWidth: 1, borderColor: "#E3E3E1",
         paddingHorizontal: 11, paddingVertical: 5, marginLeft: 6,
     },
     pillText: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#111827" },
