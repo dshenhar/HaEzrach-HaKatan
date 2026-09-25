@@ -29,7 +29,8 @@ const BRAND_INK = "#192F50";
 const BRAND_INK_DARK = "#C7D4E8";
 const MARK_INK = require("../assets/images/mark-ink.png");
 const MARK_LIGHT = require("../assets/images/mark-light.png");
-/** the doodled paper the feed is printed on - light theme only, where it is paper */
+/** the doodled paper the stories are printed on - light theme only, where it is
+ *  paper. The tile is mirrored into its own quarters, so it repeats without a seam. */
 const PAPER = require("../assets/images/paper.webp");
 const MARK_RATIO = 426 / 372;
 /** room under the last story, so the tab bar never sits on a headline */
@@ -428,9 +429,6 @@ export default function NewsFeed() {
 				</View>
 			)}
 			<View style={styles.feedArea}>
-			{t.name === "light" && (
-				<Image source={PAPER} style={styles.paper} resizeMode="cover" />
-			)}
 			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
 				style={[styles.scrollView, { backgroundColor: t.name === "light" ? "transparent" : t.bg }]}
@@ -485,6 +483,12 @@ export default function NewsFeed() {
 				/>
 				</View>
 
+				<View style={styles.cardsArea}>
+				{/* only under the stories, and only just there: the header and the
+				    controls keep the plain ground they had */}
+				{t.name === "light" && (
+					<Image source={PAPER} style={styles.paper} resizeMode="repeat" />
+				)}
 				<View style={styles.cards}>
 				{sortedArticles.map((cluster, index) => {
 					const key = storyKey(cluster, index);
@@ -503,6 +507,7 @@ export default function NewsFeed() {
 						onToggle={bind.toggle} />
 					);
 				})}
+				</View>
 				</View>
 			</ScrollView>
 			</ScrollLock.Provider>
@@ -610,7 +615,9 @@ const styles = StyleSheet.create({
 		// borderWidth: 2,
 		flex: 1,
 	},
-	// the stories keep the narrow side margin the header does not want
+	// the stories keep the narrow side margin the header does not want; the paper
+	// sits in the box around them, so it runs edge to edge under the list alone
+	cardsArea: { position: "relative" },
 	cards: { paddingHorizontal: 6 },
 	feedArea: { flex: 1, width: "100%" },
 	// it sits still while the feed moves over it, so it reads as the page rather
@@ -619,7 +626,7 @@ const styles = StyleSheet.create({
 	// own 760 square on it inline, which beats anything a stylesheet says
 	paper: {
 		position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-		opacity: 0.7, pointerEvents: "none",
+		opacity: 0.12, pointerEvents: "none",
 	},
 	tour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 });

@@ -182,12 +182,13 @@ def translate_to_hebrew(header: str, subheader: str) -> tuple[str, str] | None:
 # clothes. Saying who we are and how to be told to stop is the honest thing and
 # the effective one.
 UA = "HaEzrachHaKatanBot/1.0 (+https://haezrach-hakatan.web.app; haezrachh@gmail.com)"
-# The one exception, and it is inherited rather than chosen: Haaretz's edge
-# refuses anything it does not recognise, and it is the largest outlet on the
-# left. Worth replacing with a word from them - everything else here is honest.
+# The one exception, inherited rather than chosen: the Haaretz group's edge
+# refuses anything it does not recognise, and between them these two are the
+# largest voice on the left. Both were already being read this way before any of
+# this; worth replacing with a word from them, and everything else here is honest.
 BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-AS_BROWSER = {"הארץ"}
+AS_BROWSER = {"הארץ", "דה מרקר"}
 FEED_TIMEOUT = 15
 
 

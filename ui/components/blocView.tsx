@@ -99,7 +99,7 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
                                 {open && (
                                     <Text style={styles.headline}>
                                         {item.title}
-                                        <Text style={styles.jump}>{"  \u2196"}</Text>
+                                        <Text style={styles.jump}>{" \u2196\ufe0e"}</Text>
                                     </Text>
                                 )}
                             </TouchableOpacity>
@@ -171,9 +171,11 @@ const styles = StyleSheet.create({
         fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 16,
         color: "#111827", textAlign: "right", paddingRight: 13,
     },
-    // an arrow out of the page, at the end of the one line in the app that leads
-    // off it: this headline is the outlet's own, and touching it goes and reads it
-    jump: { fontSize: 12.5, color: "#9A9A95" },
+    // An arrow out of the page, at the end of the one line in the app that leads
+    // off it: this headline is the outlet's own, and touching it goes and reads it.
+    // U+FE0E asks for the text glyph - without it the phone draws the emoji, which
+    // is a blue-and-white tile the size of the word beside it.
+    jump: { fontSize: 8.5, color: "#A9A9A4" },
     empty: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#6B7280", lineHeight: 16 },
 
     unaligned: { backgroundColor: "#F4F4F3", borderRadius: 7, padding: 10, marginTop: 8, gap: 7 },
