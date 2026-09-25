@@ -116,9 +116,7 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
                                 <>
                                     {!!item.summary && <Text style={styles.summary}>{plain(item.summary)}</Text>}
                                     <TouchableOpacity onPress={() => onOpenArticle(item)}>
-                                        <Text style={styles.go}>
-                                            לכתבה המלאה<Text style={styles.jump}>{" \u2196\ufe0e"}</Text>
-                                        </Text>
+                                        <Text style={styles.go}>לכתבה המלאה ←</Text>
                                     </TouchableOpacity>
                                 </>
                             )}
@@ -169,9 +167,6 @@ const styles = StyleSheet.create({
     },
     go: {
  fontFamily: "Heebo_800ExtraBold", fontSize: 11.5, fontWeight: "800", color: "#16A34A", textAlign: "right", marginTop: 2 },
-    // the same small mark the bloc view puts at the end of a headline that leads off
-    // the page; U+FE0E keeps it a glyph rather than an emoji tile
-    jump: { fontSize: 8.5, fontFamily: "Heebo_500Medium", fontWeight: "500" },
     note: {
  fontFamily: "Heebo_400Regular", fontSize: 10.5, color: "#9CA3AF", textAlign: "center" },
 });
