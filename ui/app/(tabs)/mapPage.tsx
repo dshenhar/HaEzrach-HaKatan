@@ -5,6 +5,7 @@ import TopicAxis from '@/components/topicAxis';
 import TopicQuadrant from '@/components/topicQuadrant';
 import { CompanyItem, getTopics, getSites, getRanksByTopic, getTopicPoles, TopicPoles } from '@/state/engagement';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { track } from '@/state/analytics';
 import { createContext, useState, useEffect } from 'react';
 import { Text, View, StyleSheet, ActivityIndicator, I18nManager, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,6 +54,7 @@ export default function MapPage() {
             // rather than on whatever the query happened to return first
             const pick = [...first].sort((a, b) => b.bias - a.bias)[0];
             setDetailSource(pick.source);
+            track("outlet_detail_opened", { how: "default" });
         }
     }, [carouselData]);
 
@@ -73,6 +75,7 @@ export default function MapPage() {
     }, [selectedTopics]);
 
     const handleOpenFilter = () => {
+        track("map_topics_opened", { chosen: selectedTopics.size });
         setOpen(true);
     }
 

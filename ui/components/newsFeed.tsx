@@ -145,9 +145,11 @@ export default function NewsFeed() {
 		if (next < tour.length) {
 			const step = tour[next];
 			if (step === "bloc" || step === "citizen") setViewMode(step);
+			track("tour_step", { step: String(step), index: next });
 			setTourStep(next);
 			return;
 		}
+		track("tour_finished", { reached: "end", steps: tour.length });
 		endTour();
 	};
 	const endTour = (then?: () => void) => {
@@ -266,6 +268,20 @@ export default function NewsFeed() {
 	const moving = useRef(false);
 	// while a story opens, the place on the screen the feed is holding still
 	const hold = useRef<{ key: string; offset: number; until: number } | null>(null);
+	// A story the scroll opened and the reader shut two seconds later is the feed
+	// guessing wrong. Opening is only half the measurement; this is the other half.
+	const openedAt = useRef(0);
+	const openedHow = useRef("");
+	const deepest = useRef(0);
+
+	const leaveStory = (key: string | null) => {
+		if (!key || !openedAt.current) return;
+		track("story_dismissed", {
+			how_opened: openedHow.current,
+			dwell_s: Math.min(600, Math.round((Date.now() - openedAt.current) / 1000)),
+		});
+		openedAt.current = 0;
+	};
 
 	/** a story in the terms the measurement cares about, and no others */
 	const shapeOf = (key: string) => {
@@ -332,7 +348,10 @@ export default function NewsFeed() {
 		const above = gone && gone !== key && topOf(gone) < topOf(key);
 		const saved = above ? (heights.current[gone!] ?? 0) - (shut.current[gone!] ?? 0) : 0;
 
+		leaveStory(openRef.current);
 		track("story_opened", { how: "scroll", ...shapeOf(key) });
+		openedAt.current = Date.now();
+		openedHow.current = "scroll";
 		hold.current = { key, offset: topOf(key) - scrollY.current, until: Date.now() + HOLD_MS };
 		setAutoOpened(true);
 		setOpenStory(key);
@@ -352,6 +371,17 @@ export default function NewsFeed() {
 			// the story the reader folded away is forgotten once they have left it
 			if (key !== dismissed.current) dismissed.current = null;
 		}
+		// milestones rather than a number every frame: the shape of a drop-off is all
+		// anyone can act on, and five events a session is enough to draw it
+		if (key) {
+			const reached = order.current.indexOf(key) + 1;
+			for (const mark of [5, 10, 20, 40]) {
+				if (reached >= mark && deepest.current < mark) {
+					deepest.current = mark;
+					track("feed_depth", { stories: mark });
+				}
+			}
+		}
 		if (!moving.current) { moving.current = true; setScrolling(true); }
 		if (settle.current) clearTimeout(settle.current);
 		settle.current = setTimeout(rest, SETTLE_MS);
@@ -361,9 +391,12 @@ export default function NewsFeed() {
 		hold.current = null;
 		setAutoOpened(false);
 		setOpenStory((current) => {
+			leaveStory(current);
 			if (current === key) { dismissed.current = key; return null; }
 			dismissed.current = null;
 			track("story_opened", { how: "tap", ...shapeOf(key) });
+			openedAt.current = Date.now();
+			openedHow.current = "tap";
 			return key;
 		});
 	});
@@ -421,6 +454,7 @@ export default function NewsFeed() {
 	}, []);
 
 	const onRefresh = () => {
+		track("feed_refreshed");
 		setRefreshing(true);
 		fetchArticles(setArticles);
 		setTimeout(() => {

@@ -3,6 +3,7 @@ import { fetchArticles, getSitePositions, NewsItem, SitePosition } from "@/state
 import { buildInsights, Insights } from "@/state/insights";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useQuestionnaire } from "@/state/questionnaire";
+import { track } from "@/state/analytics";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, I18nManager, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -62,7 +63,8 @@ export default function AnalyticsPage() {
 						הגיע מהצד השני, באילו נושאים, ומאילו גופים.
 					</Text>
 					<View style={styles.inviteRow}>
-						<TouchableOpacity style={styles.inviteButton} onPress={askQuestionnaire}
+						<TouchableOpacity style={styles.inviteButton}
+							onPress={() => { track("questionnaire_opened", { from: "analytics" }); askQuestionnaire(); }}
 							accessibilityRole="button">
 							<Text style={styles.inviteButtonText}>למילוי שאלון העמדות</Text>
 						</TouchableOpacity>

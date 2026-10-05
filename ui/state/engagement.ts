@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { forgetDeviceId, getDeviceId } from "./identity";
+import { track } from "./analytics";
 
 export type CompanyItem =  {
 	source: string;
@@ -121,6 +122,9 @@ export const fetchArticles = async (setArticles: React.Dispatch<React.SetStateAc
 		const data: Array<NewsItem[]> = await res.json();
 		setArticles(data);
 	} catch (err) {
+		// the reader is looking at an empty feed right now, which is the one failure
+		// they can see. Worth knowing without waiting for someone to write in.
+		track("api_failed", { where: "feed", message: String(err).slice(0, 80) });
 		console.error("Error fetching articles:", err);
 		const temp = [
 			[{

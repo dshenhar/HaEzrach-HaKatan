@@ -28,43 +28,83 @@
 
 ## אירועים מיושמים
 
-| אירוע | פרמטרים | מאיפה |
-|---|---|---|
-| `screen_view` | screen_name | כל מסך, דרך הראוטר |
-| `story_opened` | how (scroll/tap), topic, section, outlets, right, left, shape | `newsFeed` |
-| `bloc_side_opened` | side, outlets | `blocView` |
-| `article_opened` | outlet_bloc, **crossed**, topic, section, outlets, mode | `storyCard` |
-| `ai_summary_requested` | side | `blocView` |
-| `view_mode_changed` | mode | `newsFeed` |
-| `bloc_filter_changed` | filter | `newsFeed` |
-| `sort_changed` | sort | `newsFeed` |
-| `section_filter_changed` | section | `newsFeed` |
-| `back_to_top` | — | `newsFeed` |
-| `rating_submitted` | topic, value, blind=false | `ratingSheet` |
-| `blind_shown` | topic | `app/blind` |
-| `blind_submitted` | topic, value, placed_at | `app/blind` |
-| `tour_started` | — | `newsFeed` |
-| `questionnaire_opened` | from | `_layout` |
-| `questionnaire_completed` | bloc | `_layout` |
-| `questionnaire_skipped` | from | `_layout` |
-| `questionnaire_silenced` | — | `_layout` |
-| `app_error` | where, message | `_layout`, חלון הדפדפן |
+### הפיד — איפה האפליקציה נמדדת או נכשלת
 
-`first_open`, `session_start` ו-`user_engagement` מגיעים מ-GA4 מעצמו.
+| אירוע | פרמטרים |
+|---|---|
+| `story_opened` | how (scroll/tap), topic, section, outlets, right, left, shape |
+| `story_dismissed` | how_opened, dwell_s |
+| `bloc_side_opened` | side, outlets |
+| `article_opened` | outlet_bloc, **crossed**, topic, section, outlets, mode |
+| `returned_from_article` | away_s |
+| `ai_summary_requested` | side |
+| `citizen_card_opened` | outlets |
+| `feed_depth` | stories (5 / 10 / 20 / 40) |
+| `feed_refreshed` | — |
+| `back_to_top` | — |
+
+### שליטה בפיד
+
+| אירוע | פרמטרים |
+|---|---|
+| `view_mode_changed` | mode |
+| `bloc_filter_changed` | filter |
+| `sort_changed` | sort |
+| `section_filter_changed` | section |
+
+### דירוגים והבנצ'מרק
+
+| אירוע | פרמטרים |
+|---|---|
+| `rating_submitted` | topic, value, blind=false |
+| `rating_dismissed` | topic |
+| `blind_shown` | topic |
+| `blind_submitted` | topic, value, placed_at |
+| `blind_skipped` | topic |
+
+### היכרות
+
+| אירוע | פרמטרים |
+|---|---|
+| `tour_started` | — |
+| `tour_step` | step, index |
+| `tour_finished` | reached, steps |
+| `questionnaire_opened` | from (welcome / reminder / analytics) |
+| `questionnaire_completed` | bloc |
+| `questionnaire_skipped` | from |
+| `questionnaire_silenced` | — |
+
+### המפה והאזור האישי
+
+| אירוע | פרמטרים |
+|---|---|
+| `map_topics_opened` | chosen |
+| `outlet_detail_opened` | how |
+| `personal_area_opened` | — |
+| `theme_changed` | theme |
+| `accessibility_opened` | — |
+| `accessibility_changed` | setting (text_size / contrast / stillness), value |
+| `data_deleted` | — |
+| `measurement_off` | — |
+
+### תקלות
+
+| אירוע | פרמטרים |
+|---|---|
+| `app_error` | where, message |
+| `api_failed` | where, message |
+
+| `screen_view` | screen_name — כל מסך, דרך הראוטר |
+
+`first_open`, `session_start` ו-`user_engagement` מגיעים מ-GA4 מעצמה.
 
 ## מה שעוד לא חובר
 
-כל אלה נבדקו ונמצאו שווים מדידה, ולא יושמו כדי לא לפזר אירועים לפני שרואים מה
-הראשונים מחזירים:
-
-- `story_dwell` — כמה זמן אייטם היה פתוח. דורש מדידת זמן בכרטיס.
-- `feed_loaded` — כמה אייטמים ומה אחוז שני הצדדים בכל טעינה. מודד את הצינור, לא
-  את הקורא, וכבר נמדד בשרת.
-- `tour_completed` / `tour_step` — איפה אנשים נוטשים את הסיור.
-- `install_prompt` / `install_accepted` — האם מתקינים למסך הבית.
-- `outlet_detail_opened`, `map_topics_changed` — השימוש במפה.
-- `theme_changed`, `stillness_toggled` — מי משתמש בנגישות ובמצב הנגטיב.
-- `data_deleted` — כמה אנשים מוחקים את עצמם. חשוב, ועדיף למדוד בשרת.
+- `install_prompt` / `install_accepted` — דורש חיווט של `beforeinstallprompt`, שלא נבנה.
+- `blind_gap` — כמה הקורא העיוור רחוק מהעמדה שהאפליקציה מחזיקה לגוף. דורש
+  להחזיר את העמדה יחד עם הגילוי.
+- `watch_added` — סימון גוף למעקב.
+- `story_shared` — אין כרגע כפתור שיתוף באפליקציה.
 
 ## הצד המשפטי
 

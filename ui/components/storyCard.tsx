@@ -162,6 +162,20 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
         if (Platform.OS === "web") {
             Linking.openURL(item.link);
             saveWatch({ id: item.id, site: item.source, topic: item.topic, date: Date.now() });
+            // The article opens in a tab of its own, so this tab goes hidden. When
+            // it comes back the reader has returned to us, and how long they were
+            // gone is the closest thing the web build has to "did they read it".
+            if (typeof document !== "undefined") {
+                const left = Date.now();
+                const back = () => {
+                    if (document.visibilityState !== "visible") return;
+                    document.removeEventListener("visibilitychange", back);
+                    track("returned_from_article", {
+                        away_s: Math.min(3600, Math.round((Date.now() - left) / 1000)),
+                    });
+                };
+                document.addEventListener("visibilitychange", back);
+            }
             if (asking.current) setRatingOpen(true);
             return;
         }

@@ -1,4 +1,5 @@
 import { getBlocSummary, NewsItem, SitePosition } from '@/state/engagement';
+import { track } from '@/state/analytics';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -103,6 +104,7 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
                             activeOpacity={0.9}
                             style={[styles.slide, open && styles.slideOpen]}
                             onPress={() => {
+                                if (!open) track("citizen_card_opened", { outlets: ordered.length });
                                 anchor.current = item.id;
                                 setOpenId(open ? null : item.id);
                             }}

@@ -1,3 +1,4 @@
+import { track } from '@/state/analytics';
 import { useAccessControl, ZOOM_STEPS } from '@/state/access';
 import { useThemeControl } from '@/state/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,9 +23,13 @@ export default function AccessibilityBar() {
     const router = useRouter();
 
     const step = Math.max(0, ZOOM_STEPS.indexOf(access.zoom));
-    const setZoom = (next: number) => setAccess({ zoom: next });
+    const setZoom = (next: number) => {
+        track("accessibility_changed", { setting: "text_size", value: next });
+        setAccess({ zoom: next });
+    };
 
     const toggleContrast = (on: boolean) => {
+        track("accessibility_changed", { setting: "contrast", value: on });
         setAccess({ contrast: on });
         setThemeName(on ? "contrast" : "light");
     };
@@ -33,7 +38,7 @@ export default function AccessibilityBar() {
         <>
             <TouchableOpacity
                 style={[styles.button, { backgroundColor: t.text, borderColor: t.surface }]}
-                onPress={() => setOpen((v) => !v)}
+                onPress={() => { if (!open) track("accessibility_opened"); setOpen((v) => !v); }}
                 accessibilityRole="button"
                 accessibilityLabel={open ? "סגירת תפריט הנגישות" : "פתיחת תפריט הנגישות"}
                 hitSlop={8}
@@ -90,7 +95,10 @@ export default function AccessibilityBar() {
 
                     <View style={styles.row}>
                         <Switch value={access.reduceMotion}
-                            onValueChange={(on) => setAccess({ reduceMotion: on })}
+                            onValueChange={(on) => {
+                                track("accessibility_changed", { setting: "stillness", value: on });
+                                setAccess({ reduceMotion: on });
+                            }}
                             accessibilityLabel="הפחתת אנימציות" />
                         <Text style={[styles.label, { color: t.text }]}>הפחתת אנימציות</Text>
                     </View>

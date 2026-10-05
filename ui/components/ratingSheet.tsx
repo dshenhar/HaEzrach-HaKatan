@@ -75,6 +75,7 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 	});
 
 	const handleClose = () => {
+		track("rating_dismissed", { topic: ratingTarget?.topic });
 		onOpenChange(false);
 		setVal(0);
 	}

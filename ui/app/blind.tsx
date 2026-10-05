@@ -119,7 +119,9 @@ export default function BlindSurvey() {
                                         {sending ? "שולח…" : "קבעתי"}
                                     </Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={next} accessibilityRole="button">
+                                <TouchableOpacity
+                                    onPress={() => { track("blind_skipped", { topic: item.topic }); next(); }}
+                                    accessibilityRole="button">
                                     <Text style={[styles.skip, { color: t.textMuted }]}>דלגו על זו</Text>
                                 </TouchableOpacity>
                             </>

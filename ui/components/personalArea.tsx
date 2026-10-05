@@ -7,6 +7,7 @@ import React from 'react';
 import Modal from 'react-native-modal';
 import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useConsent } from '@/state/consent';
+import { track } from '@/state/analytics';
 
 type Props = {
     open: boolean;
@@ -31,6 +32,7 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
 
     const eraseRatings = async () => {
         setErasing(true);
+        track("data_deleted");
         const gone = await forgetMe();
         setErasing(false);
         if (gone !== null) setErased(gone);
@@ -38,6 +40,7 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
     const [checking, setChecking] = React.useState(false);
 
     const { measuring, setMeasuring } = useConsent();
+    React.useEffect(() => { if (open) track("personal_area_opened"); }, [open]);
 
     const toggleDev = async (on: boolean) => {
         if (!on) {
@@ -110,7 +113,11 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                         </View>
                         <Switch
                             value={measuring}
-                            onValueChange={setMeasuring}
+                            onValueChange={(v) => {
+                                // the last thing measured before it stops
+                                if (!v) track("measurement_off");
+                                setMeasuring(v);
+                            }}
                             trackColor={{ true: t.brand, false: "#D7D6D2" }}
                         />
                     </View>
@@ -125,7 +132,10 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                         </View>
                         <Switch
                             value={negative}
-                            onValueChange={(v) => setThemeName(v ? "negative" : "light")}
+                            onValueChange={(v) => {
+                                track("theme_changed", { theme: v ? "negative" : "light" });
+                                setThemeName(v ? "negative" : "light");
+                            }}
                             trackColor={{ true: t.brand, false: "#D7D6D2" }}
                         />
                     </View>
