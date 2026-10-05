@@ -68,6 +68,11 @@ export default function RootLayout() {
 		if (fontsReady && profileChecked) SplashScreen.hideAsync();
 	}, [fontsReady, profileChecked]);
 
+	// The reader's own side, kept on the device. The measurement never sends it: it
+	// uses it to work out whether a story being opened is from the other side of
+	// the map, and sends that - a fact about a reading rather than about a person.
+	useEffect(() => { rememberBloc(profile?.bloc); }, [profile]);
+
 	if (!fontsReady || !profileChecked) return null;
 
 	// The app opens for everyone. The questionnaire is what gives every personal
@@ -111,11 +116,6 @@ export default function RootLayout() {
 	);
 
 	const ask = { profile, filled: profile !== null, open: () => setAsking(true) };
-
-	// The reader's own side, kept on the device. The measurement never sends it: it
-	// uses it to work out whether a story being opened is from the other side of
-	// the map, and sends that - a fact about a reading rather than about a person.
-	useEffect(() => { rememberBloc(profile?.bloc); }, [profile]);
 
 	// gestures anywhere in the tree need this at the root, and swipe-between-tabs
 	// is the first thing in the app that uses one

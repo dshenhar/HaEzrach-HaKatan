@@ -118,6 +118,13 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
         return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     }, [data]);
 
+    // General news has no two sides to be on, so a reader who has just read one is
+    // not asked to place it. The read is still counted - what they saw is theirs
+    // to see on the analytics page either way. It lives up here with the other
+    // hooks: a hook below the line that follows runs on some renders and not
+    // others, and React counts them.
+    const asking = useRef(false);
+
     if (!data || data.length === 0) return null;
 
     const lead = data[0];
@@ -138,11 +145,6 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
         const ok = await setClusterTopic(lead.groupId ?? "", next);
         if (!ok) setTopic(lead.topic || "");
     };
-
-    // General news has no two sides to be on, so a reader who has just read one is
-    // not asked to place it. The read is still counted - what they saw is theirs
-    // to see on the analytics page either way.
-    const asking = useRef(false);
 
     const handleOpenArticle = (item: NewsItem) => {
         setRatingTarget(item);
