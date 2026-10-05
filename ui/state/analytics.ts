@@ -66,7 +66,15 @@ async function start(): Promise<void> {
     // a browser with analytics blocked, or a private window, answers no here
     if (!(await measure.isSupported())) return;
     const app = getApps().length ? getApps()[0] : initializeApp(CONFIG);
-    analytics = measure.initializeAnalytics(app, { config: ANONYMOUS });
+    // ?debug=1 sends this browser's events to the console's DebugView, where they
+    // arrive within seconds and carry every parameter by name. Without it they go
+    // into the ordinary reports, which are batched and summarised. It is how you
+    // check that a thing you just built is firing, and it changes nothing else.
+    const debugging = typeof location !== "undefined"
+        && (location.search.includes("debug=1") || location.hostname === "localhost");
+    analytics = measure.initializeAnalytics(app, {
+        config: debugging ? { ...ANONYMOUS, debug_mode: true } : ANONYMOUS,
+    });
     for (const queued of waiting.splice(0)) {
         measure.logEvent(analytics, queued.name as any, queued.params);
     }
