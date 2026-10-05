@@ -37,7 +37,7 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
     };
     const [checking, setChecking] = React.useState(false);
 
-    const { consent, answer } = useConsent();
+    const { measuring, setMeasuring } = useConsent();
 
     const toggleDev = async (on: boolean) => {
         if (!on) {
@@ -105,12 +105,12 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.rowTitle, { color: t.text }]}>מדידת שימוש</Text>
                             <Text style={[styles.rowNote, { color: t.textMuted }]}>
-                                איך משתמשים באפליקציה, בלי כותרות ובלי מה שקראתם. אפשר לכבות בכל רגע
+                                ספירה אנונימית של מה עובד באפליקציה. בלי מזהה, בלי כותרות, ובלי מה שקראתם
                             </Text>
                         </View>
                         <Switch
-                            value={consent === "yes"}
-                            onValueChange={(v) => answer(v ? "yes" : "no")}
+                            value={measuring}
+                            onValueChange={setMeasuring}
                             trackColor={{ true: t.brand, false: "#D7D6D2" }}
                         />
                     </View>

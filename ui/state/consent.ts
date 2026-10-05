@@ -1,45 +1,46 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { allowMeasurement } from "./analytics";
+import { setMeasuring } from "./analytics";
 
 /**
- * Whether the reader has agreed to be measured.
+ * Whether the reader wants to be counted.
  *
- * Three states, and the difference matters: "asked and yes", "asked and no", and
- * "not asked yet". Measurement is off in the third as firmly as in the second -
- * silence is not agreement - and the banner is shown only in the third, so a
- * reader who said no is not asked again every morning.
- *
- * The answer is kept on the device and nowhere else; changing it in the personal
- * area takes effect in the same breath.
+ * It is on unless they turn it off, and there is no banner. The measurement writes
+ * no identifier and can join no two visits (see analytics.ts), so there is nothing
+ * to ask permission for - and a news app that stops a stranger at the door to
+ * negotiate about cookies has spent its first impression on paperwork. The switch
+ * lives in the personal area for anyone who looks, and the privacy policy says
+ * where it is.
  */
 const KEY = "measure_consent";
 
-export type Consent = "yes" | "no" | "unasked";
+type Ctx = { measuring: boolean; setMeasuring: (on: boolean) => void };
 
-type Ctx = { consent: Consent; answer: (next: "yes" | "no") => void };
-
-const ConsentContext = createContext<Ctx>({ consent: "unasked", answer: () => {} });
+const ConsentContext = createContext<Ctx>({ measuring: true, setMeasuring: () => {} });
 
 export const useConsent = () => useContext(ConsentContext);
 
 export function ConsentProvider({ children }: { children: React.ReactNode }) {
-    const [consent, setConsent] = useState<Consent>("unasked");
+    const [on, setOn] = useState(true);
 
     useEffect(() => {
         AsyncStorage.getItem(KEY).then((stored) => {
-            if (stored === "yes" || stored === "no") {
-                setConsent(stored);
-                allowMeasurement(stored === "yes");
+            if (stored === "no") {
+                setOn(false);
+                setMeasuring(false);
             }
         }).catch(() => {});
     }, []);
 
-    const answer = (next: "yes" | "no") => {
-        setConsent(next);
-        allowMeasurement(next === "yes");
-        AsyncStorage.setItem(KEY, next).catch(() => {});
+    const choose = (next: boolean) => {
+        setOn(next);
+        setMeasuring(next);
+        AsyncStorage.setItem(KEY, next ? "yes" : "no").catch(() => {});
     };
 
-    return React.createElement(ConsentContext.Provider, { value: { consent, answer } }, children);
+    return React.createElement(
+        ConsentContext.Provider,
+        { value: { measuring: on, setMeasuring: choose } },
+        children,
+    );
 }

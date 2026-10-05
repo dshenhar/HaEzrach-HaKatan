@@ -6,9 +6,8 @@ import {
 	useFonts,
 } from '@expo-google-fonts/heebo';
 import AccessibilityBar from '@/components/accessibilityBar';
-import ConsentBanner from '@/components/consentBanner';
 import { ConsentProvider } from '@/state/consent';
-import { describeReader, track, trackScreen } from '@/state/analytics';
+import { rememberBloc, track, trackScreen } from '@/state/analytics';
 import IntroSplash from '@/components/introSplash';
 import Onboarding from '@/components/onboarding';
 import QuestionnaireInvite from '@/components/questionnaireInvite';
@@ -99,7 +98,6 @@ export default function RootLayout() {
 			{introOn && <IntroSplash onDone={() => setIntroOn(false)} />}
 			{/* above everything, on every screen, as the standard expects */}
 			<AccessibilityBar />
-			<ConsentBanner />
 			<Measured />
 			{/* only ever to someone who has not answered - see state/questionnaire.ts */}
 			<QuestionnaireInvite
@@ -114,15 +112,10 @@ export default function RootLayout() {
 
 	const ask = { profile, filled: profile !== null, open: () => setAsking(true) };
 
-	// What is true of this reader rather than of one moment. Their bloc is here
-	// because the app's whole claim is about whether people cross it; their answers
-	// to the questionnaire are not, and never leave the device.
-	useEffect(() => {
-		describeReader({
-			reader_bloc: profile?.bloc ?? "none",
-			answered_questionnaire: profile ? "yes" : "no",
-		});
-	}, [profile]);
+	// The reader's own side, kept on the device. The measurement never sends it: it
+	// uses it to work out whether a story being opened is from the other side of
+	// the map, and sends that - a fact about a reading rather than about a person.
+	useEffect(() => { rememberBloc(profile?.bloc); }, [profile]);
 
 	// gestures anywhere in the tree need this at the root, and swipe-between-tabs
 	// is the first thing in the app that uses one
