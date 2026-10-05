@@ -21,6 +21,50 @@ export type SitePosition = {
 export type CompanyDetailType = {
 	topic: string;
 	bias: number;
+	/** how many of this outlet's articles on this topic anyone has rated */
+	rated_count?: number;
+	article_count?: number;
+	/** 0..1, and it is raters/20 - how far the number has moved off its estimate */
+	confidence?: number;
+}
+
+/** A headline with the masthead taken off it, for the blind survey. */
+export type BlindArticle = {
+	id: string;
+	title: string;
+	summary: string;
+	topic: string;
+	poles: { right: string; left: string };
+}
+
+/**
+ * One article to place without being told whose it is. `seen` carries the ids
+ * already shown this session, so the same headline does not come round twice.
+ */
+export async function getBlindArticle(seen: string[]): Promise<BlindArticle | null> {
+	try {
+		const res = await fetch(`${URL_BASE}/blind?seen=${encodeURIComponent(seen.slice(-40).join(","))}`);
+		if (!res.ok) return null;
+		return await res.json();
+	} catch {
+		return null;
+	}
+}
+
+/** The vote, and with it the one thing the reader did not know: who wrote it. */
+export async function placeBlind(id: string, value: number): Promise<string | null> {
+	try {
+		const res = await fetch(`${URL_BASE}/articles/${id}/vote`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json", "X-Voter": await getDeviceId() },
+			body: JSON.stringify({ value, blind: true }),
+		});
+		if (!res.ok) return null;
+		const body = await res.json();
+		return body?.source ?? null;
+	} catch {
+		return null;
+	}
 }
 
 export type NewsItem = {
@@ -37,12 +81,17 @@ export type NewsItem = {
 	topic: string;
 	link: string;
 	groupId?: string;
-	imageUrl?: string;
+	// no picture field, on purpose: Israeli copyright law carries damages of up to
+	// 100,000 shekels per infringement without proof of loss, and the agencies that
+	// license news photography enforce it. The app has never shown one. A field
+	// sitting here unused is an invitation to fill it in one day by accident.
 }
 
 export type RatingEvent = {
 	id: string;           // news item id
 	source: string;       // source name
+	/** placed without being told whose article it was */
+	blind?: boolean;
 	topic: string;        // ideological topic key
 	value: number;        // -5 .. 5
 	createdAt: number;
@@ -157,7 +206,7 @@ export async function saveRating(e: RatingEvent) {
 		const res = fetch(`${URL_BASE}/articles/${id}/vote`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", "X-Voter": await getDeviceId() },
-			body: JSON.stringify({ value: e.value })
+			body: JSON.stringify({ value: e.value, blind: !!e.blind })
 		})
 		console.log(res)
 	} catch(err) {

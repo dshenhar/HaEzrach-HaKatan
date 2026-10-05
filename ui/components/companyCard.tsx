@@ -90,7 +90,7 @@ const CompanyCard = ({ item, index, scrollX, carouselLen, setDetailSource } : pr
                     <RateBar rate={(item.bias * 10) + 50} showPrecents={true} style={styles.rateBar} />
                 </View>
                 <View style={styles.moreContainer}>
-                    <Text>למה זה הציון?</Text>
+                    <Text style={styles.moreText}>למה זה הציון?</Text>
                     <View style={styles.articleContainer}>
                     {
                         item.latest_article_header != "" ?
@@ -102,7 +102,7 @@ const CompanyCard = ({ item, index, scrollX, carouselLen, setDetailSource } : pr
                     {
                         item.latest_article_header != "" ?
                         <TouchableOpacity style={{alignSelf: "flex-start"}}>
-                            <Text>לכל הכתבות בנושא <Ionicons name="arrow-back-outline" size={10} color="#000000" /></Text>
+                            <Text style={styles.moreText}>לכל הכתבות בנושא <Ionicons name="arrow-back-outline" size={10} color="#000000" /></Text>
                         </TouchableOpacity>
                         : null
                     }
@@ -115,6 +115,9 @@ const CompanyCard = ({ item, index, scrollX, carouselLen, setDetailSource } : pr
 export default CompanyCard
 
 const styles = StyleSheet.create({
+    // these two were the last strings in the app left to the system font, which in
+    // Hebrew is a different face altogether rather than a different weight
+    moreText: { fontFamily: "Heebo_500Medium", fontSize: 12, color: "#111827" },
     companyCard: {
         // height: "100%",
         alignItems: "center",

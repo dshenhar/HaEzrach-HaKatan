@@ -9,6 +9,7 @@ request.
 import hashlib
 import hmac
 import os
+import random
 import re
 import secrets
 import sys
@@ -166,10 +167,42 @@ def get_ranks_by_site(site: str):
     return results
 
 
+@app.get("/blind")
+def blind_pick(seen: str = ""):
+    """One headline with the masthead taken off it.
+
+    The weak link in the whole map is that the benchmark is an editorial estimate,
+    and a reader who can see whose article it is mostly confirms what they already
+    believe about that outlet - which teaches the model nothing it did not start
+    with. Here the outlet is hidden until the vote is in, so what comes back is a
+    judgement about the writing instead of about the name above it.
+
+    It draws from the feed document, which is already built and cached, so asking
+    for another one costs nothing.
+    """
+    skip = {s for s in seen.split(",") if s}
+    poles = get_topic_poles()
+    pool = [article for story in db.read_feed() for article in story
+            if article.get("topic") and article["topic"] != GENERAL_TOPIC
+            and str(article.get("id")) not in skip]
+    if not pool:
+        raise HTTPException(status_code=404, detail="nothing to rate")
+    pick = random.choice(pool)
+    return {
+        "id": str(pick.get("id")),
+        "title": pick.get("title", ""),
+        "summary": pick.get("summary", ""),
+        "topic": pick["topic"],
+        "poles": poles.get(pick["topic"], {"right": "בעד", "left": "נגד"}),
+    }
+
+
 # ---- ratings -----------------------------------------------------------------
 
 class VoteRequest(BaseModel):
     value: int
+    # whether the reader placed it without being told whose article it was
+    blind: bool = False
 
 
 def _salt() -> str:
@@ -244,9 +277,10 @@ def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Res
                      if article.get("story_id") else None)
         story_snap = story_ref.get(transaction=tx) if story_ref else None
 
+        source = article.get("site", "")
         previous = vote_snap.to_dict() if vote_snap.exists else None
         if previous and previous.get("value") == value:
-            return {"status": "no_change"}
+            return {"status": "no_change", "source": source}
 
         record = voter_snap.to_dict() if voter_snap.exists else {}
         if record.get("day") != today:
@@ -272,6 +306,7 @@ def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Res
 
         tx.set(vote_ref, {"article_id": str(article_id), "value": value, "weight": weight,
                           "site_id": site_id, "topic_id": topic_id, "voter": voter,
+                          "blind": bool(vote.blind),
                           "created_at": db.now(), "expires_at": db.vote_expiry()})
         record.setdefault("sites", {})[site_id] = done_today + 1
         record.setdefault("pairs", {})[pair] = True
@@ -292,7 +327,10 @@ def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Res
                 if str(entry.get("id")) == str(article_id):
                     entry["rating"] = rating
             tx.set(story_ref, {"articles": articles}, merge=True)
-        return {"mean_score": round(rating["s"] / rating["w"], 2) if rating["w"] else 0}
+        # the name comes back with the answer, which is the whole of the blind
+        # survey: you learn whose article it was only once you have committed
+        return {"mean_score": round(rating["s"] / rating["w"], 2) if rating["w"] else 0,
+                "source": source}
 
     return apply(client.transaction())
 

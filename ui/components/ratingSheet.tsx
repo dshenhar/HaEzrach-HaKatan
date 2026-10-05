@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, View, Text, StyleSheet, Pressable, Animated, Easing, TouchableOpacity } from "react-native";
 import Slider from "@react-native-community/slider";
 import { isRatable, saveRating, NewsItem, RatingEvent } from "@/state/engagement";
+import { track } from "@/state/analytics";
 import { Toast } from "toastify-react-native";
 
 interface RatingSheetProps {
@@ -23,6 +24,7 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 			createdAt: Date.now()
 		}
 		saveRating(rate);
+		track("rating_submitted", { topic: rate.topic, value: rate.value, blind: false });
 		Toast.show({
 			type: "default",
 			text1: "vote sent!",

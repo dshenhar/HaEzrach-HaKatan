@@ -10,6 +10,8 @@ import os
 import re
 import time
 from datetime import datetime, timedelta
+from urllib import robotparser
+from urllib.parse import urlparse
 
 import feedparser
 import requests
@@ -190,6 +192,31 @@ BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3
               "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 AS_BROWSER = {"הארץ", "דה מרקר"}
 FEED_TIMEOUT = 15
+STANDFIRST = 250
+
+
+# What each host says in robots.txt, read once a run. A site that answers 404 or
+# refuses the file has no rules for us, which is what the standard says to assume;
+# a site that has rules gets them kept. We were not reading this at all, which made
+# the honest user agent a half-measure: saying who you are and then ignoring what
+# you are told is worse than not saying.
+_RULES: dict[str, "robotparser.RobotFileParser | None"] = {}
+
+
+def allowed(url: str) -> bool:
+    host = "{0.scheme}://{0.netloc}".format(urlparse(url))
+    if host not in _RULES:
+        _RULES[host] = None
+        try:
+            answer = requests.get(host + "/robots.txt", headers={"User-Agent": UA}, timeout=10)
+            if answer.status_code == 200:
+                rules = robotparser.RobotFileParser()
+                rules.parse(answer.text.splitlines())
+                _RULES[host] = rules
+        except Exception:
+            pass
+    rules = _RULES[host]
+    return rules is None or rules.can_fetch(UA, url)
 
 
 def fetch_entries(site_name, url):
@@ -213,6 +240,9 @@ def fetch_entries(site_name, url):
                 return generate_feed().get("entries", [])
             except Exception as err:
                 print(f"  ! {site_name}: scraper failed: {err}")
+        return []
+    if not allowed(url):
+        print(f"  ! {site_name}: robots.txt says no to {url}")
         return []
     agent = BROWSER_UA if site_name in AS_BROWSER else UA
     head = {"User-Agent": agent, "Accept-Language": "he-IL,he;q=0.9,en;q=0.8"}
@@ -254,7 +284,11 @@ def parse_entry(entry, site_name):
 
     return {
         "header": header[:512],
-        "subheader": (subheader or header)[:2048],
+        # A quarter of what a feed hands over is already a paragraph of the article,
+        # and the longest one measured here ran to 851 characters. Two hundred and
+        # fifty is enough to know whether to read it and short enough that nobody
+        # can claim we published it.
+        "subheader": (subheader or header)[:STANDFIRST],
         "link": entry.get("link", "").strip()[:512],
         "created_at": created_at,
     }

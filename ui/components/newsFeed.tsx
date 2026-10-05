@@ -11,6 +11,7 @@ import StoryCard from "./storyCard";
 import TourQuestionnaire from "./tourQuestionnaire";
 import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
+import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { ScrollLock } from "@/state/scrollLock";
@@ -97,7 +98,10 @@ export default function NewsFeed() {
 		trackScroll(y);
 	};
 
-	const backToTop = () => scrollRef.current?.scrollTo({ y: 0, animated: true });
+	const backToTop = () => {
+		track("back_to_top");
+		scrollRef.current?.scrollTo({ y: 0, animated: true });
+	};
 
 	// The i runs the tour over a blurred feed, one step per touch: the welcome, the
 	// bloc view with the man, the citizen view with the woman. The toggle switches
@@ -113,6 +117,7 @@ export default function NewsFeed() {
 	const tourBlur = useRef(new Animated.Value(0)).current;
 	const modeBeforeTour = useRef<ViewMode>("bloc");
 	const startTour = () => {
+		track("tour_started");
 		modeBeforeTour.current = viewMode;
 		// the questionnaire closes the tour, but only for someone it still concerns
 		setTour(filled ? [...TOUR_BASE] : [...TOUR_BASE, "questionnaire"]);
@@ -262,6 +267,19 @@ export default function NewsFeed() {
 	// while a story opens, the place on the screen the feed is holding still
 	const hold = useRef<{ key: string; offset: number; until: number } | null>(null);
 
+	/** a story in the terms the measurement cares about, and no others */
+	const shapeOf = (key: string) => {
+		const index = order.current.indexOf(key);
+		const cluster = sortedArticles[index];
+		if (!cluster) return {};
+		const { right, left } = split(cluster);
+		return {
+			topic: cluster[0]?.topic, section: cluster[0]?.section,
+			outlets: cluster.length, right, left,
+			shape: right && left ? "both" : right ? "right only" : "left only",
+		};
+	};
+
 	/** where a story starts, counted down the list from under the controls */
 	const topOf = (key: string) => {
 		let y = topH.current;
@@ -314,6 +332,7 @@ export default function NewsFeed() {
 		const above = gone && gone !== key && topOf(gone) < topOf(key);
 		const saved = above ? (heights.current[gone!] ?? 0) - (shut.current[gone!] ?? 0) : 0;
 
+		track("story_opened", { how: "scroll", ...shapeOf(key) });
 		hold.current = { key, offset: topOf(key) - scrollY.current, until: Date.now() + HOLD_MS };
 		setAutoOpened(true);
 		setOpenStory(key);
@@ -344,6 +363,7 @@ export default function NewsFeed() {
 		setOpenStory((current) => {
 			if (current === key) { dismissed.current = key; return null; }
 			dismissed.current = null;
+			track("story_opened", { how: "tap", ...shapeOf(key) });
 			return key;
 		});
 	});
@@ -380,6 +400,7 @@ export default function NewsFeed() {
 	const brandInk = t.name === "negative" ? BRAND_INK_DARK : BRAND_INK;
 
 	const handleSectionToggle = (category: string) => {
+	track("section_filter_changed", { section: category });
 	if (category === "הכל") {
 		setSelectedCategories(["הכל"]);
 	} else {
@@ -474,11 +495,11 @@ export default function NewsFeed() {
 					selectedSections={selectedCategories}
 					onToggleSection={handleSectionToggle}
 					sort={sort}
-					onSort={setSort}
+					onSort={(next) => { track("sort_changed", { sort: next }); setSort(next); }}
 					mode={viewMode}
-					onMode={setViewMode}
+					onMode={(next) => { track("view_mode_changed", { mode: next }); setViewMode(next); }}
 					blocFilter={blocFilter}
-					onBlocFilter={setBlocFilter}
+					onBlocFilter={(next) => { track("bloc_filter_changed", { filter: next }); setBlocFilter(next); }}
 					toggleRef={toggleBox}
 				/>
 				</View>

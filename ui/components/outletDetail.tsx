@@ -1,9 +1,12 @@
 import { CompanyDetailType, getRanksByCompany, TopicPoles } from '@/state/engagement';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const RIGHT = "#C0392F";
 const LEFT = "#2B5EA7";
+/** the server stands the estimate on its own under this many raters */
+const MIN_RATERS = 5;
 
 type Props = {
     source: string;
@@ -17,6 +20,7 @@ type Props = {
  */
 const OutletDetail = ({ source, poles }: Props) => {
     const [ranks, setRanks] = useState<CompanyDetailType[] | null>(null);
+    const router = useRouter();
 
     useEffect(() => {
         let live = true;
@@ -34,6 +38,12 @@ const OutletDetail = ({ source, poles }: Props) => {
                 </View>
                 <Text style={styles.hint}>עמדה בכל נושא</Text>
             </View>
+            <View style={styles.headLinks}>
+                <Text style={styles.basis}>בהיר = הערכה שעדיין לא נמדדה</Text>
+                <TouchableOpacity onPress={() => router.push("/methodology")} accessibilityRole="link">
+                    <Text style={styles.how}>איך זה נקבע</Text>
+                </TouchableOpacity>
+            </View>
 
             {ranks === null ? (
                 <ActivityIndicator style={{ marginTop: 20 }} />
@@ -45,6 +55,11 @@ const OutletDetail = ({ source, poles }: Props) => {
                         // -5..5 -> 0..1 measured from the left edge
                         const pct = ((rank.bias + 5) / 10) * 100;
                         const leaning = rank.bias >= 0 ? RIGHT : LEFT;
+                        // A bar drawn at full strength says "this is measured". Most of
+                        // them are not: they are an editorial estimate waiting for
+                        // readers, and the bar says so by being faint until it is.
+                        const raters = rank.rated_count ?? 0;
+                        const measured = raters >= MIN_RATERS;
                         return (
                             <View key={rank.topic} style={styles.row}>
                                 <View style={styles.rowHead}>
@@ -55,10 +70,13 @@ const OutletDetail = ({ source, poles }: Props) => {
                                 </View>
                                 <View style={styles.track}>
                                     <View style={styles.midline} />
-                                    <View style={[styles.fill, rank.bias >= 0
+                                    <View style={[styles.fill, { opacity: measured ? 1 : 0.4 }, rank.bias >= 0
                                         ? { left: "50%", width: `${pct - 50}%`, backgroundColor: RIGHT }
                                         : { left: `${pct}%`, width: `${50 - pct}%`, backgroundColor: LEFT }]} />
                                 </View>
+                                <Text style={styles.basis}>
+                                    {measured ? `לפי ${raters} דירוגי קוראים` : "הערכה עריכתית, טרם נמדדה"}
+                                </Text>
                             </View>
                         );
                     })}
@@ -76,6 +94,15 @@ const styles = StyleSheet.create({
     name: { fontFamily: "Heebo_800ExtraBold", fontSize: 17, color: "#111827" },
     nameRule: { height: 3, width: 26, borderRadius: 999, backgroundColor: "#DDA01E", marginTop: 3 },
     hint: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#9CA3AF" },
+    headLinks: {
+        flexDirection: "row-reverse", alignItems: "center",
+        justifyContent: "space-between", marginTop: -2,
+    },
+    how: {
+        fontFamily: "Heebo_700Bold", fontSize: 11, color: "#6B7280",
+        textDecorationLine: "underline",
+    },
+    basis: { fontFamily: "Heebo_400Regular", fontSize: 10, color: "#9CA3AF", textAlign: "right" },
     scroll: { flex: 1 },
     scrollBody: { gap: 11, paddingBottom: 6 },
 

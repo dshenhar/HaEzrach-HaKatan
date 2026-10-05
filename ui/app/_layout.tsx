@@ -6,6 +6,9 @@ import {
 	useFonts,
 } from '@expo-google-fonts/heebo';
 import AccessibilityBar from '@/components/accessibilityBar';
+import ConsentBanner from '@/components/consentBanner';
+import { ConsentProvider } from '@/state/consent';
+import { describeReader, track, trackScreen } from '@/state/analytics';
 import IntroSplash from '@/components/introSplash';
 import Onboarding from '@/components/onboarding';
 import QuestionnaireInvite from '@/components/questionnaireInvite';
@@ -13,7 +16,7 @@ import { QuestionnaireContext } from '@/state/questionnaire';
 import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@/state/access';
 import { getProfile, isNudgeOff, markWelcomed, ReaderProfile, stopNudging, wasWelcomed } from '@/state/profile';
 import { ThemeProvider, useTheme } from '@/state/theme';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useState } from 'react';
 import { I18nManager, Platform, StyleSheet, View } from 'react-native';
@@ -72,13 +75,19 @@ export default function RootLayout() {
 	// statistic something to compare against, but standing it in the doorway asked
 	// a stranger to declare themselves before seeing anything.
 	const app = asking ? (
-		<Onboarding onDone={(p) => { setProfile(p); setAsking(false); }} />
+		<Onboarding onDone={(p) => {
+			track("questionnaire_completed", { bloc: p?.bloc });
+			setProfile(p);
+			setAsking(false);
+		}} />
 	) : (
 		<Stack screenOptions={{ headerShown: false }}>
 			<Stack.Screen name="(tabs)" />
 			<Stack.Screen name="privacy" />
 			<Stack.Screen name="terms" />
 			<Stack.Screen name="accessibility" />
+			<Stack.Screen name="methodology" />
+			<Stack.Screen name="blind" />
 		</Stack>
 	);
 
@@ -90,18 +99,30 @@ export default function RootLayout() {
 			{introOn && <IntroSplash onDone={() => setIntroOn(false)} />}
 			{/* above everything, on every screen, as the standard expects */}
 			<AccessibilityBar />
+			<ConsentBanner />
+			<Measured />
 			{/* only ever to someone who has not answered - see state/questionnaire.ts */}
 			<QuestionnaireInvite
 				open={invite !== null && !introOn && profile === null && !asking}
 				variant={invite ?? "reminder"}
-				onFill={() => { setInvite(null); setAsking(true); }}
-				onDismiss={() => setInvite(null)}
-				onNeverAgain={stopNudging}
+				onFill={() => { track("questionnaire_opened", { from: invite ?? "" }); setInvite(null); setAsking(true); }}
+				onDismiss={() => { track("questionnaire_skipped", { from: invite ?? "" }); setInvite(null); }}
+				onNeverAgain={() => { track("questionnaire_silenced"); stopNudging(); }}
 			/>
 		</>
 	);
 
 	const ask = { profile, filled: profile !== null, open: () => setAsking(true) };
+
+	// What is true of this reader rather than of one moment. Their bloc is here
+	// because the app's whole claim is about whether people cross it; their answers
+	// to the questionnaire are not, and never leave the device.
+	useEffect(() => {
+		describeReader({
+			reader_bloc: profile?.bloc ?? "none",
+			answered_questionnaire: profile ? "yes" : "no",
+		});
+	}, [profile]);
 
 	// gestures anywhere in the tree need this at the root, and swipe-between-tabs
 	// is the first thing in the app that uses one
@@ -110,7 +131,9 @@ export default function RootLayout() {
 			<GestureHandlerRootView style={styles.root}>
 				<AccessProvider>
 					<ThemeProvider>
-						<QuestionnaireContext.Provider value={ask}>{shell}</QuestionnaireContext.Provider>
+						<ConsentProvider>
+							<QuestionnaireContext.Provider value={ask}>{shell}</QuestionnaireContext.Provider>
+						</ConsentProvider>
 					</ThemeProvider>
 				</AccessProvider>
 			</GestureHandlerRootView>
@@ -120,12 +143,42 @@ export default function RootLayout() {
 	return (
 		<AccessProvider>
 			<ThemeProvider>
-				<QuestionnaireContext.Provider value={ask}>
-					<WebFrame>{shell}</WebFrame>
-				</QuestionnaireContext.Provider>
+				<ConsentProvider>
+					<QuestionnaireContext.Provider value={ask}>
+						<WebFrame>{shell}</WebFrame>
+					</QuestionnaireContext.Provider>
+				</ConsentProvider>
 			</ThemeProvider>
 		</AccessProvider>
 	);
+}
+
+/**
+ * The two things measured from the root: which screen is open, and anything that
+ * throws while it is. An error nobody reports is an error nobody fixes - two of
+ * the faults found this month arrived as screenshots from one reader.
+ */
+function Measured() {
+	const path = usePathname();
+	useEffect(() => { trackScreen(path === "/" ? "feed" : path.replace(/^\//, "")); }, [path]);
+	useEffect(() => {
+		if (Platform.OS !== "web" || typeof window === "undefined") return;
+		const broke = (event: ErrorEvent) => track("app_error", {
+			where: (event.filename || "").split("/").pop()?.slice(0, 60),
+			message: String(event.message || "").slice(0, 100),
+		});
+		const unhandled = (event: PromiseRejectionEvent) => track("app_error", {
+			where: "promise",
+			message: String(event.reason).slice(0, 100),
+		});
+		window.addEventListener("error", broke);
+		window.addEventListener("unhandledrejection", unhandled);
+		return () => {
+			window.removeEventListener("error", broke);
+			window.removeEventListener("unhandledrejection", unhandled);
+		};
+	}, []);
+	return null;
 }
 
 /**

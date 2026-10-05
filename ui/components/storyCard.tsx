@@ -5,6 +5,7 @@ import { useStillness } from '@/state/access';
 import { sectionColour } from '@/state/sections';
 import CoverageRing from './coverageRing';
 import { useDevMode, useTheme } from '@/state/theme';
+import { track } from '@/state/analytics';
 import TopicPicker from './topicPicker';
 import { ViewMode } from './viewModeToggle';
 import { ArticleViewer } from './articleViewer';
@@ -146,6 +147,14 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const handleOpenArticle = (item: NewsItem) => {
         setRatingTarget(item);
         asking.current = isRatable(item);
+        // The reading itself, with the one comparison the app is for: whose side the
+        // outlet is on. Whether that is the reader's own side is joined up later
+        // from the user property, so no two facts about a person travel together.
+        track("article_opened", {
+            outlet_bloc: positions[item.source]?.bloc ?? "unknown",
+            topic: item.topic, section: item.section,
+            outlets: data.length, mode,
+        });
 
         // react-native-webview has no web build - on web the in-app viewer renders
         // "does not support this platform". Open the real site in a tab instead,

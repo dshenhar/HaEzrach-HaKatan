@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import Modal from 'react-native-modal';
 import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useConsent } from '@/state/consent';
 
 type Props = {
     open: boolean;
@@ -35,6 +36,8 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
         if (gone !== null) setErased(gone);
     };
     const [checking, setChecking] = React.useState(false);
+
+    const { consent, answer } = useConsent();
 
     const toggleDev = async (on: boolean) => {
         if (!on) {
@@ -95,6 +98,21 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                                 </Text>
                             )}
                         </View>
+                    </View>
+
+                    <Text style={[styles.section, { color: t.textMuted }]}>מדידה</Text>
+                    <View style={[styles.row, { backgroundColor: t.surfaceAlt }]}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.rowTitle, { color: t.text }]}>מדידת שימוש</Text>
+                            <Text style={[styles.rowNote, { color: t.textMuted }]}>
+                                איך משתמשים באפליקציה, בלי כותרות ובלי מה שקראתם. אפשר לכבות בכל רגע
+                            </Text>
+                        </View>
+                        <Switch
+                            value={consent === "yes"}
+                            onValueChange={(v) => answer(v ? "yes" : "no")}
+                            trackColor={{ true: t.brand, false: "#D7D6D2" }}
+                        />
                     </View>
 
                     <Text style={[styles.section, { color: t.textMuted }]}>תצוגה</Text>
@@ -178,6 +196,18 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                         </View>
                     )}
 
+                    <Text style={[styles.section, { color: t.textMuted }]}>לעזור למדוד</Text>
+                    <TouchableOpacity style={[styles.row, { backgroundColor: t.surfaceAlt }]}
+                        onPress={() => { onClose(); router.push("/blind"); }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.rowTitle, { color: t.text }]}>סקר עיוור</Text>
+                            <Text style={[styles.rowNote, { color: t.textMuted }]}>
+                                כותרת בלי שם הגוף. השם מתגלה רק אחרי שהצבעת
+                            </Text>
+                        </View>
+                        <Ionicons name="chevron-back" size={18} color={t.textMuted} />
+                    </TouchableOpacity>
+
                     <Text style={[styles.section, { color: t.textMuted }]}>העמדות שלי</Text>
                     <TouchableOpacity style={[styles.row, { backgroundColor: t.surfaceAlt }]} onPress={retake}>
                         <View style={{ flex: 1 }}>
@@ -205,7 +235,8 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                     )}
 
                     <Text style={[styles.section, { color: t.textMuted }]}>מידע ופרטיות</Text>
-                    {([["מדיניות פרטיות", "/privacy"], ["תנאי שימוש", "/terms"],
+                    {([["איך נקבעת העמדה", "/methodology"], ["מדיניות פרטיות", "/privacy"],
+                       ["תנאי שימוש", "/terms"],
                        ["הצהרת נגישות", "/accessibility"]] as const).map(([label, path]) => (
                         <TouchableOpacity key={path} style={[styles.row, { backgroundColor: t.surfaceAlt }]}
                             onPress={() => { onClose(); router.push(path); }}

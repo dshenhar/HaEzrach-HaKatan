@@ -31,7 +31,7 @@ const CompanyDetail = ({ source, setDetailSource } : { source: string, setDetail
                             <Text style={styles.topicName}>{rank.topic}</Text>
                             <RateBar rate={(rank.bias * 10) + 50} showPrecents={true} style={styles.rateBar} />
                         </View>
-                    )) : <Text>Loading...</Text>
+                    )) : <Text style={{ fontFamily: "Heebo_400Regular", fontSize: 13 }}>טוען…</Text>
                 }
             </ScrollView>
         </View>

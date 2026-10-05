@@ -2,15 +2,15 @@
  * The three documents the app publishes about itself.
  *
  * Every factual sentence here was written against what the code actually does -
- * no cookies, ratings kept thirty days, an address that is hashed and never
- * stored, no analytics and no advertising - and it has to be rewritten if any of
- * that changes. A document that describes a system that no longer exists is worse
- * than none.
+ * ratings kept thirty days, an address that is hashed and never stored, no
+ * advertising, and measurement that does not start until the reader says it may -
+ * and it has to be rewritten if any of that changes. A document that describes a
+ * system that no longer exists is worse than none.
  *
  * CONTACT is the one thing that cannot be read off the code.
  */
 export const CONTACT = "haezrachh@gmail.com";
-export const UPDATED = "24 בספטמבר 2026";
+export const UPDATED = "5 באוקטובר 2026";
 
 export type Doc = {
     title: string;
@@ -42,10 +42,20 @@ export const PRIVACY: Doc = {
             ],
         },
         {
+            heading: "מדידת שימוש",
+            body: [
+                "באפליקציה יש מדידת שימוש באמצעות Google Analytics‏ (Firebase Analytics), והיא פועלת רק אם אישרתם אותה. עד שתענו — ואם עניתם ״לא, תודה״ — שום דבר לא נמדד ושום דבר לא נשלח.",
+                "כשהמדידה פועלת נשמר בדפדפן מזהה אקראי של המכשיר, כדי שביקורים שונים של אותו אדם ייספרו כאדם אחד ולא כאדם חדש בכל בוקר. המזהה אינו שם, אינו כתובת מייל ואינו מאפשר לזהות אתכם.",
+                "מה נמדד: באיזה מסך הייתם, איזו תצוגה בחרתם, איזה סינון, שאייטם נפתח ומה היה הרכב הסיקור שלו, שנפתחה כתבה ומאיזה גוש הגוף שלה, דירוג שניתן והנושא שלו, והאם האפליקציה נתקלה בשגיאה.",
+                "מה לא נמדד: כותרות, קישורים, תוכן שקראתם, כתובת ה-IP שלכם, והתשובות שלכם לשאלון העמדות. התשובות לשאלון נשארות על המכשיר בלבד. מה שכן נשלח מהן הוא הגוש שהצהרתם עליו — ימין, שמאל או ללא — כי כל מה שהאפליקציה מנסה לדעת הוא אם קוראים חוצים את המפה.",
+                "אפשר לשנות את התשובה בכל רגע באזור האישי, והשינוי נכנס לתוקף מיד.",
+            ],
+        },
+        {
             heading: "עוגיות",
             body: [
-                "אין באפליקציה עוגיות. לא עוגיות מעקב, לא עוגיות פרסום, וגם לא עוגייה טכנית: המזהה האקראי נשמר בזיכרון המקומי של האפליקציה ונשלח רק יחד עם דירוג.",
-                "מכיוון שאין עוגיות ואין כלי מדידה, אין גם באנר הסכמה. אם ייווסף בעתיד כלי מדידה או פרסום, יתווסף איתו מנגנון הסכמה ודף זה יעודכן.",
+                "אין באפליקציה עוגיות פרסום ואין עוגיות מעקב בין אתרים. המזהה האקראי של הדירוגים נשמר בזיכרון המקומי של האפליקציה ונשלח רק יחד עם דירוג.",
+                "אם אישרתם מדידת שימוש, Google Analytics שומר מזהה משלו באחסון המקומי של הדפדפן. סירוב, או ניקוי נתוני האתר בדפדפן, מוחק אותו.",
             ],
         },
         {
@@ -53,7 +63,8 @@ export const PRIVACY: Doc = {
             body: [
                 "האפליקציה והשרת מתארחים ב-Google Cloud. כמו בכל שרת, יומני הגישה של Google כוללים כתובת IP וסוג הדפדפן, נשמרים לתקופה קצרה ומשמשים לאבחון תקלות ולאבטחה בלבד.",
                 "כותרות הכתבות מגופי התקשורת נשלחות ל-OpenAI ול-Google Gemini לצורך קיבוץ לסיפורים, תיוג וכתיבת הסיכומים. זהו תוכן של גופי התקשורת, לא מידע עליכם.",
-                "אין באפליקציה כלי מדידה, רשתות פרסום או כפתורי שיתוף שמדווחים לצד שלישי. שום מידע אינו נמכר ואינו מועבר למפרסמים.",
+                "אם אישרתם מדידת שימוש, נתוני המדידה מגיעים ל-Google Analytics, שהיא חברה של Google ומעבדת אותם עבורנו.",
+                "אין באפליקציה רשתות פרסום ואין כפתורי שיתוף שמדווחים לצד שלישי. שום מידע אינו נמכר ואינו מועבר למפרסמים.",
             ],
         },
         {

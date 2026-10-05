@@ -1,4 +1,5 @@
 import { NewsItem, Bloc, SitePosition, getBlocSummary } from '@/state/engagement';
+import { track } from '@/state/analytics';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -43,6 +44,7 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
 
     const askSummary = async (side: Side) => {
         if (storyId === undefined || asking) return;
+        track("ai_summary_requested", { side });
         setAsking(side);
         const text = await getBlocSummary(storyId, side);
         setSummaries((current) => ({ ...current, [side]: text }));
@@ -55,7 +57,10 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
         return (
             <Pressable
                 style={[styles.col, { backgroundColor: soft }, open && styles.colOpen]}
-                onPress={() => setOpenSide(open ? null : side)}
+                onPress={() => {
+                    if (!open) track("bloc_side_opened", { side, outlets: items.length });
+                    setOpenSide(open ? null : side);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`${label}, ${items.length} גופים`}
             >
