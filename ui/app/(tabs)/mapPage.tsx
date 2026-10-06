@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
         color: "#6B7280", textAlign: "right",
     },
     chartArea: { width: "100%" },
-    detailArea: { flex: 1, width: "100%", paddingBottom: 8, minHeight: 220 },
+    detailArea: { flex: 1, width: "100%", paddingBottom: 56, minHeight: 220 },
     text: {
         color: '#fff',
         margin: 20

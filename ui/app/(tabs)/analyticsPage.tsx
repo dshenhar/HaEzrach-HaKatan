@@ -302,7 +302,8 @@ const styles = StyleSheet.create({
 	},
 
 	container: { flex: 1, backgroundColor: "#f8f8f8ff" },
-	scroll: { padding: 16, gap: 12, paddingBottom: 40 },
+	// room for the bar to float over without covering the last card
+	scroll: { padding: 16, gap: 12, paddingBottom: 96 },
 	title: { fontFamily: "Heebo_800ExtraBold", fontSize: 26, color: "#111827", textAlign: "right" },
 	subtitle: { fontFamily: "Heebo_400Regular", fontSize: 14, color: "#6B7280", textAlign: "right", marginBottom: 4 },
 	sectionTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right", marginTop: 8 },

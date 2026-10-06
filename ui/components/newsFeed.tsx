@@ -13,6 +13,7 @@ import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
+import { ELEVATION, glass, TYPE } from "@/state/craft";
 import { blindTo } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { ScrollLock } from "@/state/scrollLock";
@@ -625,11 +626,13 @@ export default function NewsFeed() {
 }
 
 const styles = StyleSheet.create({
+	// glass rather than a white disc: it sits over moving content, and a solid
+	// circle over a scrolling feed reads as a hole punched in it
 	toTop: {
-		position: "absolute", right: 12, bottom: 92, width: 38, height: 38, borderRadius: 19,
+		position: "absolute", right: 12, bottom: 92, width: 40, height: 40, borderRadius: 20,
 		alignItems: "center", justifyContent: "center",
-		backgroundColor: "rgba(255,255,255,0.92)", borderWidth: 1, borderColor: "#E3E3E1",
-		boxShadow: "0 2px 8px rgba(0,0,0,0.18)", zIndex: 30,
+		...glass(false), borderWidth: 1,
+		boxShadow: ELEVATION.float, zIndex: 30,
 	},
 
 	container: { 
@@ -664,15 +667,13 @@ const styles = StyleSheet.create({
 	},
 	mark: { height: 40, width: 40 * MARK_RATIO },
 	brandWords: { alignItems: "flex-end" },
-	brandTop: { fontFamily: "Heebo_800ExtraBold", fontSize: 21, lineHeight: 23 },
-	brandBottom: { fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 15 },
-	title: {
- 
-		fontFamily: "Heebo_700Bold", 
-		fontSize: 30, 
-		fontWeight: "bold", 
-		textAlign: "right" 
+	brandTop: { ...TYPE.brand },
+	brandBottom: {
+		fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 15, letterSpacing: 0.08,
 	},
+	// the one piece of display type in the app, and the one that most wants its
+	// letters pulled back in
+	title: { ...TYPE.display, textAlign: "right" },
 	scrollView: {
 		width: "100%",
 		backgroundColor: '#f8f8f8ff',

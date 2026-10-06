@@ -1,6 +1,8 @@
 import { sectionColour } from '@/state/sections';
 import ViewModeToggle, { ViewMode } from './viewModeToggle';
 import { useTheme } from '@/state/theme';
+import { TYPE } from '@/state/craft';
+import Press from './press';
 import React, { useRef, useState } from 'react';
 import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { View as RNView } from 'react-native';
@@ -106,7 +108,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
 
                 {/* the border turns gold when the feed the reader is looking at is not
                     the whole feed, so a filter left on is never left on unnoticed */}
-                <TouchableOpacity
+                <Press
                     style={[styles.control, { borderColor: t.line, backgroundColor: t.surface },
                         !open && (active.length > 0 || !sortIsDefault) && { borderColor: t.brand },
                         open && { backgroundColor: t.text, borderColor: t.text }]}
@@ -118,7 +120,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                     <Text style={[styles.controlText, { color: open ? t.surface : t.text }]}>
                         סינון{active.length ? ` · ${active.length}` : ""}
                     </Text>
-                </TouchableOpacity>
+                </Press>
             </View>
 
             {/* who told the story is a question only the bloc view asks */}
@@ -127,7 +129,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                     {BLOC_FILTERS.map((option) => {
                         const on = option.key === blocFilter;
                         return (
-                            <TouchableOpacity key={option.key}
+                            <Press key={option.key}
                                 style={[styles.chip, styles.sectionChip,
                                     { borderColor: on ? t.text : t.line,
                                       backgroundColor: on ? t.text : t.surface }]}
@@ -137,7 +139,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                                 )}
                                 <Text style={[styles.chipText,
                                     { color: on ? t.surface : t.text }]}>{option.label}</Text>
-                            </TouchableOpacity>
+                            </Press>
                         );
                     })}
                 </Strip>
@@ -146,11 +148,11 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
             {active.length > 0 && !open && (
                 <Strip style={styles.chosen}>
                     {active.map((section) => (
-                        <TouchableOpacity key={section}
+                        <Press key={section}
                             style={[styles.chip, { backgroundColor: sectionColour(section, dark) }]}
                             onPress={() => onToggleSection(section)}>
                             <Text style={[styles.chipText, styles.chipOn]}>{section}  ✕</Text>
-                        </TouchableOpacity>
+                        </Press>
                     ))}
                 </Strip>
             )}
@@ -164,7 +166,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                         const colour = sectionColour(section, dark);
                         const on = active.includes(section);
                         return (
-                            <TouchableOpacity key={section}
+                            <Press key={section}
                                 style={[styles.chip, styles.sectionChip,
                                     { borderColor: colour, backgroundColor: on ? colour : t.surface }]}
                                 onPress={() => onToggleSection(section)}>
@@ -172,7 +174,7 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                                     strip reads as the same palette either way */}
                                 {!on && <View style={[styles.dot, { backgroundColor: colour }]} />}
                                 <Text style={[styles.chipText, on ? styles.chipOn : { color: t.text }]}>{section}</Text>
-                            </TouchableOpacity>
+                            </Press>
                         );
                     })}
                 </Strip>
@@ -186,11 +188,11 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                     {SORT_OPTIONS.map((opt) => {
                         const on = opt.key === sort;
                         return (
-                            <TouchableOpacity key={opt.key}
+                            <Press key={opt.key}
                                 style={[styles.chip, { backgroundColor: on ? t.text : t.surfaceAlt }]}
                                 onPress={() => onSort(opt.key)}>
                                 <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>{opt.label}</Text>
-                            </TouchableOpacity>
+                            </Press>
                         );
                     })}
                 </Strip>
@@ -220,9 +222,9 @@ const styles = StyleSheet.create({
     rail: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingHorizontal: 16 },
     control: {
         flexDirection: "row-reverse", alignItems: "center", gap: 6,
-        borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13,
+        borderWidth: 1, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14,
     },
-    controlText: { fontFamily: "Heebo_700Bold", fontSize: 12.5 },
+    controlText: { ...TYPE.label },
     // only here so the tour has something to measure; the toggle sizes itself
     togglePlace: { flex: 1, flexDirection: "row" },
     // the two halves of the one panel, each said once and quietly
@@ -233,11 +235,13 @@ const styles = StyleSheet.create({
     chosen: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     chip: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
+    // a hairline rather than a 1.5px outline: the chip is a surface with an edge,
+    // not a shape drawn in outline
     sectionChip: {
-        flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1.5,
+        flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1,
     },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    chipText: { fontFamily: "Heebo_500Medium", fontSize: 12.5 },
+    dot: { width: 7, height: 7, borderRadius: 4 },
+    chipText: { fontFamily: "Heebo_500Medium", fontSize: 12.5, letterSpacing: 0.05 },
     chipOn: { color: "#FFFFFF", fontFamily: "Heebo_700Bold" },
     sortNote: { fontFamily: "Heebo_500Medium", fontSize: 10.5, textAlign: "center" },
     blindNote: {

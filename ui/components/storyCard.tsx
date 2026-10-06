@@ -1,5 +1,7 @@
 import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
 import { BLIND_INK, blindLabel, blindTo } from '@/state/blindspot';
+import { elevation, SETTLE, TYPE } from '@/state/craft';
+import Press from './press';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useStillness } from '@/state/access';
@@ -31,12 +33,13 @@ const balance = (name: string): string => {
     return `${words.slice(0, half).join(" ")}\n${words.slice(half).join(" ")}`;
 };
 
-const GLIDE = LinearTransition.duration(240);
+const GLIDE = LinearTransition.springify()
+    .mass(SETTLE.mass).stiffness(SETTLE.stiffness).damping(SETTLE.damping);
 /** how much the story the scroll has settled on swells, and how quickly */
 const LIFT = 0.022;
 const LIFT_MS = 170;
-const FADE_IN = FadeIn.duration(220);
-const FADE_OUT = FadeOut.duration(140);
+const FADE_IN = FadeIn.duration(200);
+const FADE_OUT = FadeOut.duration(130);
 
 type Props = {
     data: NewsItem[];
@@ -144,8 +147,10 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const mine = !!missing && missing === readerBloc;
     const dark = t.name === "negative";
     const sectionInk = sectionColour(section, dark);
-    // a hard offset shadow, no blur - tab and card read as paper lifted off the page
-    const hardShadow = dark ? "3px 3px 0 rgba(0,0,0,0.5)" : "3px 3px 0 rgba(17,24,39,0.18)";
+    // A folded story sits on the feed; an open one is lifted off it, and is the only
+    // card at that height. Two shadows each, because one blurred drop reads as a
+    // sticker and a hard offset reads as a drawing of a shadow.
+    const light = elevation(dark);
 
     const applyTopic = async (next: string) => {
         setPickerOpen(false);
@@ -213,22 +218,24 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                 edge, so it reads as the one label following the story it belongs to. */}
             {!open && !!section && (
                 <View style={styles.tabRow}>
-                    <View style={[styles.tab, { backgroundColor: sectionInk, boxShadow: hardShadow }]}>
+                    <View style={[styles.tab, { backgroundColor: sectionInk }]}>
                         <Text style={styles.tabText} numberOfLines={1}>{section}</Text>
                     </View>
                 </View>
             )}
-            <View style={[styles.card, { backgroundColor: t.surfaceAlt, boxShadow: hardShadow },
-                open && [styles.cardOpen, { backgroundColor: t.surface, borderColor: t.text }]]}>
+            <View style={[styles.card,
+                { backgroundColor: t.surfaceAlt, boxShadow: light.rest, borderColor: t.line },
+                open && [styles.cardOpen,
+                    { backgroundColor: t.surface, borderColor: t.line, boxShadow: light.raised }]]}>
             {open && !!section && (
                 <Animated.View style={styles.tabRowIn}
                     entering={still ? undefined : FADE_IN} exiting={still ? undefined : FADE_OUT}>
-                    <View style={[styles.tab, styles.tabDown, { backgroundColor: sectionInk, boxShadow: hardShadow }]}>
+                    <View style={[styles.tab, styles.tabDown, { backgroundColor: sectionInk }]}>
                         <Text style={styles.tabText} numberOfLines={1}>{section}</Text>
                     </View>
                 </Animated.View>
             )}
-            <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
+            <Press onPress={onToggle} scale={0.985}>
                 <View style={styles.head}>
                     {/* the time on top, the issue to its left; under them the ring sits
                         on the headline's own line rather than above it */}
@@ -289,7 +296,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                         </Text>
                     </TouchableOpacity>
                 )}
-            </TouchableOpacity>
+            </Press>
 
             {open && (
                 <Animated.View entering={still ? undefined : FADE_IN}
@@ -358,15 +365,15 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 0, borderTopRightRadius: 0,
         borderBottomLeftRadius: 6, borderBottomRightRadius: 6,
     },
-    tabText: {
-        fontFamily: "Heebo_700Bold", fontSize: 10.5, color: "#FFFFFF", letterSpacing: 0.2,
-    },
+    tabText: { ...TYPE.micro, color: "#FFFFFF" },
+    // The border is a hairline the same colour as the page's rules, not a 1.5px
+    // outline: at this size an outline draws the box, a hairline draws the edge.
     card: {
-        width: "100%", backgroundColor: "#F4F4F3", borderRadius: 8,
-        padding: 11, gap: 8,
-        borderWidth: 1.5, borderColor: "transparent",
+        width: "100%", backgroundColor: "#F4F4F3", borderRadius: 11,
+        padding: 12, gap: 8,
+        borderWidth: 1, borderColor: "#E3E3E1",
     },
-    cardOpen: { backgroundColor: "#fff", borderColor: "#111827" },
+    cardOpen: { backgroundColor: "#fff" },
     rule: { height: 1, backgroundColor: "#E3E3E1", marginBottom: 9, marginTop: 1 },
     head: { gap: 6 },
     // row-reverse: the time at the right edge, the issue to its left
@@ -381,13 +388,10 @@ const styles = StyleSheet.create({
     },
     blindDot: { width: 6, height: 6, borderRadius: 3 },
     blindText: { fontFamily: "Heebo_700Bold", fontSize: 10.5, letterSpacing: 0.1 },
-    title: {
-        flex: 1, fontFamily: "Heebo_700Bold", fontSize: 14.5, fontWeight: "700",
-        lineHeight: 20, color: "#111827", textAlign: "right",
-    },
+    title: { flex: 1, ...TYPE.headline, color: "#111827", textAlign: "right" },
     time: {
-        fontFamily: "Heebo_500Medium", fontSize: 12, color: "#9CA3AF",
-        lineHeight: 20, fontVariant: ["tabular-nums"],
+        fontFamily: "Heebo_500Medium", fontSize: 11.5, letterSpacing: 0.1,
+        color: "#9CA3AF", lineHeight: 20, fontVariant: ["tabular-nums"],
     },
     metaRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, marginTop: 6 },
     // the issue sits at the far end of the headline's own row, so the two read as
@@ -404,8 +408,7 @@ const styles = StyleSheet.create({
         paddingVertical: 6, alignItems: "center", marginTop: 8,
     },
     mergeText: { fontFamily: "Heebo_500Medium", fontSize: 11 },
-    sources: {
-        fontFamily: "Heebo_400Regular", flex: 1, fontSize: 11, color: "#6B7280", textAlign: "right" },
+    sources: { ...TYPE.caption, flex: 1, color: "#6B7280", textAlign: "right" },
     count: {
  fontFamily: "Heebo_700Bold", fontSize: 11, color: "#6B7280", fontWeight: "600" },
 });

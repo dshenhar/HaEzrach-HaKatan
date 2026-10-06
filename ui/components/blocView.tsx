@@ -1,5 +1,6 @@
 import { NewsItem, Bloc, SitePosition, getBlocSummary } from '@/state/engagement';
 import { track } from '@/state/analytics';
+import { ELEVATION, TYPE } from '@/state/craft';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -145,19 +146,22 @@ export default BlocView;
 const styles = StyleSheet.create({
     // row-reverse puts the first column - the right bloc - on the right
     split: { flexDirection: "row-reverse", gap: 8, alignItems: "flex-start" },
-    col: { flex: 1, borderRadius: 7, padding: 10, gap: 7 },
-    colOpen: { borderWidth: 1, borderColor: "rgba(17,24,39,0.12)" },
+    col: { flex: 1, borderRadius: 10, padding: 11, gap: 7 },
+    colOpen: { borderWidth: 1, borderColor: "rgba(17,24,39,0.10)" },
     colHead: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "baseline" },
-    colLabel: { fontFamily: "Heebo_800ExtraBold", fontSize: 13.5 },
-    colCount: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#6B7280" },
+    colLabel: { fontFamily: "Heebo_800ExtraBold", fontSize: 13.5, letterSpacing: -0.1 },
+    colCount: {
+        fontFamily: "Heebo_700Bold", fontSize: 11, letterSpacing: 0.1, color: "#6B7280",
+        fontVariant: ["tabular-nums"],
+    },
 
     aiLink: {
         fontFamily: "Heebo_500Medium", fontSize: 11.5, color: "#6B7280",
         textDecorationLine: "underline", textAlign: "right",
     },
     aiBox: {
-        backgroundColor: "#FFFFFF", borderRadius: 5, padding: 8,
-        boxShadow: "0 1px 4px rgba(0,0,0,0.10)",
+        backgroundColor: "#FFFFFF", borderRadius: 8, padding: 9,
+        boxShadow: ELEVATION.rest,
     },
     aiText: {
         fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17,
@@ -168,14 +172,17 @@ const styles = StyleSheet.create({
     outletBlock: { gap: 2 },
     outletRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
     dot: { width: 7, height: 7, borderRadius: 4 },
-    outlet: { fontFamily: "Heebo_700Bold", fontSize: 11.5, flex: 1, textAlign: "right" },
+    outlet: {
+        fontFamily: "Heebo_700Bold", fontSize: 11.5, letterSpacing: 0.05,
+        flex: 1, textAlign: "right",
+    },
     headline: {
-        fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 16,
-        color: "#111827", textAlign: "right", paddingRight: 13,
+        fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17,
+        letterSpacing: 0.05, color: "#111827", textAlign: "right", paddingRight: 13,
     },
     empty: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#6B7280", lineHeight: 16 },
 
-    unaligned: { backgroundColor: "#F4F4F3", borderRadius: 7, padding: 10, marginTop: 8, gap: 7 },
+    unaligned: { backgroundColor: "#F4F4F3", borderRadius: 10, padding: 11, marginTop: 8, gap: 7 },
     unalignedTitle: {
         fontFamily: "Heebo_700Bold", fontSize: 12, color: "#111827", textAlign: "right",
     },
