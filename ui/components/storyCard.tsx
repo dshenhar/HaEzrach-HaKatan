@@ -1,4 +1,5 @@
 import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
+import { BLIND_INK, blindLabel, blindTo } from '@/state/blindspot';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useStillness } from '@/state/access';
@@ -56,6 +57,8 @@ type Props = {
     onMeasure?: (height: number) => void;
     /** the scroll opened this one, so the fold that pays for it happens at once */
     instant?: boolean;
+    /** the reader's own side, which turns a blindspot into their blindspot */
+    readerBloc?: string | null;
 }
 
 /**
@@ -64,7 +67,7 @@ type Props = {
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                     topics = [], mergeArmed, onArmMerge, open, onToggle,
-                    focused = false, onMeasure, instant = false }: Props) => {
+                    focused = false, onMeasure, instant = false, readerBloc }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
@@ -134,6 +137,11 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     // how the coverage split, which is what the ring draws
     const rightCount = data.filter((d) => positions[d.source]?.bloc === "right").length;
     const leftCount = data.filter((d) => positions[d.source]?.bloc === "left").length;
+    // Who did not tell this story. It is a count rather than a judgement, which is
+    // why it can sit on a closed card in plain words: four outlets on one side ran
+    // it and nobody on the other did, and a reader can check that in a minute.
+    const missing = blindTo({ right: rightCount, left: leftCount });
+    const mine = !!missing && missing === readerBloc;
     const dark = t.name === "negative";
     const sectionInk = sectionColour(section, dark);
     // a hard offset shadow, no blur - tab and card read as paper lifted off the page
@@ -242,6 +250,18 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                             </TouchableOpacity>
                         )}
                     </View>
+
+                    {!!missing && (
+                        // loud when it is the reader's own side that missed it, quiet
+                        // when it is a fact about somebody else's
+                        <View style={[styles.blind, mine && { backgroundColor: BLIND_INK[missing] }]}>
+                            {!mine && <View style={[styles.blindDot, { backgroundColor: BLIND_INK[missing] }]} />}
+                            <Text style={[styles.blindText,
+                                { color: mine ? "#FFFFFF" : BLIND_INK[missing] }]} numberOfLines={1}>
+                                {blindLabel(missing, readerBloc)}
+                            </Text>
+                        </View>
+                    )}
 
                     <View style={styles.titleRow}>
                         {/* only the bloc view is about who told it, so only it wears the ring */}
@@ -353,6 +373,14 @@ const styles = StyleSheet.create({
     metaLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
     // and the ring beside the headline, on its first line
     titleRow: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 10 },
+    // the one line in the app that states a finding rather than showing a number
+    blind: {
+        flexDirection: "row-reverse", alignItems: "center", gap: 5,
+        alignSelf: "flex-end", borderRadius: 5,
+        paddingHorizontal: 7, paddingVertical: 2, marginTop: -1, marginBottom: 1,
+    },
+    blindDot: { width: 6, height: 6, borderRadius: 3 },
+    blindText: { fontFamily: "Heebo_700Bold", fontSize: 10.5, letterSpacing: 0.1 },
     title: {
         flex: 1, fontFamily: "Heebo_700Bold", fontSize: 14.5, fontWeight: "700",
         lineHeight: 20, color: "#111827", textAlign: "right",

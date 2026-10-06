@@ -13,6 +13,7 @@ import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
+import { blindTo } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { ScrollLock } from "@/state/scrollLock";
 import { getProfile, ReaderProfile } from "@/state/profile";
@@ -211,6 +212,11 @@ export default function NewsFeed() {
 			list = list.filter((cluster) => {
 				const { right, left } = split(cluster);
 				if (blocFilter === "both") return right > 0 && left > 0;
+				if (blocFilter === "blind") {
+					const missing = blindTo({ right, left });
+					// knowing the reader's side turns "a blindspot" into "yours"
+					return profile ? missing === profile.bloc : missing !== null;
+				}
 				if (blocFilter === "right") return right > 0 && left === 0;
 				return left > 0 && right === 0;
 			});
@@ -293,6 +299,7 @@ export default function NewsFeed() {
 			topic: cluster[0]?.topic, section: cluster[0]?.section,
 			outlets: cluster.length, right, left,
 			shape: right && left ? "both" : right ? "right only" : "left only",
+			blind_to: blindTo({ right, left }) ?? undefined,
 		};
 	};
 
@@ -535,6 +542,7 @@ export default function NewsFeed() {
 					blocFilter={blocFilter}
 					onBlocFilter={(next) => { track("bloc_filter_changed", { filter: next }); setBlocFilter(next); }}
 					toggleRef={toggleBox}
+					knowsBloc={profile !== null}
 				/>
 				</View>
 
@@ -558,6 +566,7 @@ export default function NewsFeed() {
 						open={openStory === key}
 						focused={scrolling && focusKey === key && openStory !== key}
 						instant={autoOpened}
+						readerBloc={profile?.bloc}
 						onMeasure={bind.measure}
 						onToggle={bind.toggle} />
 					);

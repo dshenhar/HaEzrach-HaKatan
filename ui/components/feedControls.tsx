@@ -9,10 +9,12 @@ import Svg, { Circle, Line } from 'react-native-svg';
 export type SortKey = "newest" | "oldest" | "covered" | "outside";
 
 /** Which stories the bloc view shows, by who told them. */
-export type BlocFilter = "all" | "both" | "right" | "left";
+export type BlocFilter = "all" | "blind" | "both" | "right" | "left";
 
 export const BLOC_FILTERS: { key: BlocFilter; label: string; dot?: string }[] = [
     { key: "all", label: "הכל" },
+    // the one the app was built for, and now it has a name on the strip
+    { key: "blind", label: "נקודות עיוורות", dot: "#111827" },
     { key: "both", label: "שני הצדדים", dot: "#DDA01E" },
     { key: "right", label: "רק ימין", dot: "#C0392F" },
     { key: "left", label: "רק שמאל", dot: "#2B5EA7" },
@@ -74,6 +76,8 @@ type Props = {
     onBlocFilter: (filter: BlocFilter) => void;
     /** the tour measures the toggle through this, to leave it out of its blur */
     toggleRef?: React.RefObject<RNView | null>;
+    /** whether the reader has told us their side, which makes a blindspot theirs */
+    knowsBloc?: boolean;
 }
 
 /**
@@ -84,7 +88,7 @@ type Props = {
  * taking a third of a phone's screen off the news.
  */
 const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSort,
-                       mode, onMode, blocFilter, onBlocFilter, toggleRef }: Props) => {
+                       mode, onMode, blocFilter, onBlocFilter, toggleRef, knowsBloc }: Props) => {
     const [open, setOpen] = useState(false);
     const t = useTheme();
     const dark = t.name === "negative";
@@ -192,6 +196,15 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                 </Strip>
             )}
 
+            {/* the one filter whose name does not explain itself */}
+            {mode === "bloc" && blocFilter === "blind" && !open && (
+                <Text style={[styles.blindNote, { color: t.textMuted }]}>
+                    {knowsBloc
+                        ? "סיפורים שהצד שלכם לא סיקר: שני גופים או יותר מהצד השני, ואפס משלכם."
+                        : "סיפורים שצד אחד סיקר והשני לא. מלאו את שאלון העמדות כדי לראות דווקא את אלה שהצד שלכם פספס."}
+                </Text>
+            )}
+
             {!sortIsDefault && !open && (
                 <Text style={[styles.sortNote, { color: t.textMuted }]}>ממוין: {sortLabel}</Text>
             )}
@@ -227,4 +240,8 @@ const styles = StyleSheet.create({
     chipText: { fontFamily: "Heebo_500Medium", fontSize: 12.5 },
     chipOn: { color: "#FFFFFF", fontFamily: "Heebo_700Bold" },
     sortNote: { fontFamily: "Heebo_500Medium", fontSize: 10.5, textAlign: "center" },
+    blindNote: {
+        fontFamily: "Heebo_500Medium", fontSize: 11, lineHeight: 16,
+        textAlign: "right", paddingHorizontal: 16, marginTop: -2,
+    },
 });
