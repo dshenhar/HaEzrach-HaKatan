@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/state/theme';
-import { glass } from '@/state/craft';
+import { glass, SETTLE } from '@/state/craft';
 
 
 export default function TabLayout() {
@@ -35,6 +35,14 @@ export default function TabLayout() {
 				: '#A6A6A6',
 			headerShown: false,
 			tabBarShowLabel: false,
+			// They are three screens side by side, so the move between them is
+			// sideways: the outgoing one leaves the way the incoming one arrives, and
+			// which direction tells you where you are in the row.
+			animation: 'shift',
+			transitionSpec: {
+				animation: 'spring',
+				config: { mass: SETTLE.mass, stiffness: SETTLE.stiffness, damping: SETTLE.damping },
+			},
 			tabBarStyle: {
 				height: 44 + bottomPad, paddingTop: 6, paddingBottom: bottomPad,
 				borderTopColor: "transparent", elevation: 0, ...material,

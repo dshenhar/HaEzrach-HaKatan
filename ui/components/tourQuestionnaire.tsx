@@ -1,3 +1,4 @@
+import { ELEVATION } from '@/state/craft';
 import { useTheme } from '@/state/theme';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -34,7 +35,7 @@ const styles = StyleSheet.create({
     wrap: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
         alignItems: "center", justifyContent: "center", padding: 22 },
     card: { width: "100%", maxWidth: 340, borderRadius: 18, borderWidth: 1, padding: 20, gap: 10,
-        boxShadow: "0 8px 26px rgba(0,0,0,0.22)" },
+        boxShadow: ELEVATION.sheet },
     title: { fontFamily: "Heebo_800ExtraBold", fontSize: 20, textAlign: "right" },
     body: { fontFamily: "Heebo_400Regular", fontSize: 13.5, lineHeight: 20, textAlign: "right" },
     primary: { borderRadius: 12, paddingVertical: 13, alignItems: "center", marginTop: 6 },

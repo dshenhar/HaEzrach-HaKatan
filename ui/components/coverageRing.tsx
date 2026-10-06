@@ -74,5 +74,8 @@ const styles = StyleSheet.create({
     count: {
         position: "absolute", fontFamily: "Heebo_800ExtraBold", fontSize: 13,
         color: "#111827", includeFontPadding: false,
+        // the count changes as the feed reloads, and proportional digits make it
+        // shift on its own axis while it does
+        fontVariant: ["tabular-nums"], letterSpacing: -0.2,
     },
 });

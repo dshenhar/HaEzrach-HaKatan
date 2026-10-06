@@ -1,4 +1,4 @@
-import { sectionColour } from '@/state/sections';
+import { sectionColour, sectionTint } from '@/state/sections';
 import ViewModeToggle, { ViewMode } from './viewModeToggle';
 import { useTheme } from '@/state/theme';
 import { TYPE } from '@/state/craft';
@@ -163,17 +163,20 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
             {open && (
                 <Strip style={styles.strip}>
                     {sections.map((section) => {
-                        const colour = sectionColour(section, dark);
+                        // off, the chip is a tint of its own colour with the name in
+                        // that colour at full strength - the same surface the card's tab
+                        // wears, so the strip and the feed are plainly one palette. On,
+                        // it fills in: the chosen one is the only solid thing in the row.
+                        const tint = sectionTint(section, dark);
                         const on = active.includes(section);
                         return (
                             <Press key={section}
                                 style={[styles.chip, styles.sectionChip,
-                                    { borderColor: colour, backgroundColor: on ? colour : t.surface }]}
+                                    on ? { borderColor: tint.ink, backgroundColor: tint.ink }
+                                       : { borderColor: tint.edge, backgroundColor: tint.fill }]}
                                 onPress={() => onToggleSection(section)}>
-                                {/* the dot carries the colour when the chip is off, so the
-                                    strip reads as the same palette either way */}
-                                {!on && <View style={[styles.dot, { backgroundColor: colour }]} />}
-                                <Text style={[styles.chipText, on ? styles.chipOn : { color: t.text }]}>{section}</Text>
+                                <Text style={[styles.chipText,
+                                    on ? styles.chipOn : { color: tint.label }]}>{section}</Text>
                             </Press>
                         );
                     })}

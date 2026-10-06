@@ -1,3 +1,4 @@
+import { ELEVATION } from '@/state/craft';
 import { useStillness } from '@/state/access';
 import { useTheme } from '@/state/theme';
 import React, { useEffect, useRef, useState } from 'react';
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
         paddingVertical: 15,
         gap: 8,
-        boxShadow: '0 6px 22px rgba(0,0,0,0.14)',
+        boxShadow: ELEVATION.sheet,
     },
     title: { fontFamily: 'Heebo_800ExtraBold', fontSize: 20, textAlign: 'right' },
     body: { fontFamily: 'Heebo_400Regular', fontSize: 13.5, lineHeight: 20, textAlign: 'right' },

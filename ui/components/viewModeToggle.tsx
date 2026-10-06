@@ -1,4 +1,5 @@
 import { useTheme } from '@/state/theme';
+import { SETTLE } from '@/state/craft';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, LayoutChangeEvent, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -50,10 +51,12 @@ const ViewModeToggle = ({ mode, onChange, compact }: Props) => {
     // 0 = bloc (right), 1 = citizen (left)
     const slide = useRef(new Animated.Value(mode === "bloc" ? 0 : 1)).current;
     useEffect(() => {
-        Animated.timing(slide, {
+        // A spring rather than a curve, because this is the control most likely to
+        // be tapped twice in a row: a spring re-targets from wherever the thumb has
+        // got to, where a curve has to be cancelled and restarted and shows a jump.
+        Animated.spring(slide, {
             toValue: mode === "bloc" ? 0 : 1,
-            duration: 220,
-            easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+            mass: SETTLE.mass, stiffness: SETTLE.stiffness, damping: SETTLE.damping,
             useNativeDriver: true,
         }).start();
     }, [mode, slide]);

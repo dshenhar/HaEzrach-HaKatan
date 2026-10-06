@@ -1,6 +1,7 @@
 import { NewsItem, Bloc, SitePosition, getBlocSummary } from '@/state/engagement';
 import { track } from '@/state/analytics';
 import { ELEVATION, TYPE } from '@/state/craft';
+import Press from './press';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -76,11 +77,11 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
                     <>
                         {open && (
                             summary === undefined ? (
-                                <TouchableOpacity onPress={() => askSummary(side)} accessibilityRole="button">
+                                <Press onPress={() => askSummary(side)} accessibilityRole="button">
                                     <Text style={styles.aiLink}>
                                         {asking === side ? "מייצר סיכום…" : "ייצר סיכום AI"}
                                     </Text>
-                                </TouchableOpacity>
+                                </Press>
                             ) : summary ? (
                                 <View style={styles.aiBox}>
                                     <Text style={styles.aiText}>{summary}</Text>
@@ -91,7 +92,7 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
                         )}
 
                         {items.map((item) => (
-                            <TouchableOpacity
+                            <Press
                                 key={item.id}
                                 onPress={() => (open ? onOpenArticle(item) : setOpenSide(side))}
                                 style={styles.outletBlock}
@@ -105,7 +106,7 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
                                 {open && (
                                     <Text style={styles.headline} numberOfLines={3}>{item.title}</Text>
                                 )}
-                            </TouchableOpacity>
+                            </Press>
                         ))}
                     </>
                 )}
@@ -127,9 +128,9 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
                     </Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         {unaligned.map((item) => (
-                            <TouchableOpacity key={item.id} style={styles.pill} onPress={() => onOpenArticle(item)}>
+                            <Press key={item.id} style={styles.pill} onPress={() => onOpenArticle(item)}>
                                 <Text style={styles.pillText}>{item.source}</Text>
-                            </TouchableOpacity>
+                            </Press>
                         ))}
                     </ScrollView>
                     <Text style={styles.unalignedNote}>

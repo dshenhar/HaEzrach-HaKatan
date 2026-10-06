@@ -1,5 +1,7 @@
+import { ELEVATION } from '@/state/craft';
 import { getBlocSummary, NewsItem, SitePosition } from '@/state/engagement';
 import { track } from '@/state/analytics';
+import Press from './press';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -100,8 +102,7 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
                     const open = openId === item.id;
                     return (
                         <View key={item.id} onLayout={onSlideLayout(item.id)}>
-                        <TouchableOpacity
-                            activeOpacity={0.9}
+                        <Press
                             style={[styles.slide, open && styles.slideOpen]}
                             onPress={() => {
                                 if (!open) track("citizen_card_opened", { outlets: ordered.length });
@@ -117,12 +118,12 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
                             {open && (
                                 <>
                                     {!!item.summary && <Text style={styles.summary}>{plain(item.summary)}</Text>}
-                                    <TouchableOpacity onPress={() => onOpenArticle(item)}>
+                                    <Press onPress={() => onOpenArticle(item)}>
                                         <Text style={styles.go}>לכתבה המלאה ←</Text>
-                                    </TouchableOpacity>
+                                    </Press>
                                 </>
                             )}
-                        </TouchableOpacity>
+                        </Press>
                         </View>
                     );
                 })}
@@ -140,7 +141,7 @@ const styles = StyleSheet.create({
     // bloc's colour; the soft shadow keeps a white box visible on the white card
     ai: {
         backgroundColor: "#fff", borderRadius: 7, padding: 8, gap: 3, marginBottom: 2,
-        boxShadow: "0 1px 5px rgba(0,0,0,0.10)",
+        boxShadow: ELEVATION.rest,
     },
     aiLabel: {
         fontFamily: "Heebo_800ExtraBold", fontSize: 9.5, color: "#6B7280",

@@ -5,7 +5,7 @@ import Press from './press';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useStillness } from '@/state/access';
-import { sectionColour } from '@/state/sections';
+import { sectionTint } from '@/state/sections';
 import CoverageRing from './coverageRing';
 import { useDevMode, useTheme } from '@/state/theme';
 import { track } from '@/state/analytics';
@@ -146,7 +146,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     const missing = blindTo({ right: rightCount, left: leftCount });
     const mine = !!missing && missing === readerBloc;
     const dark = t.name === "negative";
-    const sectionInk = sectionColour(section, dark);
+    const tint = sectionTint(section, dark);
     // A folded story sits on the feed; an open one is lifted off it, and is the only
     // card at that height. Two shadows each, because one blurred drop reads as a
     // sticker and a hard offset reads as a drawing of a shadow.
@@ -218,8 +218,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                 edge, so it reads as the one label following the story it belongs to. */}
             {!open && !!section && (
                 <View style={styles.tabRow}>
-                    <View style={[styles.tab, { backgroundColor: sectionInk }]}>
-                        <Text style={styles.tabText} numberOfLines={1}>{section}</Text>
+                    <View style={[styles.tab, { backgroundColor: tint.fill, borderColor: tint.edge }]}>
+                        <Text style={[styles.tabText, { color: tint.label }]} numberOfLines={1}>{section}</Text>
                     </View>
                 </View>
             )}
@@ -230,8 +230,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
             {open && !!section && (
                 <Animated.View style={styles.tabRowIn}
                     entering={still ? undefined : FADE_IN} exiting={still ? undefined : FADE_OUT}>
-                    <View style={[styles.tab, styles.tabDown, { backgroundColor: sectionInk }]}>
-                        <Text style={styles.tabText} numberOfLines={1}>{section}</Text>
+                    <View style={[styles.tab, styles.tabDown,
+                        { backgroundColor: tint.fill, borderColor: tint.edge }]}>
+                        <Text style={[styles.tabText, { color: tint.label }]} numberOfLines={1}>{section}</Text>
                     </View>
                 </Animated.View>
             )}
@@ -346,8 +347,9 @@ const styles = StyleSheet.create({
     tabRow: { flexDirection: I18nManager.isRTL ? "row-reverse" : "row", paddingHorizontal: 12 },
     // half way between the app's original rounding and a printed page's cut corner
     tab: {
-        paddingHorizontal: 11, paddingTop: 3, paddingBottom: 6, marginBottom: -4,
-        borderTopLeftRadius: 6, borderTopRightRadius: 6,
+        paddingHorizontal: 10, paddingTop: 3, paddingBottom: 7, marginBottom: -4,
+        borderTopLeftRadius: 7, borderTopRightRadius: 7,
+        borderWidth: 1, borderBottomWidth: 0,
     },
     // open, the same tab hangs from the inside of the card's top edge: the card's own
     // padding is cancelled so it starts exactly where the closed one ended, and the
@@ -361,11 +363,12 @@ const styles = StyleSheet.create({
     // where it does on a folded one. The line it hangs into holds the time at the
     // far right and the issue beside it, neither of which reaches this far left.
     tabDown: {
-        paddingTop: 5, paddingBottom: 3, marginBottom: -15,
+        paddingTop: 6, paddingBottom: 3, marginBottom: -15,
         borderTopLeftRadius: 0, borderTopRightRadius: 0,
-        borderBottomLeftRadius: 6, borderBottomRightRadius: 6,
+        borderBottomLeftRadius: 7, borderBottomRightRadius: 7,
+        borderWidth: 1, borderTopWidth: 0,
     },
-    tabText: { ...TYPE.micro, color: "#FFFFFF" },
+    tabText: { ...TYPE.micro },
     // The border is a hairline the same colour as the page's rules, not a 1.5px
     // outline: at this size an outline draws the box, a hairline draws the edge.
     card: {
@@ -397,11 +400,12 @@ const styles = StyleSheet.create({
     // the issue sits at the far end of the headline's own row, so the two read as
     // one line even when the headline runs to three
     topicPill: {
-        borderWidth: 1, borderRadius: 13, paddingHorizontal: 9, paddingVertical: 3,
+        borderWidth: 1, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3,
         maxWidth: 132, flexShrink: 0, marginTop: 1,
     },
     topicText: {
-        fontFamily: "Heebo_500Medium", fontSize: 10.5, lineHeight: 14, textAlign: "center",
+        fontFamily: "Heebo_500Medium", fontSize: 10.5, lineHeight: 14,
+        letterSpacing: 0.08, textAlign: "center",
     },
     mergeBtn: {
         borderWidth: 1, borderStyle: "dashed", borderRadius: 8,
