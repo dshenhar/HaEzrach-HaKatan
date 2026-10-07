@@ -12,16 +12,17 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from scraping import fetch_entries, parse_entry
+from scraping import article_key, fetch_entries, parse_entry
 from store import db
 
-WATCH = ["N12", "וואלה", "דה מרקר", "הארץ", "מידה", "חיפה נט"]
+WATCH = ["N12", "ערוץ 13", "וואלה", "דה מרקר", "הארץ", "מידה", "חיפה נט"]
 
 
 def main() -> None:
     sites = {s["name"]: s for s in db.all_sites()}
     seen = db.seen()
-    links, headers = set(seen.get("links", [])), set(seen.get("headers", []))
+    links = {article_key(link) for link in seen.get("links", [])}
+    headers = set(seen.get("headers", []))
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     cutoff = now - timedelta(hours=24)
     print(f"now (utc naive): {now:%Y-%m-%d %H:%M}, cutoff: {cutoff:%Y-%m-%d %H:%M}")
@@ -31,7 +32,8 @@ def main() -> None:
         site = sites.get(name)
         if not site:
             continue
-        entries = fetch_entries(name, site.get("domain"))
+        entries = [e for url in (site.get("feeds") or [site.get("domain")])
+                   for e in fetch_entries(name, url)]
         print(f"{name}: {len(entries)} entries")
         kept = old = known = unparsed = 0
         for entry in entries:
@@ -39,7 +41,7 @@ def main() -> None:
             if not parsed:
                 unparsed += 1
                 continue
-            if parsed["link"] in links or parsed["header"] in headers:
+            if article_key(parsed["link"]) in links or parsed["header"] in headers:
                 known += 1
                 continue
             if parsed["created_at"] < cutoff:

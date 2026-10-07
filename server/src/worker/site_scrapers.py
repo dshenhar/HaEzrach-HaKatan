@@ -17,9 +17,9 @@ articles are timestamped when first seen, not when published.
                   editorial call, not a technical one: if you want them separated,
                   BeSheva needs a rendered scrape of inn.co.il/besheva.
 
-Channel 13 has no builder. 13tv.co.il, 13news.co.il and reshet.tv answer 403 to
-every request, homepage included - an explicit block, not a missing feed. Getting
-it needs their permission, not a smarter scraper.
+Channel 13 needs no builder. 13tv.co.il answers 403 to the browser this file
+claims to be and 200 to a crawler that names itself, and its robots.txt opens its
+news sitemap to crawlers, so it is read like any feed (see migrate/fix_feeds.py).
 """
 import json
 import re

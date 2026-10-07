@@ -10,7 +10,7 @@ machines, and it carries exactly what a story needs and nothing more.
 The entries come out shaped like feedparser's, so nothing downstream has to know
 where they came from.
 """
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from xml.etree import ElementTree
 
 # a page dated before this is a publisher writing a placeholder, not a date
@@ -22,7 +22,7 @@ def _name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def _when(text):
+def _when(text) -> datetime | None:
     if not text:
         return None
     try:
@@ -33,7 +33,20 @@ def _when(text):
         return None          # kan dates a page it is still writing 0001-01-01
     if when.tzinfo is None:
         when = when.replace(tzinfo=timezone.utc)
-    return when.astimezone(timezone.utc).timetuple()
+    return when
+
+
+def _published(field: dict, url) -> datetime | None:
+    published = _when(field.get("publication_date"))
+    edited = _when(field.get("lastmod"))
+    # Channel 13 gives the day and not the hour - every item at midnight - and its
+    # lastmod is the last edit. An edit cannot come before the publication, so the
+    # earlier of the edit and the end of that day is the nearest time that never
+    # makes a story from yesterday evening look a day old and drop out.
+    if published and edited and published.time() == time(0):
+        published = min(edited, published + timedelta(days=1, seconds=-1))
+    # the attribute is kan's, and it is the only true time they publish
+    return published or _when(url.get("SortDateTime")) or edited
 
 
 def looks_like_one(body: bytes) -> bool:
@@ -58,9 +71,7 @@ def entries(body: bytes) -> list[dict]:
         title, link = field.get("title"), field.get("loc")
         if not title or not link:
             continue
-        # the attribute is kan's, and it is the only true time they publish
-        when = (_when(field.get("publication_date"))
-                or _when(url.get("SortDateTime"))
-                or _when(field.get("lastmod")))
-        out.append({"title": title, "link": link, "summary": "", "published_parsed": when})
+        when = _published(field, url)
+        out.append({"title": title, "link": link, "summary": "",
+                    "published_parsed": when.astimezone(timezone.utc).timetuple() if when else None})
     return out

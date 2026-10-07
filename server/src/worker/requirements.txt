@@ -4,3 +4,4 @@ python-dateutil~=2.9.0.post0
 requests
 numpy>=1.26,<3
 google-cloud-firestore~=2.22
+protego~=0.7
