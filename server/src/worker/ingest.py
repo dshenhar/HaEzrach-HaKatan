@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 
 from gpt_models import OTHER, TAG_MODEL, OpenAIUnavailable, classify, embed
-from scraping import fetch_entries, has_arabic, parse_entry, translate_to_hebrew
+from scraping import article_key, fetch_entries, has_arabic, parse_entry, translate_to_hebrew
 from store import db
 from store.positions import overall, positions_for_topic
 from store.taxonomy import GENERAL_SECTION, SECTION_HINTS, SECTIONS
@@ -79,7 +79,9 @@ def scrape(sites: list[dict], seen: dict, translate: bool = True,
     from concurrent.futures import ThreadPoolExecutor
 
     cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=SEEN_HOURS)
-    known_links = set(seen.get("links", []))
+    # keyed the same way remember() keys them; a list written before the keys
+    # were is keyed here
+    known_links = {article_key(link) for link in seen.get("links", [])}
     known_headers = set(seen.get("headers", []))
 
     # An outlet may publish more than one feed - mako splits its news by section,
@@ -106,7 +108,7 @@ def scrape(sites: list[dict], seen: dict, translate: bool = True,
                 first = newest.get(site["name"])
                 if first is None or first < parsed["created_at"]:
                     newest[site["name"]] = parsed["created_at"]
-            if parsed["link"] in known_links or parsed["header"] in known_headers:
+            if article_key(parsed["link"]) in known_links or parsed["header"] in known_headers:
                 continue
             if parsed["created_at"] < cutoff:
                 continue
@@ -123,7 +125,7 @@ def scrape(sites: list[dict], seen: dict, translate: bool = True,
                     continue
                 parsed["header"], parsed["subheader"] = done[0], done[1] or done[0]
 
-            known_links.add(parsed["link"])
+            known_links.add(article_key(parsed["link"]))
             known_headers.add(parsed["header"])
             parsed["site_id"] = site["id"]
             parsed["site"] = site["name"]
@@ -165,13 +167,16 @@ def note_health(sites: list[dict], newest: dict) -> None:
 
 
 def remember(fresh: list[dict], seen: dict) -> None:
-    """Keep one day of links and headlines, so the next cycle skips them."""
+    """Keep one day of links and headlines, so the next cycle skips them.
+
+    A link is kept as its article_key, so a mako article that comes back under
+    another section's address is still known."""
     stamp = time.time()
     links = list(seen.get("links", []))
     headers = list(seen.get("headers", []))
     stamps = list(seen.get("at", []))
     for entry in fresh:
-        links.append(entry["link"])
+        links.append(article_key(entry["link"]))
         headers.append(entry["header"])
         stamps.append(stamp)
     keep = [i for i, at in enumerate(stamps) if stamp - at < SEEN_HOURS * 3600]

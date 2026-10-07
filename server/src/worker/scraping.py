@@ -5,17 +5,18 @@ This is the original worker's scraping, unchanged by the move off Postgres - the
 same feed list, the same per-site quirks, the same 15 second timeout that stopped
 one slow publisher from eating a whole cycle.
 """
+import gzip
 import json as _json
 import os
 import re
 import time
 from datetime import datetime, timedelta
-from urllib import robotparser
 from urllib.parse import urlparse
 
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+from protego import Protego
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-3.6-flash"
@@ -200,7 +201,13 @@ STANDFIRST = 250
 # a site that has rules gets them kept. We were not reading this at all, which made
 # the honest user agent a half-measure: saying who you are and then ignoring what
 # you are told is worse than not saying.
-_RULES: dict[str, "robotparser.RobotFileParser | None"] = {}
+#
+# Read the way the standard reads it (RFC 9309): the longest rule that matches
+# wins, whatever its place in the file. Python 3.12's own robotparser takes the
+# first one instead, and that kept channel 13 out entirely - its file says
+# "Disallow: /Services/" and then "Allow: /Services/sitemapGenerator/xmls/", which
+# opens the news sitemap to crawlers on purpose.
+_RULES: dict[str, Protego | None] = {}
 
 
 def allowed(url: str) -> bool:
@@ -210,13 +217,23 @@ def allowed(url: str) -> bool:
         try:
             answer = requests.get(host + "/robots.txt", headers={"User-Agent": UA}, timeout=10)
             if answer.status_code == 200:
-                rules = robotparser.RobotFileParser()
-                rules.parse(answer.text.splitlines())
-                _RULES[host] = rules
+                _RULES[host] = Protego.parse(answer.text)
         except Exception:
             pass
     rules = _RULES[host]
-    return rules is None or rules.can_fetch(UA, url)
+    return rules is None or rules.can_fetch(url, UA)
+
+
+# mako files one article under several sections - news-world/2026_q4/Article-X.htm
+# and news-money/tech12/Article-X.htm are the same page - so its feeds and its
+# sitemap name it by different addresses. Its id is what stays the same.
+MAKO_ARTICLE = re.compile(r"mako\.co\.il/.*Article-([0-9a-f]+)")
+
+
+def article_key(link: str) -> str:
+    """What makes two addresses the same article, for telling a new one apart."""
+    found = MAKO_ARTICLE.search(link or "")
+    return f"mako:{found.group(1)}" if found else link
 
 
 def fetch_entries(site_name, url):
@@ -249,16 +266,21 @@ def fetch_entries(site_name, url):
     try:
         r = requests.get(url, headers=head, timeout=FEED_TIMEOUT)
         r.raise_for_status()
+        body = r.content
+        # a sitemap is often published as a compressed file (mako's is .xml.gz),
+        # which arrives as the file and not as a compressed response
+        if body[:2] == b"\x1f\x8b":
+            body = gzip.decompress(body)
     except Exception as err:
         print(f"  ! {site_name}: {err}")
         return []
-    found = feedparser.parse(r.content).get("entries", [])
+    found = feedparser.parse(body).get("entries", [])
     if found:
         return found
     # Not a feed, then - but perhaps the file they publish for Google. Several
     # outlets here wall their RSS off from anything in a datacentre and leave the
     # news sitemap open, because Googlebot has to be able to read it.
-    return news_sitemap.entries(r.content)
+    return news_sitemap.entries(body)
 
 
 def parse_entry(entry, site_name):
@@ -268,6 +290,10 @@ def parse_entry(entry, site_name):
     if site_name == "כאן 11" and header in KAN_SECTION_TITLES:
         return None
     if site_name == "ישראל היום" and "news" not in entry.get("link", "").split("/"):
+        return None
+    # mako's news sitemap carries the whole portal - travel, food, celebrities - and
+    # only its news- sections are N12
+    if site_name == "N12" and not urlparse(entry.get("link", "")).path.startswith("/news-"):
         return None
 
     subheader = BeautifulSoup(entry.get("summary", ""), "html.parser").get_text().strip()
