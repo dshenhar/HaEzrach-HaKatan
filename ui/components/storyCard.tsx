@@ -1,6 +1,6 @@
 import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
 import { BLIND_INK, blindLabel, blindTo } from '@/state/blindspot';
-import { elevation, SETTLE, TYPE } from '@/state/craft';
+import { elevation, SETTLE, SWELL, TYPE } from '@/state/craft';
 import Press from './press';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -33,10 +33,6 @@ const balance = (name: string): string => {
 
 const GLIDE = LinearTransition.springify()
     .mass(SETTLE.mass).stiffness(SETTLE.stiffness).damping(SETTLE.damping);
-/** how much the story under the reader's thumb swells while the feed moves, and how quickly -
- *  3% of a phone-wide card is about 11 points, which reads as a lift and not a jump */
-const LIFT = 0.03;
-const LIFT_MS = 170;
 const FADE_IN = FadeIn.duration(200);
 const FADE_OUT = FadeOut.duration(130);
 
@@ -84,9 +80,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     const lift = useSharedValue(0);
     useEffect(() => {
         const want = focused && !open ? 1 : 0;
-        lift.value = still ? 0 : withTiming(want, { duration: LIFT_MS, easing: Easing.out(Easing.quad) });
+        lift.value = still ? 0 : withTiming(want, { duration: SWELL.ms, easing: Easing.out(Easing.quad) });
     }, [focused, open, still, lift]);
-    const swell = useAnimatedStyle(() => ({ transform: [{ scale: 1 + lift.value * LIFT }] }));
+    const swell = useAnimatedStyle(() => ({ transform: [{ scale: 1 + lift.value * SWELL.scale }] }));
 
     const wasOpen = useRef(open);
     useEffect(() => { wasOpen.current = open; });
