@@ -142,19 +142,26 @@ export function InstallBanner() {
 
 	return (
 		<>
-			<View style={[styles.banner, { flexDirection: rowDirection() }]}>
-				<TouchableOpacity
-					onPress={() => offer.add("banner")}
-					disabled={offer.busy}
-					accessibilityRole="button"
-					style={[styles.bannerButton, { backgroundColor: t.select, opacity: offer.busy ? 0.6 : 1 }]}
-				>
-					<Text style={[styles.bannerButtonText, { color: t.selectInk }]}>{ACTION}</Text>
-				</TouchableOpacity>
-				<TouchableOpacity onPress={offer.dismiss} hitSlop={8}
-					accessibilityRole="button" accessibilityLabel="סגירה">
-					<Ionicons name="close" size={16} color={t.textMuted} />
-				</TouchableOpacity>
+			<View style={[styles.banner, { backgroundColor: t.surfaceAlt, borderColor: t.line }]}>
+				<View style={[styles.bannerInner, { flexDirection: rowDirection() }]}>
+					<TouchableOpacity
+						onPress={() => offer.add("banner")}
+						disabled={offer.busy}
+						accessibilityRole="button"
+						style={[styles.bannerButton, { backgroundColor: t.select, opacity: offer.busy ? 0.6 : 1 }]}
+					>
+						<Text style={[styles.bannerButtonText, { color: t.selectInk }]}>{ACTION}</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						onPress={offer.dismiss}
+						hitSlop={8}
+						accessibilityRole="button"
+						accessibilityLabel="סגירה"
+						style={styles.bannerClose}
+					>
+						<Ionicons name="close" size={16} color={t.textMuted} />
+					</TouchableOpacity>
+				</View>
 			</View>
 			<InstallGuide open={offer.guide} kind={offer.kind} onClose={offer.closeGuide} />
 		</>
@@ -192,9 +199,12 @@ export function InstallRow() {
 const styles = StyleSheet.create({
 	banner: {
 		marginHorizontal: 16, marginTop: 8, marginBottom: 2,
-		alignItems: "center", gap: 8,
+		borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8,
 	},
-	bannerButton: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
+	// the close sits on the card, not on the button
+	bannerInner: { alignItems: "center", gap: 10 },
+	bannerButton: { flex: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, alignItems: "center" },
+	bannerClose: { padding: 4 },
 	bannerButtonText: { fontFamily: "Heebo_800ExtraBold", fontSize: 13 },
 
 	section: {
