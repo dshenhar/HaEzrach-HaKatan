@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { isIos } from '@/state/install';
 import { useTheme } from '@/state/theme';
 import { glass, SETTLE } from '@/state/craft';
 
@@ -10,7 +11,12 @@ export default function TabLayout() {
 	// Thinner than the stock 49pt bar plus the whole home-indicator inset, so it
 	// sits lower and the feed gets the room. The icons still clear the indicator.
 	const insets = useSafeAreaInsets();
-	const bottomPad = Math.max(insets.bottom - 14, 0);
+	// iOS PWA without viewport-fit=cover (and briefly after adding it) reads 0 here;
+	// use the usual home-indicator inset so the icons clear the bar.
+	const bottomInset = insets.bottom > 0
+		? insets.bottom
+		: Platform.OS === 'web' && isIos() ? 34 : 0;
+	const bottomPad = Math.max(bottomInset - 14, 0);
 	const t = useTheme();
 	const dark = t.name === "negative";
 	// The bar is a translucent layer with the feed running underneath it rather
