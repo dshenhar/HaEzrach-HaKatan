@@ -52,9 +52,9 @@ export default function TabLayout() {
 			<Tabs.Screen
 			name="mapPage"
 			options={{
-				title: 'Map',
+				title: 'נושאים חמים',
 				tabBarIcon: ({ color, focused }) => (
-				<Ionicons name={focused ? 'map' : 'map-outline'} color={color} size={24}/>
+				<Ionicons name={focused ? 'flame' : 'flame-outline'} color={color} size={24}/>
 				),
 			}}
 			/>

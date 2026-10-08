@@ -1,7 +1,7 @@
 import { CompanyDetailType, getRanksByCompany, TopicPoles } from '@/state/engagement';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 
 const RIGHT = "#C0392F";
 const LEFT = "#2B5EA7";
@@ -11,14 +11,17 @@ const MIN_RATERS = 5;
 type Props = {
     source: string;
     poles: TopicPoles;
+    /** where it sits decides its margins */
+    style?: StyleProp<ViewStyle>;
 }
 
 /**
- * The selected outlet's position on every topic, shown in place under the map
- * rather than in a modal - so the chart and the breakdown stay visible together
- * and tapping around the chart is a browsing gesture, not a dialog to dismiss.
+ * One outlet's position on every topic: a bar per topic that grows from the
+ * centre towards the side it leans to, faint while it is still an estimate.
+ * Shown in place rather than in a modal, so picking another outlet is a browsing
+ * gesture and not a dialog to dismiss.
  */
-const OutletDetail = ({ source, poles }: Props) => {
+const OutletDetail = ({ source, poles, style }: Props) => {
     const [ranks, setRanks] = useState<CompanyDetailType[] | null>(null);
     const router = useRouter();
 
@@ -30,7 +33,7 @@ const OutletDetail = ({ source, poles }: Props) => {
     }, [source]);
 
     return (
-        <View style={styles.panel}>
+        <View style={[styles.panel, style]}>
             <View style={styles.head}>
                 <View>
                     <Text style={styles.name}>{source}</Text>
