@@ -1,0 +1,94 @@
+# Push to main: deploy Cloud Run (api + ingest) then Expo web to Firebase Hosting.
+# One-time GitHub secrets: see docs/github-actions-setup.md
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT: haezrach-hakatan
+  GCP_REGION: europe-west1
+
+jobs:
+  deploy-server:
+    name: Server (Cloud Run)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      api_url: ${{ steps.api.outputs.api_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Write server keys (never committed)
+        working-directory: server
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEV_KEY: ${{ secrets.DEV_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' \
+            "OPENAI_API_KEY=$OPENAI_API_KEY" \
+            "GEMINI_API_KEY=$GEMINI_API_KEY" \
+            "DEV_KEY=$DEV_KEY" > src/.env
+
+      - name: Deploy to Google Cloud
+        working-directory: server
+        run: ./deploy-gcp.sh "$GCP_PROJECT"
+
+      - id: api
+        name: Resolve API URL
+        run: |
+          url="$(gcloud run services describe news360-api \
+            --project "$GCP_PROJECT" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)')"
+          echo "api_url=$url" >> "$GITHUB_OUTPUT"
+
+  deploy-hosting:
+    name: Web (Firebase Hosting)
+    needs: deploy-server
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Check API health
+        run: |
+          curl -fsS -m 30 "${{ needs.deploy-server.outputs.api_url }}/health"
+
+      - name: Build Expo web
+        working-directory: ui
+        env:
+          EXPO_PUBLIC_URL_BASE: ${{ needs.deploy-server.outputs.api_url }}
+        run: |
+          rm -rf dist
+          npx expo export --platform web --clear
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Deploy Firebase Hosting
+        working-directory: ui
+        run: npx --yes firebase-tools@latest deploy --only hosting --project "$GCP_PROJECT"
