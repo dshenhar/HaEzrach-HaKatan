@@ -563,6 +563,14 @@ def build_feed() -> int:
         items.sort(key=lambda x: x["biasScore"])
         # the face of a story must be an original Hebrew headline, never a translation
         items.sort(key=lambda x: x.get("language", "he") != "he")
+        # The summaries are written in the pass before this one is built, so they
+        # travel with the story and the app shows them without asking for each one.
+        # They ride on the first item only: the app reads a story as a plain list of
+        # its items, and three copies of every summary would double the feed.
+        summaries = {bloc: s["text"] for bloc, s in (story.get("summaries") or {}).items()
+                     if isinstance(s, dict) and s.get("text")}
+        if summaries and items:
+            items[0]["summaries"] = summaries
         feed.append(items)
     db.write_feed(feed)
     return len(feed)

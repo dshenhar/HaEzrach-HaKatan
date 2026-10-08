@@ -14,8 +14,7 @@ import { ViewMode } from './viewModeToggle';
 import { ArticleViewer } from './articleViewer';
 import BlocView from './blocView';
 import CitizenCarousel from './citizenCarousel';
-import Animated, { Easing, FadeIn, FadeOut, LinearTransition, useAnimatedStyle,
-    useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 // A story's change of size glides instead of jumping, the stories below it glide
 // with it, and its expanded part fades in and out. Reanimated's layout animations
@@ -35,9 +34,6 @@ const balance = (name: string): string => {
 
 const GLIDE = LinearTransition.springify()
     .mass(SETTLE.mass).stiffness(SETTLE.stiffness).damping(SETTLE.damping);
-/** how much the story the scroll has settled on swells, and how quickly */
-const LIFT = 0.022;
-const LIFT_MS = 170;
 const FADE_IN = FadeIn.duration(200);
 const FADE_OUT = FadeOut.duration(130);
 
@@ -54,12 +50,8 @@ type Props = {
     /** the feed keeps one story open at a time, so it decides which */
     open: boolean;
     onToggle: () => void;
-    /** the scroll is resting on this story and is about to open it */
-    focused?: boolean;
     /** the feed adds the stories' heights up to know where each one sits */
     onMeasure?: (height: number) => void;
-    /** the scroll opened this one, so the fold that pays for it happens at once */
-    instant?: boolean;
     /** the reader's own side, which turns a blindspot into their blindspot */
     readerBloc?: string | null;
 }
@@ -70,7 +62,7 @@ type Props = {
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                     topics = [], mergeArmed, onArmMerge, open, onToggle,
-                    focused = false, onMeasure, instant = false, readerBloc }: Props) => {
+                    onMeasure, readerBloc }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
@@ -83,15 +75,6 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     // changing size - and an open one, whose content keeps settling - simply resizes
     // while its expanded part fades, and the stories around it still glide. The phone
     // animates real sizes, so there everything glides.
-    // A story under the reader's thumb swells a little while the feed is moving, so
-    // that the scroll coming to rest on it and the story opening read as one gesture
-    // rather than as something the app decided on its own.
-    const lift = useSharedValue(0);
-    useEffect(() => {
-        const want = focused && !open ? 1 : 0;
-        lift.value = still ? want : withTiming(want, { duration: LIFT_MS, easing: Easing.out(Easing.quad) });
-    }, [focused, open, still]);
-    const swell = useAnimatedStyle(() => ({ transform: [{ scale: 1 + lift.value * LIFT }] }));
 
     const wasOpen = useRef(open);
     useEffect(() => { wasOpen.current = open; });
@@ -110,7 +93,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
         });
         return () => cancelAnimationFrame(frame);
     }, [open]);
-    const glide = still || instant ? undefined
+    const glide = still ? undefined
         : Platform.OS !== "web" || (!open && !wasOpen.current) ? GLIDE : undefined;
 
     // when the story broke, not when this particular outlet got to it.
@@ -210,7 +193,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
     return (
         <Animated.View ref={box} layout={glide} style={styles.wrap}
             onLayout={(e) => onMeasure?.(e.nativeEvent.layout.height)}>
-        <Animated.View style={swell}>
+        <>
             {/* The story wears its section as a tab at its top left corner - the same
                 colour the filter strip uses, so the feed can be read by colour before it
                 is read by word. Closed the tab is tucked behind the card and points up;
@@ -301,7 +284,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
 
             {open && (
                 <Animated.View entering={still ? undefined : FADE_IN}
-                    exiting={still || instant ? undefined : FADE_OUT}>
+                    exiting={still ? undefined : FADE_OUT}>
                     {/* the story's own headline above, the blocs' telling of it below */}
                     <View style={[styles.rule, { backgroundColor: t.line }]} />
                     {mode === "bloc" ? (
@@ -332,7 +315,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                 topic={viewerItem?.topic || ''}
             />
             </View>
-        </Animated.View>
+        </>
         </Animated.View>
     );
 };

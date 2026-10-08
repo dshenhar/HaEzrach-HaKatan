@@ -82,6 +82,10 @@ export type NewsItem = {
 	topic: string;
 	link: string;
 	groupId?: string;
+	/** the story's AI summaries, one per bloc and one across them ("all"). The
+	 *  server writes them before the feed is built and puts them on a story's first
+	 *  item only - read them with storySummaries(), not off an item directly. */
+	summaries?: Partial<Record<"right" | "left" | "all", string>>;
 	// no picture field, on purpose: Israeli copyright law carries damages of up to
 	// 100,000 shekels per infringement without proof of loss, and the agencies that
 	// license news photography enforce it. The app has never shown one. A field
@@ -145,6 +149,26 @@ export const fetchArticles = async (setArticles: React.Dispatch<React.SetStateAc
 		setArticles(temp);
 	}
 }
+
+/**
+ * The feed, or null when it could not be had. For the updates the feed asks for on
+ * its own while the reader is in it: a failed one keeps what they are reading,
+ * where fetchArticles would swap it for an error card.
+ */
+export async function loadFeed(): Promise<NewsItem[][] | null> {
+	try {
+		const res = await fetch(`${URL_BASE}/feed`);
+		if (!res.ok) return null;
+		const data = await res.json();
+		return Array.isArray(data) ? data : null;
+	} catch {
+		return null;
+	}
+}
+
+/** a story's summaries, from whichever of its items carries them */
+export const storySummaries = (story: NewsItem[]) =>
+	story.find((item) => item.summaries)?.summaries ?? {};
 
 export const saveProfilePreference = async (key: string, value: string) => {
 	try {

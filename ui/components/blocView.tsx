@@ -1,8 +1,8 @@
-import { NewsItem, Bloc, SitePosition, getBlocSummary } from '@/state/engagement';
+import { NewsItem, Bloc, SitePosition, getBlocSummary, storySummaries } from '@/state/engagement';
 import { track } from '@/state/analytics';
 import { ELEVATION, TYPE } from '@/state/craft';
 import Press from './press';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Data encoding for the bloc mode only. These two are deliberately absent from
@@ -23,10 +23,11 @@ type Props = {
 /**
  * The story as two blocs, side by side: who told it on the right, who on the left.
  *
- * Closed, each side is a list of names - enough to see the shape of the coverage,
- * and short enough that nine outlets no longer run the card off the screen. Touch
- * a side and it opens: every outlet's own headline, and, if it is asked for, a
- * summary of how that side told it.
+ * Each side leads with a line on how that side told it - written by the server
+ * before anyone asked, and there for every reader without a touch. Under it, closed,
+ * a side is a list of names: enough to see the shape of the coverage, and short
+ * enough that nine outlets no longer run the card off the screen. Touch a side and
+ * every outlet's own headline opens under the summary, which stays where it was.
  */
 const BlocView = ({ data, positions, onOpenArticle }: Props) => {
     const { right, left, unaligned } = useMemo(() => {
@@ -40,22 +41,30 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
 
     const storyId = data[0]?.groupId;
     const [openSide, setOpenSide] = useState<Side | null>(null);
-    // undefined: never asked for. null: asked, and none came back.
-    const [summaries, setSummaries] = useState<Partial<Record<Side, string | null>>>({});
-    const [asking, setAsking] = useState<Side | null>(null);
-
-    const askSummary = async (side: Side) => {
-        if (storyId === undefined || asking) return;
-        track("ai_summary_requested", { side });
-        setAsking(side);
-        const text = await getBlocSummary(storyId, side);
-        setSummaries((current) => ({ ...current, [side]: text }));
-        setAsking(null);
-    };
+    // The feed carries the summaries. A story that changed after the last pass can
+    // arrive without one, and then it is fetched here at once, as the side shows -
+    // the server writes it and keeps it for the next reader.
+    const carried = useMemo(() => storySummaries(data), [data]);
+    // undefined: on its way. null: none came back.
+    const [fetched, setFetched] = useState<Partial<Record<Side, string | null>>>({});
+    const needs = (side: Side) => (side === "right" ? right : left).length > 0 && !carried[side];
+    const wantRight = needs("right");
+    const wantLeft = needs("left");
+    useEffect(() => {
+        if (storyId === undefined) return;
+        let live = true;
+        (["right", "left"] as Side[]).forEach((side) => {
+            if (side === "right" ? !wantRight : !wantLeft) return;
+            getBlocSummary(storyId, side).then((text) => {
+                if (live) setFetched((current) => ({ ...current, [side]: text }));
+            });
+        });
+        return () => { live = false; };
+    }, [storyId, wantRight, wantLeft]);
 
     const column = (items: NewsItem[], side: Side, label: string, ink: string, soft: string) => {
         const open = openSide === side;
-        const summary = summaries[side];
+        const summary = carried[side] ?? fetched[side];
         return (
             <Pressable
                 style={[styles.col, { backgroundColor: soft }, open && styles.colOpen]}
@@ -75,21 +84,14 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
                     <Text style={styles.empty}>אף גוף מהצד הזה לא סיקר</Text>
                 ) : (
                     <>
-                        {open && (
-                            summary === undefined ? (
-                                <Press onPress={() => askSummary(side)} accessibilityRole="button">
-                                    <Text style={styles.aiLink}>
-                                        {asking === side ? "מייצר סיכום…" : "ייצר סיכום AI"}
-                                    </Text>
-                                </Press>
-                            ) : summary ? (
-                                <View style={styles.aiBox}>
-                                    <Text style={styles.aiText}>{summary}</Text>
-                                </View>
-                            ) : (
-                                <Text style={styles.aiNone}>אין סיכום לצד הזה כרגע</Text>
-                            )
-                        )}
+                        {summary ? (
+                            <View style={styles.aiBox}>
+                                <Text style={styles.aiLabel}>סיכום AI</Text>
+                                <Text style={styles.aiText}>{summary}</Text>
+                            </View>
+                        ) : summary === undefined ? (
+                            <Text style={styles.aiWaiting}>מכין סיכום…</Text>
+                        ) : null}
 
                         {items.map((item) => (
                             <Press
@@ -156,19 +158,21 @@ const styles = StyleSheet.create({
         fontVariant: ["tabular-nums"],
     },
 
-    aiLink: {
-        fontFamily: "Heebo_500Medium", fontSize: 11.5, color: "#6B7280",
-        textDecorationLine: "underline", textAlign: "right",
-    },
+    // the summary sits on the side's own colour as a white slip, the first thing in
+    // the box: it is how that side told the story, before who told it
     aiBox: {
-        backgroundColor: "#FFFFFF", borderRadius: 8, padding: 9,
+        backgroundColor: "#FFFFFF", borderRadius: 8, padding: 9, gap: 3,
         boxShadow: ELEVATION.rest,
+    },
+    aiLabel: {
+        fontFamily: "Heebo_700Bold", fontSize: 9.5, letterSpacing: 0.3,
+        color: "#9A9A95", textAlign: "right",
     },
     aiText: {
         fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17,
         color: "#111827", textAlign: "right",
     },
-    aiNone: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#9A9A95", textAlign: "right" },
+    aiWaiting: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#9A9A95", textAlign: "right" },
 
     outletBlock: { gap: 2 },
     outletRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },

@@ -10,7 +10,7 @@ import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
 import TourQuestionnaire from "./tourQuestionnaire";
 import RatingSheet from "./ratingSheet";
-import { fetchArticles, getSitePositions, getTopics, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
+import { fetchArticles, getSitePositions, getTopics, loadFeed, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
 import { ELEVATION, glass, TYPE } from "@/state/craft";
@@ -38,18 +38,11 @@ const PAPER = require("../assets/images/paper.webp");
 const MARK_RATIO = 426 / 372;
 /** room under the last story, so the tab bar never sits on a headline */
 const TAIL = 120;
-/**
- * Where on the screen the feed asks "which story is the reader on", as a share of
- * the visible height. A little above the middle: the story that opens grows
- * downwards, and it needs the room below it.
- */
+/** where on the screen the feed asks "which story is the reader on", as a share of
+ *  the visible height, for the drop-off milestones */
 const ANCHOR = 0.32;
-/** a scroll that has not moved for this long has stopped, and the story opens */
-const SETTLE_MS = 150;
-/** how long after a story opens the feed keeps correcting the scroll under it */
-const HOLD_MS = 1200;
-/** a scroll this much further than the feed is holding is the reader's own */
-const LET_GO = 40;
+/** a reader this close to the top is at the top: an update lands without moving them */
+const NEAR_TOP = 120;
 /** the tour the i runs: the anchor's welcome, then each view with its guide */
 // The tour ends with the questionnaire for a reader who has not answered it, and
 // two steps earlier for everyone else.
@@ -165,22 +158,6 @@ export default function NewsFeed() {
 	};
 	const tourStepName = tourStep !== null ? tour[tourStep] : null;
 
-	const reload = useCallback(() => {
-		fetchArticles(setArticles);
-		getSitePositions().then(setPositions);
-	}, []);
-
-	// The feed used to load once and never again, so a phone left open since the
-	// morning kept showing the morning's stories. Two triggers: coming back to the
-	// app after it was in the background, and a timer while it is on screen.
-	useEffect(() => {
-		const sub = AppState.addEventListener("change", (state) => {
-			if (state === "active") reload();
-		});
-		const timer = setInterval(reload, 5 * 60 * 1000);
-		return () => { sub.remove(); clearInterval(timer); };
-	}, [reload]);
-
 	useEffect(() => {
 		getSitePositions().then(setPositions);
 		getProfile().then(setProfile);
@@ -237,54 +214,33 @@ export default function NewsFeed() {
 	}, [filteredArticles, sort, positions, profile, viewMode, blocFilter]);
 
 	// One story open at a time: opening another closes the first, and switching
-	// between the bloc and citizen views closes whatever was open.
+	// between the bloc and citizen views closes whatever was open. A story opens and
+	// closes under the reader's finger and nothing else. The feed used to open
+	// whichever story the scroll came to rest on, and to hold the scroll still while
+	// it grew - which read as the feed opening things and moving on its own.
 	const storyKey = (cluster: NewsItem[], index: number) => String(cluster[0]?.groupId ?? index);
 	const [openStory, setOpenStory] = useState<string | null>(null);
 	useEffect(() => { setOpenStory(null); }, [viewMode]);
 
-	// ---------------------------------------------------------------------------
-	// The scroll decides which story is open.
-	//
-	// Reaching a headline used to cost two touches: one to open the story, one to
-	// open a bloc. The first of them is now the scroll itself - wherever it comes to
-	// rest, that story opens onto its two blocs, and the reader's touch is spent on
-	// the side they actually want to read. A story closed by hand stays closed until
-	// the reader has moved on to another one.
-	//
-	// Nothing here measures where a story sits on the screen directly: react-native-web
-	// reports a layout only when a view changes size, never when it merely moves. The
-	// feed keeps each story's height instead and adds them up, which changes only when
-	// a story opens or folds - exactly when a layout is reported.
-	const [focusKey, setFocusKey] = useState<string | null>(null);
-	const [scrolling, setScrolling] = useState(false);
-	// a story the scroll opened folds the last one away without an animation, so the
-	// list's height changes in one frame and the scroll can be paid back in the same
-	const [autoOpened, setAutoOpened] = useState(false);
+	// How far down the reader has got, for the drop-off milestones. Nothing here
+	// moves the scroll: it adds up the stories' heights to know which one a position
+	// is on, because react-native-web reports a layout only when a view changes size,
+	// never when it merely moves.
 	const order = useRef<string[]>([]);
 	order.current = sortedArticles.map(storyKey);
 	const heights = useRef<Record<string, number>>({});
-	const shut = useRef<Record<string, number>>({});   // what each story measures folded
 	const topH = useRef(0);              // the header and the controls, above the list
 	const viewportH = useRef(0);
 	const scrollY = useRef(0);
-	const focusRef = useRef<string | null>(null);
-	const openRef = useRef<string | null>(null);
-	openRef.current = openStory;
-	const dismissed = useRef<string | null>(null);
-	const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const moving = useRef(false);
-	// while a story opens, the place on the screen the feed is holding still
-	const hold = useRef<{ key: string; offset: number; until: number } | null>(null);
-	// A story the scroll opened and the reader shut two seconds later is the feed
-	// guessing wrong. Opening is only half the measurement; this is the other half.
+	// A story opened and shut again two seconds later is one the reader did not want.
+	// Opening is only half the measurement; this is the other half.
 	const openedAt = useRef(0);
-	const openedHow = useRef("");
 	const deepest = useRef(0);
 
 	const leaveStory = (key: string | null) => {
 		if (!key || !openedAt.current) return;
 		track("story_dismissed", {
-			how_opened: openedHow.current,
+			how_opened: "tap",
 			dwell_s: Math.min(600, Math.round((Date.now() - openedAt.current) / 1000)),
 		});
 		openedAt.current = 0;
@@ -304,17 +260,7 @@ export default function NewsFeed() {
 		};
 	};
 
-	/** where a story starts, counted down the list from under the controls */
-	const topOf = (key: string) => {
-		let y = topH.current;
-		for (const k of order.current) {
-			if (k === key) break;
-			y += heights.current[k] ?? 0;
-		}
-		return y;
-	};
-
-	/** the story the anchor line is crossing, if the list has reached it yet */
+	/** the story a third of the way down the screen, if the list has reached it */
 	const storyAt = (y: number) => {
 		const line = y + viewportH.current * ANCHOR;
 		let top = topH.current;
@@ -326,61 +272,68 @@ export default function NewsFeed() {
 		return null;
 	};
 
-	const measure = useStable((key: string, h: number) => {
-		heights.current[key] = h;
-		if (key !== openRef.current) shut.current[key] = h;
-		// The feed has already moved the scroll by what it expects the fold to save.
-		// This is the second line: if a story ends up a different height than that,
-		// the one the reader stopped on is put back where they left it.
-		const held = hold.current;
-		if (!held) return;
-		if (Date.now() > held.until) { hold.current = null; return; }
-		const want = Math.max(0, topOf(held.key) - held.offset);
-		if (Math.abs(want - scrollY.current) > 1) {
-			scrollRef.current?.scrollTo({ y: want, animated: false });
+	const measure = useStable((key: string, h: number) => { heights.current[key] = h; });
+
+	// An update the feed fetches on its own - the five-minute timer, or the reader
+	// coming back to the app, which on the web is every return from an article's tab -
+	// used to land at once and throw the list back to its top wherever they were
+	// reading. Now it waits for them: at the top it lands straight away, further down
+	// it is a button, and it lands when they press it or scroll back up themselves.
+	const [pending, setPending] = useState<NewsItem[][] | null>(null);
+	const pendingRef = useRef<NewsItem[][] | null>(null);
+	const articlesRef = useRef(articles);
+	useEffect(() => { pendingRef.current = pending; }, [pending]);
+	useEffect(() => { articlesRef.current = articles; }, [articles]);
+
+	const offerUpdate = useStable((next: NewsItem[][]) => {
+		if (JSON.stringify(next) === JSON.stringify(articlesRef.current)) return;
+		if (scrollY.current < NEAR_TOP) {
+			setPending(null);
+			setArticles(next);
+			return;
 		}
+		setPending(next);
 	});
 
-	/** the scroll has come to rest: open whatever it rested on */
-	const rest = useStable(() => {
-		moving.current = false;
-		setScrolling(false);
-		const key = focusRef.current;
-		if (!key || key === openRef.current || key === dismissed.current) return;
-
-		// The story that was open folds away in the same breath. If it sits higher up
-		// the list, the whole feed would ride up past the reader's eyes by however
-		// much it saves, so the scroll pays that back in the same frame - the story
-		// they stopped on does not move at all, it only grows.
-		const gone = openRef.current;
-		const above = gone && gone !== key && topOf(gone) < topOf(key);
-		const saved = above ? (heights.current[gone!] ?? 0) - (shut.current[gone!] ?? 0) : 0;
-
-		leaveStory(openRef.current);
-		track("story_opened", { how: "scroll", ...shapeOf(key) });
-		openedAt.current = Date.now();
-		openedHow.current = "scroll";
-		hold.current = { key, offset: topOf(key) - scrollY.current, until: Date.now() + HOLD_MS };
-		setAutoOpened(true);
-		setOpenStory(key);
-		if (saved > 0) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current - saved), animated: false });
+	const takeUpdate = useStable((toTop: boolean) => {
+		const next = pendingRef.current;
+		if (!next) return;
+		pendingRef.current = null;
+		setPending(null);
+		setArticles(next);
+		if (toTop) scrollRef.current?.scrollTo({ y: 0, animated: true });
 	});
+
+	// The feed used to load once and never again, so a phone left open since the
+	// morning kept showing the morning's stories. Two triggers: coming back to the
+	// app after it was in the background, and a timer while it is on screen. Both
+	// go through offerUpdate, so neither moves a reader who is down the list.
+	const reload = useCallback(() => {
+		loadFeed().then((next) => { if (next) offerUpdate(next); });
+		getSitePositions().then(setPositions);
+	}, [offerUpdate]);
+	useEffect(() => {
+		const sub = AppState.addEventListener("change", (state) => {
+			if (state === "active") reload();
+		});
+		const timer = setInterval(reload, 5 * 60 * 1000);
+		return () => { sub.remove(); clearInterval(timer); };
+	}, [reload]);
+
+	/** how many of the waiting update's stories the reader has not seen at all */
+	const freshCount = useMemo(() => {
+		if (!pending) return 0;
+		const have = new Set(articles.map((story) => String(story[0]?.groupId)));
+		return pending.filter((story) => !have.has(String(story[0]?.groupId))).length;
+	}, [pending, articles]);
 
 	const trackScroll = useStable((y: number) => {
 		scrollY.current = y;
-		// a scroll that is not where the feed is holding the list is the reader's own,
-		// and the feed stops holding it at once
-		const held = hold.current;
-		if (held && Math.abs(y - (topOf(held.key) - held.offset)) > LET_GO) hold.current = null;
-		const key = storyAt(y);
-		if (key !== focusRef.current) {
-			focusRef.current = key;
-			setFocusKey(key);
-			// the story the reader folded away is forgotten once they have left it
-			if (key !== dismissed.current) dismissed.current = null;
-		}
+		// back at the top by their own hand: the update that waited lands now
+		if (y < NEAR_TOP && pendingRef.current) takeUpdate(false);
 		// milestones rather than a number every frame: the shape of a drop-off is all
 		// anyone can act on, and five events a session is enough to draw it
+		const key = storyAt(y);
 		if (key) {
 			const reached = order.current.indexOf(key) + 1;
 			for (const mark of [5, 10, 20, 40]) {
@@ -390,21 +343,14 @@ export default function NewsFeed() {
 				}
 			}
 		}
-		if (!moving.current) { moving.current = true; setScrolling(true); }
-		if (settle.current) clearTimeout(settle.current);
-		settle.current = setTimeout(rest, SETTLE_MS);
 	});
 
 	const toggleStory = useStable((key: string) => {
-		hold.current = null;
-		setAutoOpened(false);
 		setOpenStory((current) => {
 			leaveStory(current);
-			if (current === key) { dismissed.current = key; return null; }
-			dismissed.current = null;
+			if (current === key) return null;
 			track("story_opened", { how: "tap", ...shapeOf(key) });
 			openedAt.current = Date.now();
-			openedHow.current = "tap";
 			return key;
 		});
 	});
@@ -417,7 +363,6 @@ export default function NewsFeed() {
 		measure: (h: number) => measure(key, h),
 	});
 	const armMerge = useStable((id: string | number, title: string) => handleArmMerge(id, title));
-	useEffect(() => () => { if (settle.current) clearTimeout(settle.current); }, []);
 
 	// first tap arms a story, second tap picks the one to fold it into
 	const handleArmMerge = async (clusterId: string | number, title: string) => {
@@ -464,6 +409,7 @@ export default function NewsFeed() {
 	const onRefresh = () => {
 		track("feed_refreshed");
 		setRefreshing(true);
+		setPending(null);
 		fetchArticles(setArticles);
 		setTimeout(() => {
 			setRefreshing(false);
@@ -479,8 +425,13 @@ export default function NewsFeed() {
 		setFilteredArticles(selectedCategories.includes("הכל")
 			? articles
 			: articles.filter((story) => selectedCategories.includes(story[0].section)));
-		scrollRef.current?.scrollTo({ y: 0, animated: true })
 	}, [selectedCategories, articles])
+
+	// A new choice of sections starts the list from its top. New data does not: it
+	// used to, so every update threw the reader back up from wherever they were.
+	useEffect(() => {
+		scrollRef.current?.scrollTo({ y: 0, animated: true });
+	}, [selectedCategories])
 
 	return (
 		<SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: t.bg }]}>
@@ -565,8 +516,6 @@ export default function NewsFeed() {
 						mergeArmed={mergeSource?.id === cluster[0]?.groupId}
 						onArmMerge={armMerge}
 						open={openStory === key}
-						focused={scrolling && focusKey === key && openStory !== key}
-						instant={autoOpened}
 						readerBloc={profile?.bloc}
 						onMeasure={bind.measure}
 						onToggle={bind.toggle} />
@@ -576,6 +525,25 @@ export default function NewsFeed() {
 				</View>
 			</ScrollView>
 			</ScrollLock.Provider>
+
+			{/* an update waiting for the reader: it lands when they want it */}
+			{pending && (
+				<View style={styles.freshRow} pointerEvents="box-none">
+					<TouchableOpacity
+						style={styles.fresh}
+						onPress={() => { track("feed_update_taken", { fresh: freshCount }); takeUpdate(true); }}
+						accessibilityRole="button"
+						accessibilityLabel="הצגת העדכון וחזרה לראש הפיד"
+						hitSlop={8}
+					>
+						<Ionicons name="arrow-up" size={14} color={t.text} />
+						<Text style={[styles.freshText, { color: t.text }]}>
+							{freshCount > 1 ? `${freshCount} סיפורים חדשים`
+								: freshCount === 1 ? "סיפור חדש" : "הפיד התעדכן"}
+						</Text>
+					</TouchableOpacity>
+				</View>
+			)}
 
 			{/* the way back, once the day is long: opposite the accessibility button */}
 			{deep && (
@@ -634,6 +602,17 @@ const styles = StyleSheet.create({
 		...glass(false), borderWidth: 1,
 		boxShadow: ELEVATION.float, zIndex: 30,
 	},
+
+	freshRow: {
+		position: "absolute", top: 10, left: 0, right: 0,
+		alignItems: "center", zIndex: 31,
+	},
+	fresh: {
+		flexDirection: "row-reverse", alignItems: "center", gap: 6,
+		paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
+		...glass(false), borderWidth: 1, boxShadow: ELEVATION.float,
+	},
+	freshText: { fontFamily: "Heebo_700Bold", fontSize: 12.5 },
 
 	container: { 
 		flex: 1, 

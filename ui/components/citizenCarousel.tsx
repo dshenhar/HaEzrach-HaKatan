@@ -1,5 +1,5 @@
 import { ELEVATION } from '@/state/craft';
-import { getBlocSummary, NewsItem, SitePosition } from '@/state/engagement';
+import { getBlocSummary, NewsItem, SitePosition, storySummaries } from '@/state/engagement';
 import { track } from '@/state/analytics';
 import Press from './press';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -65,14 +65,17 @@ const CitizenCarousel = ({ data, positions, onOpenArticle }: Props) => {
     };
 
     // one summary of the whole story across every outlet, since this view has no blocs
+    // - it comes with the feed, and is fetched only for a story that arrived without it
     const clusterId = data[0]?.groupId;
-    const [summary, setSummary] = useState<string | null>(null);
+    const carried = storySummaries(data).all;
+    const [fetched, setFetched] = useState<string | null>(null);
     useEffect(() => {
-        if (clusterId === undefined) return;
+        if (clusterId === undefined || carried) return;
         let live = true;
-        getBlocSummary(clusterId, "all").then((text) => live && setSummary(text));
+        getBlocSummary(clusterId, "all").then((text) => live && setFetched(text));
         return () => { live = false; };
-    }, [clusterId]);
+    }, [clusterId, carried]);
+    const summary = carried ?? fetched;
 
     // No labels here, but the order is not arbitrary: the rail runs along the
     // spectrum, so a right-leaning outlet sits on the right where the reader
