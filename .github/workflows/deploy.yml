@@ -1,94 +1,93 @@
-# Push to main: deploy Cloud Run (api + ingest) then Expo web to Firebase Hosting.
-# One-time GitHub secrets: see docs/github-actions-setup.md
+# Push to main: publish what changed - the server (api + ingest job) when server/
+# changed, the web app when ui/ changed - with the same ./deploy.sh a person or a
+# Claude Code session runs by hand.
+#
+# Code only. The keys stay where they are, in Secret Manager, and the timers and
+# the database settings as they are: those belong to server/deploy-gcp.sh, which
+# the owner runs. So the only secret here is the deploy account's key, and that
+# account cannot change who has access to the project.
+#
+# One-time setup: docs/github-actions-setup.md
 
 name: Deploy
 
 on:
   push:
     branches: [main]
+  # Actions -> Deploy -> Run workflow: publishes both, whatever changed
+  workflow_dispatch:
 
 concurrency:
   group: deploy-main
   cancel-in-progress: false
 
-env:
-  GCP_PROJECT: haezrach-hakatan
-  GCP_REGION: europe-west1
+permissions:
+  contents: read
 
 jobs:
-  deploy-server:
-    name: Server (Cloud Run)
+  deploy:
+    name: Publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      api_url: ${{ steps.api.outputs.api_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # the commit main was on before this push, to see what the push changed
+          fetch-depth: 0
+
+      - name: What changed
+        id: changed
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          both() { printf 'server=true\nweb=true\n' >> "$GITHUB_OUTPUT"; }
+          # a manual run, or a push whose previous commit is not known (a new
+          # branch, a force push): publish both
+          if [ "$EVENT" != push ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "publishing both"; both; exit 0
+          fi
+          files="$(git diff --name-only "$BEFORE" HEAD)"
+          printf '%s\n' "$files"
+          has() { grep -qE "$1" <<< "$files" && echo true || echo false; }
+          # a change to how publishing works is tried on both
+          if [ "$(has '^(deploy\.sh|scripts/|\.github/workflows/)')" = true ]; then both; exit 0; fi
+          {
+            echo "server=$(has '^server/(src/|cloudbuild\.yaml)')"
+            echo "web=$(has '^ui/')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: The deploy key is set
+        if: steps.changed.outputs.server == 'true' || steps.changed.outputs.web == 'true'
+        env:
+          KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          [ -n "$KEY" ] || {
+            echo "::error::The repository secret GCP_SERVICE_ACCOUNT_JSON is not set - see docs/github-actions-setup.md"
+            exit 1
+          }
 
       - uses: google-github-actions/auth@v2
+        if: steps.changed.outputs.server == 'true' || steps.changed.outputs.web == 'true'
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
       - uses: google-github-actions/setup-gcloud@v2
+        if: steps.changed.outputs.server == 'true'
 
-      - name: Write server keys (never committed)
-        working-directory: server
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          DEV_KEY: ${{ secrets.DEV_KEY }}
-        run: |
-          umask 077
-          printf '%s\n' \
-            "OPENAI_API_KEY=$OPENAI_API_KEY" \
-            "GEMINI_API_KEY=$GEMINI_API_KEY" \
-            "DEV_KEY=$DEV_KEY" > src/.env
-
-      - name: Deploy to Google Cloud
-        working-directory: server
-        run: ./deploy-gcp.sh "$GCP_PROJECT"
-
-      - id: api
-        name: Resolve API URL
-        run: |
-          url="$(gcloud run services describe news360-api \
-            --project "$GCP_PROJECT" \
-            --region "$GCP_REGION" \
-            --format='value(status.url)')"
-          echo "api_url=$url" >> "$GITHUB_OUTPUT"
-
-  deploy-hosting:
-    name: Web (Firebase Hosting)
-    needs: deploy-server
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
+      - name: Server - the api and the ingest job
+        if: steps.changed.outputs.server == 'true'
+        run: ./deploy.sh server
 
       - uses: actions/setup-node@v4
+        if: steps.changed.outputs.web == 'true'
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
-      - name: Check API health
-        run: |
-          curl -fsS -m 30 "${{ needs.deploy-server.outputs.api_url }}/health"
-
-      - name: Build Expo web
-        working-directory: ui
-        env:
-          EXPO_PUBLIC_URL_BASE: ${{ needs.deploy-server.outputs.api_url }}
-        run: |
-          rm -rf dist
-          npx expo export --platform web --clear
-
-      - uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-
-      - name: Deploy Firebase Hosting
-        working-directory: ui
-        run: npx --yes firebase-tools@latest deploy --only hosting --project "$GCP_PROJECT"
+      # installs ui/'s packages, checks the api answers, builds, and publishes
+      # (ui/deploy-firebase.sh); firebase-tools signs in with the key the auth
+      # step left in GOOGLE_APPLICATION_CREDENTIALS
+      - name: Web - Firebase Hosting
+        if: steps.changed.outputs.web == 'true'
+        run: ./deploy.sh web

@@ -11,7 +11,15 @@ https://haezrach-hakatan.web.app ([ui/README.md](ui/README.md)).
 
 The owner expects a change to be in production when the work is reported done,
 not only merged. Work on a branch, open a pull request, merge it into `main`
-with a rebase, and then publish what changed:
+with a rebase, and then publish what changed.
+
+A push to `main` runs the Deploy workflow (`.github/workflows/deploy.yml`), which
+runs `./deploy.sh server` and/or `./deploy.sh web` for whatever the push changed.
+After merging, find the Deploy run for the merged commit in GitHub Actions and
+wait for it. If it published, that is the deploy - do not publish again. If it
+failed, or did not run (the `GCP_SERVICE_ACCOUNT_JSON` secret not yet set:
+[docs/github-actions-setup.md](docs/github-actions-setup.md)), say so and
+publish by hand:
 
     ./deploy.sh server   something under server/src changed
     ./deploy.sh web      something under ui/ changed
