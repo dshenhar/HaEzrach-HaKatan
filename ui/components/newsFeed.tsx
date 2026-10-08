@@ -15,6 +15,7 @@ import { ELEVATION, glass, TYPE } from "@/state/craft";
 import { blindTo } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { useArrivalTour } from "@/state/tour";
+import { onStoryRequest, takeStoryRequest } from "@/state/feedFocus";
 import { ScrollLock } from "@/state/scrollLock";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
@@ -363,6 +364,60 @@ export default function NewsFeed() {
 			return key;
 		});
 	});
+
+	// A hot topic's link asks for a story: it opens here and is brought into view.
+	// The request waits for the stories to load, reloads them once if the story is
+	// not among them, and clears the filters if they are what hides it.
+	const [wanted, setWanted] = useState<string | null>(() => takeStoryRequest());
+	useEffect(() => onStoryRequest(() => setWanted(takeStoryRequest())), []);
+	const reloadedFor = useRef<string | null>(null);
+	const bringTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+	useEffect(() => () => bringTimers.current.forEach(clearTimeout), []);
+	const bringIntoView = useStable((key: string) => {
+		let y = topH.current;
+		for (const k of order.current) {
+			if (k === key) break;
+			y += heights.current[k] ?? 0;
+		}
+		// the story's section tab stands above its card, so it is left room
+		scrollRef.current?.scrollTo({ y: Math.max(0, y - 34), animated: true });
+	});
+	const serveRequest = useStable(() => {
+		if (!wanted || articles.length === 0) return;
+		const has = (list: NewsItem[][]) => list.some((story) => String(story[0]?.groupId) === wanted);
+		if (!has(articles)) {
+			if (reloadedFor.current === wanted) { setWanted(null); return; }
+			reloadedFor.current = wanted;
+			loadFeed().then((next) => {
+				if (!next) { setWanted(null); return; }
+				pendingRef.current = null;
+				setPending(null);
+				setArticles(next);
+			});
+			return;
+		}
+		if (!has(sortedArticles)) {
+			setSelectedCategories(["הכל"]);
+			setBlocFilter("all");
+			return;
+		}
+		const key = wanted;
+		setWanted(null);
+		setOpenStory((current) => {
+			if (current !== key) {
+				leaveStory(current);
+				track("story_opened", { how: "hot_topic", ...shapeOf(key) });
+				openedAt.current = Date.now();
+			}
+			return key;
+		});
+		// after the move to the feed's tab, and after the jump to the top that a
+		// change of filters makes; the second is for a slow transition
+		bringTimers.current.push(
+			setTimeout(() => bringIntoView(key), 450),
+			setTimeout(() => bringIntoView(key), 1000));
+	});
+	useEffect(() => { serveRequest(); }, [wanted, articles, sortedArticles, serveRequest]);
 
 	// one lasting pair of callbacks per story, so that scrolling past one story does
 	// not re-render the fifty others

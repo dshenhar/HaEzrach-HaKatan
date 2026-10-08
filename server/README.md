@@ -5,7 +5,7 @@ hour, groups the coverage into stories, works out what each story is about, and
 serves the feed and the map the app draws.
 
 ```
-scrape  ->  embed  ->  group into stories  ->  tag  ->  summarise  ->  feed
+scrape  ->  embed  ->  group into stories  ->  tag  ->  summarise  ->  feed  ->  hot topics
 ```
 
 - **scrape** `worker/scraping.py` — the feeds, the scrapers for the sites without
@@ -18,6 +18,12 @@ scrape  ->  embed  ->  group into stories  ->  tag  ->  summarise  ->  feed
 - **positions** `store/learning.py` — where an outlet stands on an issue, learned
   from readers' ratings against a benchmark, and guarded so a burst of ratings
   cannot vote the map into nonsense.
+- **hot topics** `worker/hot_topics.py` — about fifty affairs the right and the
+  left are split on, each written from the web by gpt-6.1-sol: what happened, how
+  each side covers it, sees it and why, and how burning it is. Every pass matches
+  the feed's stories to them with gpt-6-luna; once a month each is rewritten and
+  the pool is mailed to the owner. Its commands (seed, add, drop, rewrite,
+  relevance, report, table) run in the ingest image with `run-job.sh`.
 - **serve** `app/server.py` — the api the app calls.
 
 Everything it needs to run, and every command worth knowing, is in
