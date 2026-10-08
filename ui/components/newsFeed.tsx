@@ -42,8 +42,12 @@ const TAIL = 120;
 const ANCHOR = 0.32;
 /** a reader this close to the top is at the top: an update lands without moving them */
 const NEAR_TOP = 120;
-/** a scroll that has not moved for this long has stopped, and the story under it settles */
-const SETTLE_MS = 150;
+/**
+ * How long the story a scroll stopped on stays swollen before it settles. A phone's
+ * flick crosses a dozen stories too fast for any of them to be seen growing, and a
+ * story that settled the moment the scroll stopped was never seen growing at all.
+ */
+const LINGER_MS = 700;
 /** the tour the i runs: the anchor's welcome, the man on reading a story by bloc,
  *  and the woman on the questionnaire */
 const TOUR = ["welcome", "bloc", "questionnaire"] as const;
@@ -336,7 +340,7 @@ export default function NewsFeed() {
 		}
 		if (!moving.current) { moving.current = true; setScrolling(true); }
 		if (settle.current) clearTimeout(settle.current);
-		settle.current = setTimeout(() => { moving.current = false; setScrolling(false); }, SETTLE_MS);
+		settle.current = setTimeout(() => { moving.current = false; setScrolling(false); }, LINGER_MS);
 		// milestones rather than a number every frame: the shape of a drop-off is all
 		// anyone can act on, and five events a session is enough to draw it
 		if (key) {

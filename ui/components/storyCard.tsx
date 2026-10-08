@@ -33,8 +33,9 @@ const balance = (name: string): string => {
 
 const GLIDE = LinearTransition.springify()
     .mass(SETTLE.mass).stiffness(SETTLE.stiffness).damping(SETTLE.damping);
-/** how much the story under the reader's thumb swells while the feed moves, and how quickly */
-const LIFT = 0.022;
+/** how much the story under the reader's thumb swells while the feed moves, and how quickly -
+ *  3% of a phone-wide card is about 11 points, which reads as a lift and not a jump */
+const LIFT = 0.03;
 const LIFT_MS = 170;
 const FADE_IN = FadeIn.duration(200);
 const FADE_OUT = FadeOut.duration(130);
