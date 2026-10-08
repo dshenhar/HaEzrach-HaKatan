@@ -13,10 +13,12 @@ export default function TabLayout() {
 	const insets = useSafeAreaInsets();
 	// iOS PWA without viewport-fit=cover (and briefly after adding it) reads 0 here;
 	// use the usual home-indicator inset so the icons clear the bar.
+	const iosWeb = Platform.OS === 'web' && isIos();
 	const bottomInset = insets.bottom > 0
 		? insets.bottom
-		: Platform.OS === 'web' && isIos() ? 34 : 0;
-	const bottomPad = Math.max(bottomInset - 14, 0);
+		: iosWeb ? 38 : 0;
+	// iOS PWA: keep more of the safe-area inset so the icons sit clearly above the home bar.
+	const bottomPad = Math.max(bottomInset - (iosWeb ? 4 : 14), 0);
 	const t = useTheme();
 	const dark = t.name === "negative";
 	// The bar is a translucent layer with the feed running underneath it rather
