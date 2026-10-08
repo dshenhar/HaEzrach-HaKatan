@@ -19,6 +19,7 @@ export default function TabLayout() {
 		: iosWeb ? 38 : 0;
 	// iOS PWA: keep more of the safe-area inset so the icons sit clearly above the home bar.
 	const bottomPad = Math.max(bottomInset - (iosWeb ? 4 : 14), 0);
+	const tabIconSize = Platform.OS === 'web' ? 28 : 24;
 	const t = useTheme();
 	const dark = t.name === "negative";
 	// The bar is a translucent layer with the feed running underneath it rather
@@ -62,7 +63,7 @@ export default function TabLayout() {
 			options={{
 				title: 'נושאים חמים',
 				tabBarIcon: ({ color, focused }) => (
-				<Ionicons name={focused ? 'flame' : 'flame-outline'} color={color} size={24}/>
+				<Ionicons name={focused ? 'flame' : 'flame-outline'} color={color} size={tabIconSize}/>
 				),
 			}}
 			/>
@@ -71,7 +72,7 @@ export default function TabLayout() {
 			options={{
 				title: '360',
 				tabBarIcon: ({ color, focused }) => (
-				<Ionicons name={focused ? 'home-sharp' : 'home-outline'} color={color} size={24} />
+				<Ionicons name={focused ? 'home-sharp' : 'home-outline'} color={color} size={tabIconSize} />
 				),
 			}}
 			/>
@@ -80,7 +81,7 @@ export default function TabLayout() {
 			options={{
 				title: 'Analytics',
 				tabBarIcon: ({ color, focused }) => (
-				<Ionicons name={focused ? 'bar-chart' : 'bar-chart-outline'} color={color} size={24} />
+				<Ionicons name={focused ? 'bar-chart' : 'bar-chart-outline'} color={color} size={tabIconSize} />
 				),
 			}}
 			/>
