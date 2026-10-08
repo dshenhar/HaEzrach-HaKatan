@@ -1,4 +1,5 @@
 import SwipeTabs from '@/components/swipeTabs';
+import OutletPositions from '@/components/outletPositions';
 import { fetchArticles, getSitePositions, NewsItem, SitePosition } from "@/state/engagement";
 import { buildInsights, Insights } from "@/state/insights";
 import { getProfile, ReaderProfile } from "@/state/profile";
@@ -51,11 +52,13 @@ export default function AnalyticsPage() {
 		setRefreshing(false);
 	};
 
-	// Nothing on this page means anything without the questionnaire: every number
-	// here is "compared with what you said you think".
+	// Nothing personal on this page means anything without the questionnaire: every
+	// number here is "compared with what you said you think". The outlets' own
+	// positions are not about the reader, so they are there either way.
 	if (!profile) {
 		return (
 			<SafeAreaView style={styles.container}>
+				<ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 				<View style={styles.invite}>
 					<Text style={styles.inviteTitle}>כאן יופיעו הנתונים שלכם</Text>
 					<Text style={styles.inviteBody}>
@@ -86,6 +89,8 @@ export default function AnalyticsPage() {
 						</Text>
 					)}
 				</View>
+				<OutletPositions />
+				</ScrollView>
 			</SafeAreaView>
 		);
 	}
@@ -280,6 +285,9 @@ export default function AnalyticsPage() {
 							</View>
 						))}
 					</View>
+
+					{/* after everything that is about the reader: where the outlets stand */}
+					<OutletPositions />
 				</ScrollView>
 			</SafeAreaView>
 		</SwipeTabs>
@@ -287,7 +295,8 @@ export default function AnalyticsPage() {
 }
 
 const styles = StyleSheet.create({
-	invite: { padding: 24, paddingTop: 48, gap: 12 },
+	// inside the page's own padding, which adds the other 16 at the sides
+	invite: { paddingHorizontal: 8, paddingTop: 32, paddingBottom: 12, gap: 12 },
 	inviteTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 22, color: "#111827", textAlign: "right" },
 	inviteBody: {
 		fontFamily: "Heebo_400Regular", fontSize: 14, lineHeight: 21,
