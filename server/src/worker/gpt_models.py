@@ -4,6 +4,8 @@
               column stays as it is. Stories are grouped by these.
   topics      gpt-5.6-luna, answering in a JSON schema whose only allowed values
               are the topic names, so it cannot invent a topic or misspell one.
+              The same model decides whether two stories the embeddings put
+              close together are one event (same_event).
 
 They replace two local models - paraphrase-multilingual-mpnet-base-v2 and a
 zero-shot mDeBERTa - which needed torch, a 1.5GB image and 1.2GB of RAM on the
@@ -147,6 +149,52 @@ def classify(items: list[tuple[int, str]], topics: dict[str, str],
                 out[row["id"]] = {"section": row.get("section"),
                                   "topic": None if topic == OTHER else topic}
     return out
+
+
+SAME_EVENT = "\n".join([
+    "לפניך זוגות של סיפורי חדשות מאתרים ישראליים מהשעות האחרונות. כל סיפור מוצג בכותרות "
+    "של הכתבות שבו, a ו-b.",
+    "לכל זוג ענה same=true רק אם שני הסיפורים מדווחים על אותו אירוע ממש: אותו מקרה, אותה "
+    "הודעה, אותו פסק דין או אותה החלטה - גם אם הניסוח, הזווית ומידת הפירוט שונים.",
+    "ענה same=false כשהם רק חולקים נושא, אדם או מקום: שתי תקיפות שונות, שני משפטים שונים, "
+    "שתי הצהרות שונות של אותו פוליטיקאי.",
+    "כשיש ספק, ענה false.",
+])
+
+
+def same_event(pairs: list[tuple[list[str], list[str]]]) -> list[bool]:
+    """Whether each pair of stories, each given as its headlines, is one event told twice.
+
+    Asked only about pairs the embeddings already put close together, so the model
+    is the one who tells "the same raid" from "another raid by the same unit". A
+    pair it leaves out of its answer counts as no.
+    """
+    if not pairs:
+        return []
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["items"],
+        "properties": {"items": {"type": "array", "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["id", "same"],
+            "properties": {"id": {"type": "integer"}, "same": {"type": "boolean"}},
+        }}},
+    }
+    payload = json.dumps([{"id": i, "a": a, "b": b} for i, (a, b) in enumerate(pairs)],
+                         ensure_ascii=False)
+    reply = _post("/chat/completions", {
+        "model": TAG_MODEL,
+        "reasoning_effort": TAG_EFFORT,
+        "messages": [{"role": "developer", "content": SAME_EVENT},
+                     {"role": "user", "content": payload}],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "same_event", "strict": True, "schema": schema}},
+    })
+    content = reply["choices"][0]["message"].get("content") or "{}"
+    same = {row.get("id") for row in json.loads(content).get("items", []) if row.get("same") is True}
+    return [i in same for i in range(len(pairs))]
 
 
 def translate(header: str, subheader: str) -> tuple[str, str] | None:

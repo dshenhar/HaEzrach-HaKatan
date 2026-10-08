@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 
-from gpt_models import OTHER, TAG_MODEL, OpenAIUnavailable, classify, embed
+from gpt_models import OTHER, TAG_MODEL, OpenAIUnavailable, classify, embed, same_event
 from scraping import article_key, fetch_entries, has_arabic, parse_entry, translate_to_hebrew
 from store import db
 from store.positions import overall, positions_for_topic
@@ -37,6 +37,14 @@ GENERAL_TOPIC = db.GENERAL_TOPIC
 SIMILARITY_THRESHOLD = 0.70
 SAME_ARTICLE_THRESHOLD = 0.97
 TIME_WINDOW_HOURS = 12
+# An article that opens a story by falling just short of the threshold leaves the
+# event split in two for good, because nothing compared stories to each other: Kan
+# and Haredim 10 in one, Srugim and Davar in another, one IDF statement between
+# them. After placing, stories this close are put to the model as a pair, and only
+# the ones it calls the same event are joined. The floor only decides what is
+# worth asking about - the model decides - and the cap bounds one call a cycle.
+SPLIT_FLOOR = 0.55
+SPLIT_MAX_PAIRS = 40
 # a cap on one cycle, so the first run after a long gap stays bounded; newest kept
 MAX_PER_CYCLE = 250
 
@@ -197,6 +205,8 @@ class Stories:
     def __init__(self, stories: list[dict]):
         self.by_id = {s["id"]: s for s in stories}
         self.dirty: set = set()
+        # stories folded into another one in this pass, to delete when it is written
+        self.gone: set = set()
         self.centroids = {s["id"]: db.unpack(s.get("centroid")) for s in stories}
         self.vectors = {}
         for story in stories:
@@ -263,13 +273,113 @@ class Stories:
         article["story_id"] = story["id"]
         story["articles"].append(article)
         story["last_updated"] = max(story["last_updated"], article["created_at"])
+        self.vectors[article["id"]] = vector
+        self._recentre(story)
+
+    def _recentre(self, story: dict) -> None:
         members = [self.vectors[a["id"]] for a in story["articles"]
                    if self.vectors.get(a["id"]) is not None]
-        centroid = np.mean(members, axis=0) if members else vector
-        self.centroids[story["id"]] = centroid
-        story["centroid"] = db.pack(centroid)
-        self.vectors[article["id"]] = vector
+        if members:
+            centroid = np.mean(members, axis=0)
+            self.centroids[story["id"]] = centroid
+            story["centroid"] = db.pack(centroid)
         self.dirty.add(story["id"])
+
+    def splits(self, floor: float, limit: int) -> list[tuple[float, object, object]]:
+        """Pairs of stories close enough to be one event told twice, closest first.
+
+        Only pairs with a story touched in this pass: every pair is looked at in the
+        pass its later story opens, and again whenever either one changes, so
+        nothing is asked twice about two stories that have not moved."""
+        live = [sid for sid, story in self.by_id.items()
+                if story.get("articles") and self.centroids.get(sid) is not None]
+        unit = {sid: self.centroids[sid] / (np.linalg.norm(self.centroids[sid]) or 1.0)
+                for sid in live}
+        window = timedelta(hours=TIME_WINDOW_HOURS)
+        found = []
+        for i, a in enumerate(live):
+            for b in live[i + 1:]:
+                if a not in self.dirty and b not in self.dirty:
+                    continue
+                if abs(self.by_id[a]["created_at"] - self.by_id[b]["created_at"]) > window:
+                    continue
+                score = float(unit[a] @ unit[b])
+                if score >= floor:
+                    found.append((score, a, b))
+        # by score alone: an id is a number for a story opened in this pass and a
+        # string for one read back from Firestore, and the two do not compare
+        found.sort(key=lambda pair: pair[0], reverse=True)
+        return found[:limit]
+
+    def merge(self, keep_id, other_id) -> list[dict]:
+        """Fold one story into another. An outlet the kept story already has stays
+        behind with its article, and the other story goes only once it is empty.
+        Returns the articles that moved."""
+        keep, other = self.by_id[keep_id], self.by_id[other_id]
+        taken = {str(a["site_id"]) for a in keep["articles"]}
+        moving = [a for a in other["articles"] if str(a["site_id"]) not in taken]
+        if not moving:
+            return []
+        for article in moving:
+            article["story_id"] = keep_id
+        keep["articles"] += moving
+        keep["created_at"] = min(keep["created_at"], other["created_at"])
+        keep["last_updated"] = max(keep["last_updated"], other["last_updated"])
+        self._recentre(keep)
+        other["articles"] = [a for a in other["articles"] if str(a["site_id"]) in taken]
+        if other["articles"]:
+            self._recentre(other)
+        else:
+            del self.by_id[other_id]
+            self.centroids.pop(other_id, None)
+            self.dirty.discard(other_id)
+            self.gone.add(other_id)
+        return moving
+
+
+def join_splits(stories: Stories) -> list[dict]:
+    """Join the stories that are one event told twice. Returns the articles that moved.
+
+    The model is asked once, about every close pair at the same time. Pairs are
+    taken closest first, and a story already folded into another is followed to
+    where it went, so three pieces of one event end up as one story."""
+    pairs = stories.splits(SPLIT_FLOOR, SPLIT_MAX_PAIRS)
+    if not pairs:
+        return []
+
+    def headlines(story_id):
+        return [a["header"] for a in stories.by_id[story_id]["articles"]][:4]
+
+    try:
+        verdicts = same_event([(headlines(a), headlines(b)) for _, a, b in pairs])
+    except OpenAIUnavailable as err:
+        print(f"  ! split stories not checked in this pass: {err}")
+        return []
+
+    went_to: dict = {}
+
+    def home(story_id):
+        while story_id in went_to:
+            story_id = went_to[story_id]
+        return story_id
+
+    moved = []
+    for (score, a, b), same in zip(pairs, verdicts):
+        a, b = home(a), home(b)
+        if not same or a == b:
+            continue
+        # the bigger story keeps its id, and the older one when they are even
+        keep, other = sorted((a, b), key=lambda s: (-len(stories.by_id[s]["articles"]),
+                                                    stories.by_id[s]["created_at"]))
+        kept_headline = stories.by_id[keep]["articles"][0]["header"]
+        moving = stories.merge(keep, other)
+        if not moving:
+            continue
+        if other in stories.gone:
+            went_to[other] = keep
+        moved += moving
+        print(f"  joined ({score:.2f}) {kept_headline[:50]}  <-  {moving[0]['header'][:50]}")
+    return moved
 
 
 # ---- topics ------------------------------------------------------------------
@@ -587,6 +697,8 @@ def cycle() -> None:
         if outcome != "duplicate":
             placed.append(article)
 
+    moved = join_splits(stories)
+
     # Every article is tagged, not just the ones that reach the feed: at a fraction
     # of a cent a cycle it costs nothing, and the benchmark needs an outlet's
     # single-source coverage too.
@@ -608,6 +720,15 @@ def cycle() -> None:
         writer.story(story)
     for article in placed:
         writer.article({k: v for k, v in article.items() if k != "v"})
+    # an article stored in an earlier pass moved with its story; one placed in this
+    # pass already carries its new story above
+    new = {article["id"] for article in placed}
+    for article in moved:
+        if article["id"] not in new:
+            writer.set(db.client().collection("articles").document(str(article["id"])),
+                       {"story_id": article["story_id"]}, merge=True)
+    for story_id in stories.gone:
+        writer.delete(db.client().collection("stories").document(str(story_id)))
     writer.flush()
     remember(fresh, seen)
     note_health(sites, newest)
@@ -615,6 +736,8 @@ def cycle() -> None:
 
     print(f"\nstored   {len(placed)} (new story {stats['new']}, joined {stats['joined']}, "
           f"replaced {stats['replaced']}), {stats['duplicate']} duplicates")
+    print(f"splits   {len(moved)} articles moved into the story they belong to, "
+          f"{len(stories.gone)} stories folded away")
     print(f"topics   {stats['from_corrections']} from human corrections")
     print(f"stories  {len(stories.dirty)} written, {writer.written} documents")
     print(f"took     {(datetime.now() - started).seconds}s")
