@@ -12,6 +12,7 @@ import IntroSplash from '@/components/introSplash';
 import Onboarding from '@/components/onboarding';
 import QuestionnaireInvite from '@/components/questionnaireInvite';
 import { QuestionnaireContext } from '@/state/questionnaire';
+import { ArrivalTour } from '@/state/tour';
 import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@/state/access';
 import { getProfile, isNudgeOff, markWelcomed, ReaderProfile, stopNudging, wasWelcomed } from '@/state/profile';
 import { ThemeProvider, useTheme } from '@/state/theme';
@@ -45,6 +46,8 @@ export default function RootLayout() {
 	// the questionnaire is an overlay now, opened from wherever it is offered
 	const [asking, setAsking] = useState(false);
 	const [invite, setInvite] = useState<"welcome" | "reminder" | null>(null);
+	// a first visit: the feed opens on the tour, which ends with the questionnaire
+	const [arrival, setArrival] = useState(false);
 
 	useEffect(() => {
 		Promise.all([getProfile(), wasWelcomed(), isNudgeOff()]).then(([p, welcomed, quiet]) => {
@@ -52,7 +55,7 @@ export default function RootLayout() {
 			setProfileChecked(true);
 			if (p) return;                       // answered already: nothing to offer
 			if (!welcomed) {
-				setInvite("welcome");
+				setArrival(true);
 				markWelcomed();
 			} else if (!quiet) {
 				setInvite("reminder");
@@ -99,7 +102,10 @@ export default function RootLayout() {
 	// and fades into it
 	const shell = (
 		<>
-			{app}
+			<ArrivalTour.Provider
+				value={{ due: arrival && !introOn && !asking, done: () => setArrival(false) }}>
+				{app}
+			</ArrivalTour.Provider>
 			{introOn && <IntroSplash onDone={() => setIntroOn(false)} />}
 			{/* above everything, on every screen, as the standard expects */}
 			<AccessibilityBar />

@@ -31,6 +31,17 @@ project's own Google Cloud, which is the same project Firebase shows:
 
 ## Deploying
 
+For a change of code - the everyday case - from the repository's root:
+
+```bash
+./deploy.sh server     # the ingest job and the api
+./deploy.sh web        # the web app on Firebase Hosting
+```
+
+It builds and publishes and touches nothing else, and it is what a Claude Code
+session runs (see [CLAUDE.md](../CLAUDE.md)). The full deploy below is for the
+first time, or for changing keys, timers or the database:
+
 ```bash
 ./deploy-gcp.sh haezrach-hakatan
 ```

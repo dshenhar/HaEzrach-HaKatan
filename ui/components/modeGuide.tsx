@@ -2,11 +2,11 @@ import { ELEVATION } from '@/state/craft';
 import { useStillness } from '@/state/access';
 import { useTheme } from '@/state/theme';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { EXPLAIN, ViewMode } from './viewModeToggle';
 
 // Each guide leans in from its own side of the feed: the man from the right for the
-// bloc view, the woman from the left for the citizen view. The pictures are cut flat
+// bloc view, the woman from the left for the questionnaire. The pictures are cut flat
 // on that side, so they read as stepping out of the edge of the screen. tipX/tipY
 // locate the pointing fingertip inside each picture, where the bubble's tail goes;
 // headFrom/headTo is the band the head covers, which the bubble keeps clear of.
@@ -28,9 +28,18 @@ const TAIL = 18;
 /** narrower than this the text gets hard to read, so the bubble may cover the head instead */
 const MIN_BUBBLE = 220;
 
-type Props = { mode: ViewMode; onDone: () => void };
+type Props = {
+    /** whose picture: the man from the right, or the woman from the left */
+    mode: ViewMode;
+    onDone: () => void;
+    /** what the bubble says, when it is not the explanation of that view */
+    title?: string;
+    body?: string;
+    /** a button in the bubble. Disabled, it still shows - as something already done */
+    action?: { label: string; onPress: () => void; disabled?: boolean };
+};
 
-export default function ModeGuide({ mode, onDone }: Props) {
+export default function ModeGuide({ mode, onDone, title, body, action }: Props) {
     const t = useTheme();
     const still = useStillness();
     const guide = GUIDES[mode];
@@ -149,8 +158,23 @@ export default function ModeGuide({ mode, onDone }: Props) {
                 }}
             >
                 <View style={[styles.bubble, { backgroundColor: t.surface, borderColor: t.line }]}>
-                    <Text style={[styles.title, { color: t.text }]}>{EXPLAIN[mode].title}</Text>
-                    <Text style={[styles.body, { color: t.textMuted }]}>{EXPLAIN[mode].body}</Text>
+                    <Text style={[styles.title, { color: t.text }]}>{title ?? EXPLAIN[mode].title}</Text>
+                    <Text style={[styles.body, { color: t.textMuted }]}>{body ?? EXPLAIN[mode].body}</Text>
+                    {/* its own touch: the rest of the screen still sends the guide away */}
+                    {action && (
+                        <TouchableOpacity
+                            style={[styles.action, action.disabled
+                                ? { backgroundColor: t.surfaceAlt }
+                                : { backgroundColor: t.select }]}
+                            onPress={action.onPress}
+                            disabled={action.disabled}
+                            accessibilityRole="button"
+                            accessibilityState={{ disabled: !!action.disabled }}
+                        >
+                            <Text style={[styles.actionText,
+                                { color: action.disabled ? t.textMuted : t.selectInk }]}>{action.label}</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
                 <View
                     style={[styles.tail, { left: tailLeft, backgroundColor: t.surface, borderColor: t.line }]}
@@ -173,6 +197,8 @@ const styles = StyleSheet.create({
     },
     title: { fontFamily: 'Heebo_800ExtraBold', fontSize: 16, textAlign: 'right' },
     body: { fontFamily: 'Heebo_400Regular', fontSize: 13, lineHeight: 19, textAlign: 'right' },
+    action: { borderRadius: 11, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
+    actionText: { fontFamily: 'Heebo_800ExtraBold', fontSize: 14 },
     // a square turned 45deg, bordered on the two sides that show below the bubble
     tail: {
         position: 'absolute',
