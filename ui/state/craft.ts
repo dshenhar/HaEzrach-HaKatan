@@ -77,6 +77,16 @@ export const GIVE = { mass: 1, stiffness: 439, damping: 34 } as const;
 export const PRESS_SCALE = 0.975;
 export const PRESS_MS = 110;
 
+/**
+ * The card under the reader's thumb while a list moves - the feed's stories, the
+ * hot topics. It swells by `scale` in `ms`, and the one a scroll stopped on stays
+ * swollen for `lingerMs`: a phone's flick crosses a dozen cards too fast for any of
+ * them to be seen growing, and one that settled the moment the scroll stopped was
+ * never seen growing at all. 3% of a phone-wide card is about 11 points, which
+ * reads as a lift and not a jump.
+ */
+export const SWELL = { scale: 0.03, ms: 170, lingerMs: 700 } as const;
+
 // ---------------------------------------------------------------- material
 /**
  * Translucent chrome, with the content running underneath it rather than stopping
