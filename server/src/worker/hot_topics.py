@@ -23,6 +23,8 @@ today's feed is about.
     python hot_topics.py report [--send]         print the report, and mail it
     python hot_topics.py build                   match the current feed and rebuild meta/hot
     python hot_topics.py table                   the pool, for review
+    python hot_topics.py load <file.json> [--force]  affairs written elsewhere, e.g.
+                                                 /app/migrate/hot_affairs/2026-10-08.json
 """
 import argparse
 import base64
@@ -520,6 +522,24 @@ def seed(count: int) -> None:
     rebuild_from_feed()
 
 
+def load(path: str, force: bool) -> None:
+    """Affairs written outside the writer model - by hand, or in a session when the
+    model could not run - from a JSON file of {id: affair} in the shape write_affair()
+    returns. One that already has its text is left as it is unless forced. They are
+    rewritten by the monthly refresh like any other."""
+    with open(path, encoding="utf-8") as fh:
+        affairs = json.load(fh)
+    pool = {t["id"]: t for t in db.all_polar()}
+    for topic_id, affair in affairs.items():
+        before = pool.get(topic_id, {})
+        if before.get("summary") and not force:
+            print(f"  = {topic_id}: already written, left as it is")
+            continue
+        _store(topic_id, before, affair)
+        print(f"  ✓ {affair['title']}")
+    rebuild_from_feed()
+
+
 def table() -> None:
     pool = sorted((t for t in db.all_polar() if t.get("active", True)),
                   key=lambda t: -t.get("relevance", 0))
@@ -543,6 +563,7 @@ def main() -> None:
     p = sub.add_parser("report"); p.add_argument("--send", action="store_true")
     sub.add_parser("build")
     sub.add_parser("table")
+    p = sub.add_parser("load"); p.add_argument("path"); p.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
     if args.cmd == "seed":
@@ -578,6 +599,8 @@ def main() -> None:
         rebuild_from_feed()
     elif args.cmd == "table":
         table()
+    elif args.cmd == "load":
+        load(args.path, args.force)
 
 
 if __name__ == "__main__":
