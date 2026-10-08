@@ -15,6 +15,7 @@ import { QuestionnaireContext } from '@/state/questionnaire';
 import { ArrivalTour } from '@/state/tour';
 import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@/state/access';
 import { getProfile, isNudgeOff, markWelcomed, ReaderProfile, stopNudging, wasWelcomed } from '@/state/profile';
+import { listenForInstall } from '@/state/install';
 import { ThemeProvider, useTheme } from '@/state/theme';
 import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -24,6 +25,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
+
+// before the splash: the install event can arrive while it is still covering the feed
+listenForInstall();
 
 SplashScreen.preventAutoHideAsync();
 

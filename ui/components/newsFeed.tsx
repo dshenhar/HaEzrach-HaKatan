@@ -20,6 +20,7 @@ import { ScrollLock } from "@/state/scrollLock";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
 import { Alert } from "react-native";
+import { InstallBanner } from "./installOffer";
 import PersonalArea from "./personalArea";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TouchableOpacity } from "react-native";
@@ -539,6 +540,8 @@ export default function NewsFeed() {
 						</TouchableOpacity>
 					</View>
 				</View>
+
+				<InstallBanner />
 
 				<FeedControls
 					title="כל מה שקרה היום"

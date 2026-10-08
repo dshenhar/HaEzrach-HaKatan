@@ -8,6 +8,7 @@ import Modal from 'react-native-modal';
 import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useConsent } from '@/state/consent';
 import { track } from '@/state/analytics';
+import { InstallRow } from './installOffer';
 
 type Props = {
     open: boolean;
@@ -102,6 +103,8 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                             )}
                         </View>
                     </View>
+
+                    <InstallRow />
 
                     <Text style={[styles.section, { color: t.textMuted }]}>מדידה</Text>
                     <View style={[styles.row, { backgroundColor: t.surfaceAlt }]}>
