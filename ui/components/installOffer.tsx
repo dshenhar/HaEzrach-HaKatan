@@ -142,8 +142,20 @@ export function InstallBanner() {
 
 	return (
 		<>
-			<View style={[styles.banner, { backgroundColor: t.surfaceAlt, borderColor: t.line }]}>
-				<View style={[styles.bannerInner, { flexDirection: rowDirection() }]}>
+			<View
+				style={[styles.banner, { backgroundColor: t.surfaceAlt, borderColor: t.line }]}
+				accessibilityLabel="הצעה להוספה למסך הבית"
+			>
+				<TouchableOpacity
+					onPress={offer.dismiss}
+					hitSlop={8}
+					accessibilityRole="button"
+					accessibilityLabel="סגירת ההצעה"
+					style={[styles.bannerClose, styles.bannerCloseEdge]}
+				>
+					<Ionicons name="close" size={18} color={t.textMuted} />
+				</TouchableOpacity>
+				<View style={styles.bannerCenter}>
 					<TouchableOpacity
 						onPress={() => offer.add("banner")}
 						disabled={offer.busy}
@@ -151,15 +163,6 @@ export function InstallBanner() {
 						style={[styles.bannerButton, { backgroundColor: t.select, opacity: offer.busy ? 0.6 : 1 }]}
 					>
 						<Text style={[styles.bannerButtonText, { color: t.selectInk }]}>{ACTION}</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						onPress={offer.dismiss}
-						hitSlop={8}
-						accessibilityRole="button"
-						accessibilityLabel="סגירה"
-						style={styles.bannerClose}
-					>
-						<Ionicons name="close" size={16} color={t.textMuted} />
 					</TouchableOpacity>
 				</View>
 			</View>
@@ -197,14 +200,29 @@ export function InstallRow() {
 }
 
 const styles = StyleSheet.create({
+	// edge to edge in the phone column: the x sits on the strip, the button in the middle
 	banner: {
-		marginHorizontal: 16, marginTop: 8, marginBottom: 2,
-		borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8,
+		width: "100%",
+		marginTop: 6,
+		marginBottom: 2,
+		borderTopWidth: 1,
+		borderBottomWidth: 1,
+		paddingVertical: 11,
+		paddingHorizontal: 44,
+		position: "relative",
 	},
-	// the close sits on the card, not on the button
-	bannerInner: { alignItems: "center", gap: 10 },
-	bannerButton: { flex: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, alignItems: "center" },
-	bannerClose: { padding: 4 },
+	bannerCenter: { alignItems: "center", justifyContent: "center" },
+	bannerButton: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, alignItems: "center" },
+	bannerClose: {
+		position: "absolute",
+		top: 0,
+		bottom: 0,
+		width: 44,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	// the strip is Hebrew: the dismiss control sits on the physical left of the card
+	bannerCloseEdge: { left: 0 },
 	bannerButtonText: { fontFamily: "Heebo_800ExtraBold", fontSize: 13 },
 
 	section: {
