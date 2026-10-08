@@ -23,7 +23,6 @@ import Modal from "react-native-modal";
  * there the same steps open in place.
  */
 
-const NOTE = "ייפתח כמו אפליקציה, בלי שורת הכתובת";
 const ACTION = "הוספה למסך הבית";
 
 const SAFARI_STEPS: { icon: "share-outline" | "add-circle-outline" | "checkmark-circle-outline"; text: string }[] = [
@@ -143,24 +142,19 @@ export function InstallBanner() {
 
 	return (
 		<>
-			<View style={[styles.banner, { backgroundColor: t.surfaceAlt, borderColor: t.line }]}>
-				<View style={[styles.bannerTop, { flexDirection: rowDirection() }]}>
-					<Text style={[styles.bannerText, { color: t.text }]}>{NOTE}</Text>
-					<TouchableOpacity onPress={offer.dismiss} hitSlop={8}
-						accessibilityRole="button" accessibilityLabel="סגירה">
-						<Ionicons name="close" size={16} color={t.textMuted} />
-					</TouchableOpacity>
-				</View>
-				<View style={{ flexDirection: rowDirection() }}>
-					<TouchableOpacity
-						onPress={() => offer.add("banner")}
-						disabled={offer.busy}
-						accessibilityRole="button"
-						style={[styles.bannerButton, { backgroundColor: t.select, opacity: offer.busy ? 0.6 : 1 }]}
-					>
-						<Text style={[styles.bannerButtonText, { color: t.selectInk }]}>{ACTION}</Text>
-					</TouchableOpacity>
-				</View>
+			<View style={[styles.banner, { flexDirection: rowDirection() }]}>
+				<TouchableOpacity
+					onPress={() => offer.add("banner")}
+					disabled={offer.busy}
+					accessibilityRole="button"
+					style={[styles.bannerButton, { backgroundColor: t.select, opacity: offer.busy ? 0.6 : 1 }]}
+				>
+					<Text style={[styles.bannerButtonText, { color: t.selectInk }]}>{ACTION}</Text>
+				</TouchableOpacity>
+				<TouchableOpacity onPress={offer.dismiss} hitSlop={8}
+					accessibilityRole="button" accessibilityLabel="סגירה">
+					<Ionicons name="close" size={16} color={t.textMuted} />
+				</TouchableOpacity>
 			</View>
 			<InstallGuide open={offer.guide} kind={offer.kind} onClose={offer.closeGuide} />
 		</>
@@ -183,10 +177,7 @@ export function InstallRow() {
 				disabled={offer.busy}
 				accessibilityRole="button"
 			>
-				<View style={{ flex: 1 }}>
-					<Text style={[styles.rowTitle, { color: t.text }]}>{ACTION}</Text>
-					<Text style={[styles.rowNote, { color: t.textMuted }]}>{NOTE}</Text>
-				</View>
+				<Text style={[styles.rowTitle, { color: t.text, flex: 1 }]}>{ACTION}</Text>
 				<Ionicons name={steps ? "chevron-up" : "chevron-back"} size={18} color={t.textMuted} />
 			</TouchableOpacity>
 			{steps && (
@@ -201,10 +192,8 @@ export function InstallRow() {
 const styles = StyleSheet.create({
 	banner: {
 		marginHorizontal: 16, marginTop: 8, marginBottom: 2,
-		borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8,
+		alignItems: "center", gap: 8,
 	},
-	bannerTop: { alignItems: "center", gap: 8 },
-	bannerText: { flex: 1, fontFamily: "Heebo_500Medium", fontSize: 12.5, lineHeight: 18, textAlign: "right" },
 	bannerButton: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
 	bannerButtonText: { fontFamily: "Heebo_800ExtraBold", fontSize: 13 },
 
@@ -214,7 +203,6 @@ const styles = StyleSheet.create({
 	},
 	row: { alignItems: "center", gap: 12, borderRadius: 12, padding: 13 },
 	rowTitle: { fontFamily: "Heebo_700Bold", fontSize: 14, textAlign: "right" },
-	rowNote: { fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17, textAlign: "right", marginTop: 2 },
 	inline: { borderWidth: 1, borderRadius: 12, padding: 13 },
 
 	modal: { justifyContent: "center", alignItems: "center", margin: 20 },
