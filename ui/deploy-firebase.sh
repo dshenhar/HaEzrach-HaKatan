@@ -22,4 +22,13 @@ rm -rf dist
 EXPO_PUBLIC_URL_BASE="https://$API_HOST" npx expo export --platform web --clear
 
 echo "==> publishing to Firebase Hosting"
-npx --yes firebase-tools deploy --only hosting --project haezrach-hakatan
+# The upload goes file by file, and from some networks - Cloud Shell, for one -
+# it is dropped after a dozen files. What was uploaded is not asked for again, so
+# each attempt gets further than the one before.
+for attempt in 1 2 3 4 5 6; do
+  npx --yes firebase-tools deploy --only hosting --project haezrach-hakatan && exit 0
+  echo "    the upload stopped at attempt $attempt; trying again"
+  sleep 5
+done
+echo "Firebase Hosting did not take the upload after 6 attempts"
+exit 1

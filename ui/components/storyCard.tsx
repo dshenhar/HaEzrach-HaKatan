@@ -12,7 +12,8 @@ import { track } from '@/state/analytics';
 import TopicPicker from './topicPicker';
 import { ArticleViewer } from './articleViewer';
 import BlocView from './blocView';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeOut, LinearTransition, useAnimatedStyle,
+    useSharedValue, withTiming } from 'react-native-reanimated';
 
 // A story's change of size glides instead of jumping, the stories below it glide
 // with it, and its expanded part fades in and out. Reanimated's layout animations
@@ -32,6 +33,9 @@ const balance = (name: string): string => {
 
 const GLIDE = LinearTransition.springify()
     .mass(SETTLE.mass).stiffness(SETTLE.stiffness).damping(SETTLE.damping);
+/** how much the story under the reader's thumb swells while the feed moves, and how quickly */
+const LIFT = 0.022;
+const LIFT_MS = 170;
 const FADE_IN = FadeIn.duration(200);
 const FADE_OUT = FadeOut.duration(130);
 
@@ -47,6 +51,8 @@ type Props = {
     /** the feed keeps one story open at a time, so it decides which */
     open: boolean;
     onToggle: () => void;
+    /** the feed is moving and this is the story under the reader's thumb */
+    focused?: boolean;
     /** the feed adds the stories' heights up to know where each one sits */
     onMeasure?: (height: number) => void;
     /** the reader's own side, which turns a blindspot into their blindspot */
@@ -59,7 +65,7 @@ type Props = {
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                     topics = [], mergeArmed, onArmMerge, open, onToggle,
-                    onMeasure, readerBloc }: Props) => {
+                    focused = false, onMeasure, readerBloc }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
@@ -72,6 +78,14 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     // changing size - and an open one, whose content keeps settling - simply resizes
     // while its expanded part fades, and the stories around it still glide. The phone
     // animates real sizes, so there everything glides.
+    // The story under the reader's thumb swells a little while the feed moves and
+    // settles when it stops. It is the scroll's feel only - opening is a touch.
+    const lift = useSharedValue(0);
+    useEffect(() => {
+        const want = focused && !open ? 1 : 0;
+        lift.value = still ? 0 : withTiming(want, { duration: LIFT_MS, easing: Easing.out(Easing.quad) });
+    }, [focused, open, still, lift]);
+    const swell = useAnimatedStyle(() => ({ transform: [{ scale: 1 + lift.value * LIFT }] }));
 
     const wasOpen = useRef(open);
     useEffect(() => { wasOpen.current = open; });
@@ -190,7 +204,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     return (
         <Animated.View ref={box} layout={glide} style={styles.wrap}
             onLayout={(e) => onMeasure?.(e.nativeEvent.layout.height)}>
-        <>
+        <Animated.View style={swell}>
             {/* The story wears its section as a tab at its top left corner - the same
                 colour the filter strip uses, so the feed can be read by colour before it
                 is read by word. Closed the tab is tucked behind the card and points up;
@@ -306,7 +320,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                 topic={viewerItem?.topic || ''}
             />
             </View>
-        </>
+        </Animated.View>
         </Animated.View>
     );
 };

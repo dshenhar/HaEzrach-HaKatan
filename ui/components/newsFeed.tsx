@@ -7,7 +7,6 @@ import ModeGuide from "./modeGuide";
 import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
-import TourQuestionnaire from "./tourQuestionnaire";
 import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, loadFeed, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { track } from "@/state/analytics";
@@ -15,6 +14,7 @@ import { orderSections } from "@/state/sections";
 import { ELEVATION, glass, TYPE } from "@/state/craft";
 import { blindTo } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
+import { useArrivalTour } from "@/state/tour";
 import { ScrollLock } from "@/state/scrollLock";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
@@ -42,11 +42,11 @@ const TAIL = 120;
 const ANCHOR = 0.32;
 /** a reader this close to the top is at the top: an update lands without moving them */
 const NEAR_TOP = 120;
-/** the tour the i runs: the anchor's welcome, then the guide to reading by bloc */
-// The tour ends with the questionnaire for a reader who has not answered it, and
-// a step earlier for everyone else.
-const TOUR_BASE = ["welcome", "bloc"] as const;
-type TourStep = (typeof TOUR_BASE)[number] | "questionnaire";
+/** a scroll that has not moved for this long has stopped, and the story under it settles */
+const SETTLE_MS = 150;
+/** the tour the i runs: the anchor's welcome, the man on reading a story by bloc,
+ *  and the woman on the questionnaire */
+const TOUR = ["welcome", "bloc", "questionnaire"] as const;
 
 
 /**
@@ -97,16 +97,14 @@ export default function NewsFeed() {
 	};
 
 	// The i runs the tour over a blurred feed, one step per touch: the welcome, then
-	// the man who explains reading a story by bloc, then the questionnaire for a
-	// reader who has not answered it.
+	// the man who explains reading a story by bloc, then the woman who explains the
+	// questionnaire and offers it - its button live for a reader who has not answered,
+	// and there but spent for one who has. A first visit opens on the same tour.
 	const [tourStep, setTourStep] = useState<number | null>(null);
-	const [tour, setTour] = useState<TourStep[]>([...TOUR_BASE]);
 	const { filled, open: askQuestionnaire } = useQuestionnaire();
 	const tourBlur = useRef(new Animated.Value(0)).current;
-	const startTour = () => {
-		track("tour_started");
-		// the questionnaire closes the tour, but only for someone it still concerns
-		setTour(filled ? [...TOUR_BASE] : [...TOUR_BASE, "questionnaire"]);
+	const startTour = useStable((how: "tap" | "arrival" = "tap") => {
+		track("tour_started", { how });
 		// the guides speak about the feed from its top, so the tour starts there
 		scrollRef.current?.scrollTo({ y: 0, animated: true });
 		setTimeout(() => {
@@ -118,17 +116,16 @@ export default function NewsFeed() {
 				useNativeDriver: true,
 			}).start();
 		}, 330);
-	};
+	});
 	// called once a step's picture has finished leaving
 	const advanceTour = (from: number) => {
 		const next = from + 1;
-		if (next < tour.length) {
-			const step = tour[next];
-			track("tour_step", { step: String(step), index: next });
+		if (next < TOUR.length) {
+			track("tour_step", { step: TOUR[next], index: next });
 			setTourStep(next);
 			return;
 		}
-		track("tour_finished", { reached: "end", steps: tour.length });
+		track("tour_finished", { reached: "end", steps: TOUR.length });
 		endTour();
 	};
 	const endTour = (then?: () => void) => {
@@ -139,7 +136,18 @@ export default function NewsFeed() {
 			useNativeDriver: true,
 		}).start(() => { setTourStep(null); then?.(); });
 	};
-	const tourStepName = tourStep !== null ? tour[tourStep] : null;
+	const tourStepName = tourStep !== null ? TOUR[tourStep] : null;
+
+	// A first visit: once the feed has stories on it, the tour starts by itself.
+	const { due: arrivalDue, done: arrivalDone } = useArrivalTour();
+	const arrived = useRef(false);
+	useEffect(() => {
+		if (!arrivalDue || arrived.current || articles.length === 0) return;
+		arrived.current = true;
+		// not cancelled when this runs again: telling the layout it is done is what
+		// runs it again, and the tour has to start all the same
+		setTimeout(() => { arrivalDone(); startTour("arrival"); }, 500);
+	}, [arrivalDue, arrivalDone, articles.length, startTour]);
 
 	useEffect(() => {
 		getSitePositions().then(setPositions);
@@ -217,6 +225,15 @@ export default function NewsFeed() {
 	// Opening is only half the measurement; this is the other half.
 	const openedAt = useRef(0);
 	const deepest = useRef(0);
+	// While the feed moves, the story under the reader's thumb swells a little and
+	// settles again when the scroll stops - the scroll's own feel, and nothing more:
+	// it opens nothing, a story still opens and closes only when it is touched.
+	const [focusKey, setFocusKey] = useState<string | null>(null);
+	const [scrolling, setScrolling] = useState(false);
+	const focusRef = useRef<string | null>(null);
+	const moving = useRef(false);
+	const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+	useEffect(() => () => { if (settle.current) clearTimeout(settle.current); }, []);
 
 	const leaveStory = (key: string | null) => {
 		if (!key || !openedAt.current) return;
@@ -312,9 +329,16 @@ export default function NewsFeed() {
 		scrollY.current = y;
 		// back at the top by their own hand: the update that waited lands now
 		if (y < NEAR_TOP && pendingRef.current) takeUpdate(false);
+		const key = storyAt(y);
+		if (key !== focusRef.current) {
+			focusRef.current = key;
+			setFocusKey(key);
+		}
+		if (!moving.current) { moving.current = true; setScrolling(true); }
+		if (settle.current) clearTimeout(settle.current);
+		settle.current = setTimeout(() => { moving.current = false; setScrolling(false); }, SETTLE_MS);
 		// milestones rather than a number every frame: the shape of a drop-off is all
 		// anyone can act on, and five events a session is enough to draw it
-		const key = storyAt(y);
 		if (key) {
 			const reached = order.current.indexOf(key) + 1;
 			for (const mark of [5, 10, 20, 40]) {
@@ -441,7 +465,7 @@ export default function NewsFeed() {
 				<View onLayout={(e) => { topH.current = e.nativeEvent.layout.height; }}>
 				<View style={styles.header}>
 					<View style={styles.headerTop}>
-						<TouchableOpacity onPress={startTour} hitSlop={10} accessibilityLabel="על האפליקציה">
+						<TouchableOpacity onPress={() => startTour()} hitSlop={10} accessibilityLabel="על האפליקציה">
 							<Ionicons name="information-circle-outline" size={30} color={t.text} />
 						</TouchableOpacity>
 						{/* the name set rather than drawn: "חדשות" leads, "האזרח הקטן" sits
@@ -493,6 +517,7 @@ export default function NewsFeed() {
 						mergeArmed={mergeSource?.id === cluster[0]?.groupId}
 						onArmMerge={armMerge}
 						open={openStory === key}
+						focused={scrolling && focusKey === key && openStory !== key}
 						readerBloc={profile?.bloc}
 						onMeasure={bind.measure}
 						onToggle={bind.toggle} />
@@ -545,9 +570,18 @@ export default function NewsFeed() {
 					{tourStepName === "welcome" ? (
 						<WelcomeGuide key="welcome" onDone={() => advanceTour(tourStep)} />
 					) : tourStepName === "questionnaire" ? (
-						<TourQuestionnaire
-							onFill={() => endTour(askQuestionnaire)}
-							onSkip={() => advanceTour(tourStep)} />
+						<ModeGuide key="questionnaire" mode="citizen"
+							title="ומה איתכם?"
+							body={"שאלון עמדות קצר, כדקה, מאפשר לאפליקציה להשוות בין מה שאתם חושבים לבין מה "
+								+ "שאתם קוראים בפועל, ולהראות לכם כמה מהחדשות הגיעו דווקא מהצד השני. "
+								+ "התשובות נשארות במכשיר שלכם."}
+							action={filled
+								? { label: "כבר מילאתם את השאלון ✓", onPress: () => {}, disabled: true }
+								: { label: "למילוי שאלון העמדות", onPress: () => {
+									track("questionnaire_opened", { from: "tour" });
+									endTour(askQuestionnaire);
+								} }}
+							onDone={() => advanceTour(tourStep)} />
 					) : tourStepName === "bloc" ? (
 						<ModeGuide key="bloc" mode="bloc" onDone={() => advanceTour(tourStep)} />
 					) : null}
