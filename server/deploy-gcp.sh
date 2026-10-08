@@ -85,6 +85,11 @@ put_secret() {
 put_secret OPENAI_API_KEY "$(value OPENAI_API_KEY)"
 put_secret GEMINI_API_KEY "$(value GEMINI_API_KEY)"
 put_secret DEV_KEY "$(value DEV_KEY)"
+# optional: the Gmail app password the monthly hot topics report is mailed with
+# (worker/hot_topics.py reads it from Secret Manager when it runs)
+if [ -n "$(value GMAIL_APP_PASSWORD)" ]; then
+  put_secret GMAIL_APP_PASSWORD "$(value GMAIL_APP_PASSWORD)"
+fi
 
 echo "==> images"
 "${G[@]}" artifacts repositories describe "$REPO" --location "$REGION" >/dev/null 2>&1 || \

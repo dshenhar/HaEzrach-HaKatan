@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 
+import hot_topics
 from gpt_models import OTHER, TAG_MODEL, OpenAIUnavailable, classify, embed, same_event
 from scraping import article_key, fetch_entries, has_arabic, parse_entry, translate_to_hebrew
 from store import db
@@ -513,12 +514,18 @@ def write_summaries(stories: list[dict] | None = None) -> None:
 
 # ---- the feed ----------------------------------------------------------------
 
-def build_feed() -> int:
-    """The feed the app reads, as one document: today's stories, two outlets or more."""
+def feed_stories() -> list[dict]:
+    """Today's stories with two outlets or more - what the feed shows."""
     local_midnight = datetime.now(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
     stories = db.stories_since(local_midnight.astimezone(timezone.utc))
     if len(stories) < MIN_STORIES:
         stories = db.stories_since(db.now() - timedelta(hours=24))
+    return stories
+
+
+def build_feed(stories: list[dict] | None = None) -> list[list]:
+    """The feed the app reads, as one document, and what was written to it."""
+    stories = stories if stories is not None else feed_stories()
 
     states = db.all_topic_states()
     positions = {}      # (topic_id, site_id) -> position
@@ -573,7 +580,7 @@ def build_feed() -> int:
             items[0]["summaries"] = summaries
         feed.append(items)
     db.write_feed(feed)
-    return len(feed)
+    return feed
 
 
 # ---- cleanup -----------------------------------------------------------------
@@ -754,9 +761,20 @@ def cycle() -> None:
 def once() -> None:
     cycle()
     write_summaries()
-    count = build_feed()
-    print(f"feed     {count} stories")
+    stories = feed_stories()
+    feed = build_feed(stories)
+    print(f"feed     {len(feed)} stories")
+    # The hot topics page is built on the feed, after it: whatever goes wrong there
+    # must not cost the pass its feed, which is already written.
+    try:
+        hot_topics.update(stories, feed)
+    except Exception as err:
+        print(f"hot      ! not rebuilt this pass: {err!r}")
     cleanup()
+    try:
+        hot_topics.maybe_refresh()
+    except Exception as err:
+        print(f"hot      ! refresh failed this pass: {err!r}")
 
 
 def main() -> None:
@@ -775,7 +793,7 @@ def main() -> None:
         fresh = scrape(db.all_sites(), db.seen(), translate=False)
         print(f"\n{len(fresh)} new items would be stored - nothing was written")
     elif args.feed:
-        print(f"feed: {build_feed()} stories")
+        print(f"feed: {len(build_feed())} stories")
     elif args.summaries:
         write_summaries()
     elif args.cleanup:

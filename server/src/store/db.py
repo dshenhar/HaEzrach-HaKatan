@@ -16,8 +16,13 @@
     voters/{id}         how much rating one person has done today, so twenty ratings
                         from one reader are not twenty readers
     corrections/{id}    a dev-mode fix: this story is about X, not what the model said
-    meta/{doc}          feed (the built feed, read as one document), seen (the links
-                        of the last day, so a re-scrape skips them), counters, runs
+    polar/{id}          one affair the right and the left are split on: what happened,
+                        how each side covers it, sees it and why, and how burning it
+                        is now (worker/hot_topics.py)
+    meta/{doc}          feed (the built feed, read as one document), hot (the hot
+                        topics page, built with it), hotState (when the affairs were
+                        last reported), seen (the links of the last day, so a
+                        re-scrape skips them), counters, runs
 
 Why a document database at all: nothing here is a join or an average over history.
 The feed is one document, the map is one document per topic, and a rating changes a
@@ -220,6 +225,37 @@ def seen() -> dict:
 def save_seen(links: list[str], headers: list[str], stamps: list[float]) -> None:
     client().collection("meta").document("seen").set(
         {"links": links, "headers": headers, "at": stamps})
+
+
+# ---- hot topics --------------------------------------------------------------
+# The pool of affairs is a collection, one document each, because each is written
+# on its own and rewritten once a month. What the page shows is one document like
+# the feed, built with it, so opening the page is one read.
+
+def all_polar() -> list[dict]:
+    return [d.to_dict() | {"id": d.id} for d in client().collection("polar").stream()]
+
+
+def save_polar(topic_id: str, data: dict) -> None:
+    client().collection("polar").document(str(topic_id)).set(data, merge=True)
+
+
+def write_hot(payload: dict) -> None:
+    client().collection("meta").document("hot").set(payload | {"built_at": now()})
+
+
+def read_hot() -> dict:
+    snap = client().collection("meta").document("hot").get()
+    return (snap.to_dict() or {}) if snap.exists else {}
+
+
+def hot_state() -> dict:
+    snap = client().collection("meta").document("hotState").get()
+    return (snap.to_dict() or {}) if snap.exists else {}
+
+
+def save_hot_state(data: dict) -> None:
+    client().collection("meta").document("hotState").set(data, merge=True)
 
 
 # ---- dev-mode corrections ----------------------------------------------------

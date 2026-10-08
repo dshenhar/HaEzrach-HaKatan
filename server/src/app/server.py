@@ -75,6 +75,15 @@ def get_feed(response: Response):
     return db.read_feed()
 
 
+@app.get("/hot")
+def get_hot():
+    """The hot topics page: every affair with its tier and its links into the feed,
+    and today's ids. Built with the feed (worker/hot_topics.py)."""
+    hot = db.read_hot()
+    return {"today": hot.get("today") or [], "topics": hot.get("topics") or [],
+            "built_at": hot["built_at"].isoformat() if hot.get("built_at") else None}
+
+
 @app.get("/sites")
 def get_sites():
     return sorted(site["name"] for site in db.all_sites())
