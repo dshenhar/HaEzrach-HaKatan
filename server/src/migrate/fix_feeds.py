@@ -11,7 +11,9 @@ a standfirst, is the one kept; the sitemap fills in the rest, and scraping.py
 keeps only its news- sections and knows an article by its id, whichever section
 it was filed under.
 
-Channel 13 is read from its news sitemap, which its robots.txt opens to crawlers.
+Channel 13 is read by worker/site_scrapers.py - its news page, and then this
+sitemap, which is rebuilt too rarely to be the only source - so the address here
+is a record of where it lives rather than what the ingest reads.
 
     ./run-job.sh haezrach-hakatan /app/migrate/fix_feeds.py
 """
