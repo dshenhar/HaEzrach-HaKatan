@@ -38,12 +38,19 @@ GENERAL_TOPIC = db.GENERAL_TOPIC
 SIMILARITY_THRESHOLD = 0.70
 SAME_ARTICLE_THRESHOLD = 0.97
 TIME_WINDOW_HOURS = 12
-# An article that opens a story by falling just short of the threshold leaves the
-# event split in two for good, because nothing compared stories to each other: Kan
-# and Haredim 10 in one, Srugim and Davar in another, one IDF statement between
-# them. After placing, stories this close are put to the model as a pair, and only
-# the ones it calls the same event are joined. The floor only decides what is
-# worth asking about - the model decides - and the cap bounds one call a cycle.
+# A story is a match when either its centre or any one of its headlines is this
+# close. Matching the centre only left the same event split: one cluster gathered
+# around "the arrest", another around "the indictment", and neither centre cleared
+# the threshold.
+# An update from an outlet already in the story used to open a second story
+# whenever the new wording sat further from the centre than the outlet's first
+# take. Above this floor the new wording keeps that outlet's slot instead.
+SAME_OUTLET_STAY = 0.60
+# Between this floor and SIMILARITY_THRESHOLD, a near miss is held and the pass
+# asks the model once, about every held pair together. join_splits asks again
+# about stories that still ended up apart. The floor only decides what is worth
+# asking about - the model decides - and the cap bounds how many pairs one cycle
+# may put in that one call.
 SPLIT_FLOOR = 0.55
 SPLIT_MAX_PAIRS = 40
 # a cap on one cycle, so the first run after a long gap stays bounded; newest kept
@@ -198,9 +205,12 @@ def remember(fresh: list[dict], seen: dict) -> None:
 class Stories:
     """The stories of the last TIME_WINDOW_HOURS, held in memory for one pass.
 
-    Same rules as the original clusterer: an article joins the closest story above
-    SIMILARITY_THRESHOLD, a story holds at most one article per outlet, and when an
-    outlet's slot is taken the article closer to the centre of the story keeps it.
+    An article joins the closest story when the story's centre, or any headline
+    already in it, clears SIMILARITY_THRESHOLD. A story holds at most one article
+    per outlet. An outlet's later wording keeps the slot when it is still within
+    SAME_OUTLET_STAY of that story; further away it can open a story of its own.
+    A nearer miss is held on `pending`. resolve_pending asks the model once about
+    all of them, then joins or opens each.
     """
 
     def __init__(self, stories: list[dict]):
@@ -208,6 +218,9 @@ class Stories:
         self.dirty: set = set()
         # stories folded into another one in this pass, to delete when it is written
         self.gone: set = set()
+        self.confirmations = 0
+        # near misses held for one same_event call at the end of the pass
+        self.pending: list[dict] = []
         self.centroids = {s["id"]: db.unpack(s.get("centroid")) for s in stories}
         self.vectors = {}
         for story in stories:
@@ -221,40 +234,107 @@ class Stories:
                 continue
             if self.by_id[story_id]["created_at"] < window_start:
                 continue
-            yield story_id, centroid
+            yield story_id
+
+    def _similarity(self, vector, story_id) -> float:
+        """Closeness to the centre, or to the single closest headline, whichever is higher."""
+        centroid = self.centroids[story_id]
+        score = float(vector @ centroid / (np.linalg.norm(centroid) or 1.0))
+        for member in self.by_id[story_id].get("articles", []):
+            stored = self.vectors.get(member["id"])
+            if stored is None:
+                continue
+            score = max(score, float(vector @ stored / (np.linalg.norm(stored) or 1.0)))
+        return score
 
     def place(self, article: dict, vector, new_story_id) -> str:
+        """Place one article. A near miss returns "pending" and stays unplaced
+        until resolve_pending."""
         best, best_score = None, -1.0
-        for story_id, centroid in self._candidates(article["created_at"]):
-            score = float(vector @ centroid / (np.linalg.norm(centroid) or 1.0))
+        for story_id in self._candidates(article["created_at"]):
+            score = self._similarity(vector, story_id)
             if score > best_score:
                 best, best_score = story_id, score
 
-        if best is None or best_score < SIMILARITY_THRESHOLD:
+        if best is None or best_score < SPLIT_FLOOR:
             self._open(article, vector, new_story_id)
             return "new"
 
         story = self.by_id[best]
         rival = next((a for a in story["articles"] if a["site_id"] == article["site_id"]), None)
-        if rival is None:
+        if rival is not None:
+            rival_vector = self.vectors.get(rival["id"])
+            if rival_vector is None:
+                self._open(article, vector, new_story_id)
+                return "new"
+            if float(vector @ rival_vector / (np.linalg.norm(rival_vector) or 1.0)) > SAME_ARTICLE_THRESHOLD:
+                return "duplicate"      # the same story again from the same outlet
+
+        if best_score >= SIMILARITY_THRESHOLD or (
+                rival is not None and best_score >= SAME_OUTLET_STAY):
+            return self._take(story, article, vector)
+
+        if self.confirmations < SPLIT_MAX_PAIRS:
+            self.confirmations += 1
+            self.pending.append({
+                "article": article,
+                "vector": vector,
+                "story_id": best,
+                "new_story_id": new_story_id,
+                "score": best_score,
+            })
+            return "pending"
+
+        self._open(article, vector, new_story_id)
+        return "new"
+
+    def resolve_pending(self) -> list[tuple[dict, str]]:
+        """One model call for every near miss this pass held back.
+
+        A yes joins or replaces. A no, or no answer, opens a story of its own.
+        Articles placed later in the pass
+        were matched without these, so a yes does not move a centre they already
+        saw.
+        """
+        pending = self.pending
+        self.pending = []
+        if not pending:
+            return []
+        pairs = []
+        for item in pending:
+            story = self.by_id[item["story_id"]]
+            pairs.append(([item["article"]["header"]],
+                          [a["header"] for a in story["articles"][:4]]))
+        print(f"  near misses: {len(pending)} asked in one call")
+        try:
+            verdicts = same_event(pairs)
+        except OpenAIUnavailable as err:
+            print(f"  ! near-miss check stopped for this pass: {err}")
+            verdicts = [False] * len(pending)
+
+        resolved = []
+        for item, same in zip(pending, verdicts):
+            story = self.by_id.get(item["story_id"])
+            if same and story is not None:
+                kept = story["articles"][0]["header"]
+                outcome = self._take(story, item["article"], item["vector"])
+                print(f"  confirmed ({item['score']:.2f}) {item['article']['header'][:50]}"
+                      f"  ->  {kept[:50]}")
+            else:
+                self._open(item["article"], item["vector"], item["new_story_id"])
+                outcome = "new"
+            resolved.append((item["article"], outcome))
+        return resolved
+
+    def _take(self, story: dict, article: dict, vector) -> str:
+        """Join the article, or replace this outlet's earlier wording in the story."""
+        rival = next((a for a in story["articles"] if a["site_id"] == article["site_id"]), None)
+        if rival is not None:
+            story["articles"] = [a for a in story["articles"] if a["id"] != rival["id"]]
             self._join(story, article, vector)
-            return "joined"
-
-        rival_vector = self.vectors.get(rival["id"])
-        if rival_vector is None:
-            self._open(article, vector, new_story_id)
-            return "new"
-        if float(vector @ rival_vector) > SAME_ARTICLE_THRESHOLD:
-            return "duplicate"      # the same story again from the same outlet
-
-        centroid = self.centroids[best]
-        rival_score = float(rival_vector @ centroid / (np.linalg.norm(centroid) or 1.0))
-        if best_score <= rival_score:
-            self._open(article, vector, new_story_id)
-            return "new"
-        story["articles"] = [a for a in story["articles"] if a["id"] != rival["id"]]
+            return "replaced"
         self._join(story, article, vector)
-        return "replaced"
+        return "joined"
 
     def _open(self, article: dict, vector, story_id) -> None:
         article["story_id"] = story_id
@@ -294,8 +374,6 @@ class Stories:
         nothing is asked twice about two stories that have not moved."""
         live = [sid for sid, story in self.by_id.items()
                 if story.get("articles") and self.centroids.get(sid) is not None]
-        unit = {sid: self.centroids[sid] / (np.linalg.norm(self.centroids[sid]) or 1.0)
-                for sid in live}
         window = timedelta(hours=TIME_WINDOW_HOURS)
         found = []
         for i, a in enumerate(live):
@@ -304,13 +382,27 @@ class Stories:
                     continue
                 if abs(self.by_id[a]["created_at"] - self.by_id[b]["created_at"]) > window:
                     continue
-                score = float(unit[a] @ unit[b])
+                score = self._pair_similarity(a, b)
                 if score >= floor:
                     found.append((score, a, b))
         # by score alone: an id is a number for a story opened in this pass and a
         # string for one read back from Firestore, and the two do not compare
         found.sort(key=lambda pair: pair[0], reverse=True)
         return found[:limit]
+
+    def _pair_similarity(self, a, b) -> float:
+        """How close two stories are: their centres, or their closest headlines."""
+        ca, cb = self.centroids[a], self.centroids[b]
+        score = float(ca @ cb / ((np.linalg.norm(ca) or 1.0) * (np.linalg.norm(cb) or 1.0)))
+        left = [self.vectors[art["id"]] for art in self.by_id[a]["articles"]
+                if self.vectors.get(art["id"]) is not None]
+        right = [self.vectors[art["id"]] for art in self.by_id[b]["articles"]
+                 if self.vectors.get(art["id"]) is not None]
+        for va in left:
+            for vb in right:
+                score = max(score, float(
+                    va @ vb / ((np.linalg.norm(va) or 1.0) * (np.linalg.norm(vb) or 1.0))))
+        return score
 
     def merge(self, keep_id, other_id) -> list[dict]:
         """Fold one story into another. An outlet the kept story already has stays
@@ -687,6 +779,7 @@ def cycle() -> None:
 
     stats = {"new": 0, "joined": 0, "replaced": 0, "duplicate": 0, "from_corrections": 0}
     placed = []
+
     for entry, vector, article_id, story_id in zip(fresh, vectors, article_ids, story_ids):
         taught = taught_topic(corrections, vector)
         article = {
@@ -708,9 +801,15 @@ def cycle() -> None:
         if taught:
             stats["from_corrections"] += 1
         outcome = stories.place(article, vector, story_id)
+        if outcome == "pending":
+            continue
         stats[outcome] += 1
         if outcome != "duplicate":
             placed.append(article)
+
+    for article, outcome in stories.resolve_pending():
+        stats[outcome] += 1
+        placed.append(article)
 
     moved = join_splits(stories)
 
