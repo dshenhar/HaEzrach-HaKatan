@@ -31,6 +31,7 @@ from store.taxonomy import GENERAL_TOPIC as GENERAL, SECTION_HINTS, SECTIONS
 # the rules being calibrated, as ingest.py applies them
 TIME_WINDOW_HOURS = 12
 SAME_ARTICLE_THRESHOLD = 0.97
+SAME_OUTLET_STAY = 0.60
 GENERAL_TOPIC = GENERAL
 
 
@@ -45,7 +46,10 @@ def stored_articles(hours: int) -> list[dict]:
 
 
 def _simulate(rows, vectors, threshold):
-    """ingest.Stories.place, replayed over the stored articles in time order."""
+    """ingest.Stories.place, replayed over the stored articles in time order.
+
+    The model question for a near miss is not part of this replay.
+    """
     window = timedelta(hours=TIME_WINDOW_HOURS)
     sums = np.zeros((len(rows), vectors[0].shape[0]), dtype=np.float32)
     counts = np.zeros(len(rows), dtype=np.float32)
@@ -68,14 +72,22 @@ def _simulate(rows, vectors, threshold):
         if oldest == len(created):
             open_story(i)
             continue
-        centroids = sums[oldest:len(created)] / counts[oldest:len(created), None]
-        scores = centroids @ v / np.maximum(np.linalg.norm(centroids, axis=1), 1e-9)
-        best = oldest + int(np.argmax(scores))
-        best_score = float(scores[best - oldest])
-        if best_score < threshold:
+        best, best_score = None, -1.0
+        for k in range(oldest, len(created)):
+            if counts[k] <= 0:
+                continue
+            centroid = sums[k] / counts[k]
+            score = float(v @ centroid / (np.linalg.norm(centroid) or 1.0))
+            for idx in sites[k].values():
+                member = vectors[idx]
+                score = max(score, float(v @ member / (np.linalg.norm(member) or 1.0)))
+            if score > best_score:
+                best, best_score = k, score
+        rival = sites[best].get(row["site_id"]) if best is not None else None
+        stays = rival is not None and best_score >= SAME_OUTLET_STAY
+        if best is None or (best_score < threshold and not stays):
             open_story(i)
             continue
-        rival = sites[best].get(row["site_id"])
         if rival is None:
             sums[best] += v
             counts[best] += 1
@@ -84,14 +96,13 @@ def _simulate(rows, vectors, threshold):
             continue
         if float(v @ vectors[rival]) > SAME_ARTICLE_THRESHOLD:
             continue
-        centroid = sums[best] / counts[best]
-        rival_score = float(vectors[rival] @ centroid / (np.linalg.norm(centroid) or 1.0))
-        if best_score > rival_score:
-            assigned[rival] = None
-            sites[best][row["site_id"]] = i
-            assigned[i] = best
-        else:
-            open_story(i)
+        sums[best] -= vectors[rival]
+        counts[best] -= 1
+        assigned[rival] = None
+        sums[best] += v
+        counts[best] += 1
+        sites[best][row["site_id"]] = i
+        assigned[i] = best
     return assigned
 
 
