@@ -10,10 +10,8 @@ import CoverageRing from './coverageRing';
 import { useDevMode, useTheme } from '@/state/theme';
 import { track } from '@/state/analytics';
 import TopicPicker from './topicPicker';
-import { ViewMode } from './viewModeToggle';
 import { ArticleViewer } from './articleViewer';
 import BlocView from './blocView';
-import CitizenCarousel from './citizenCarousel';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 // A story's change of size glides instead of jumping, the stories below it glide
@@ -42,7 +40,6 @@ type Props = {
     positions: Record<string, SitePosition>;
     setRatingOpen: Dispatch<SetStateAction<boolean>>;
     setRatingTarget: Dispatch<SetStateAction<NewsItem | null>>;
-    mode: ViewMode;
     topics?: string[];
     /** dev mode: this story is waiting to be merged into another */
     mergeArmed?: boolean;
@@ -60,7 +57,7 @@ type Props = {
  * One story in the feed. Collapsed it is a single row: headline, who covered it,
  * how many. Opening it is what reveals the two ways of reading the same story.
  */
-const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
+const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                     topics = [], mergeArmed, onArmMerge, open, onToggle,
                     onMeasure, readerBloc }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
@@ -151,7 +148,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
         track("article_opened", {
             outlet_bloc: positions[item.source]?.bloc ?? "unknown",
             topic: item.topic, section: item.section,
-            outlets: data.length, mode,
+            outlets: data.length, mode: "bloc",
         });
 
         // react-native-webview has no web build - on web the in-app viewer renders
@@ -255,11 +252,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                     )}
 
                     <View style={styles.titleRow}>
-                        {/* only the bloc view is about who told it, so only it wears the ring */}
-                        {mode === "bloc" && (
-                            <CoverageRing right={rightCount} left={leftCount}
-                                rightInk={t.right} leftInk={t.left} text={String(data.length)} />
-                        )}
+                        {/* who told it, as a ring: right and left, and how many in all */}
+                        <CoverageRing right={rightCount} left={leftCount}
+                            rightInk={t.right} leftInk={t.left} text={String(data.length)} />
                         <Text style={[styles.title, { color: t.text }]}
                             numberOfLines={open ? undefined : 3}>{lead.title}</Text>
                     </View>
@@ -287,11 +282,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget, mode,
                     exiting={still ? undefined : FADE_OUT}>
                     {/* the story's own headline above, the blocs' telling of it below */}
                     <View style={[styles.rule, { backgroundColor: t.line }]} />
-                    {mode === "bloc" ? (
-                        <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
-                    ) : (
-                        <CitizenCarousel data={data} positions={positions} onOpenArticle={handleOpenArticle} />
-                    )}
+                    <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
                 </Animated.View>
             )}
 
