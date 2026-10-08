@@ -1,22 +1,20 @@
 import { sectionColour, sectionTint } from '@/state/sections';
-import ViewModeToggle, { ViewMode } from './viewModeToggle';
 import { useTheme } from '@/state/theme';
 import { TYPE } from '@/state/craft';
 import Press from './press';
 import React, { useRef, useState } from 'react';
-import { I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import type { View as RNView } from 'react-native';
-import Svg, { Circle, Line } from 'react-native-svg';
+import { I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 export type SortKey = "newest" | "oldest" | "covered" | "outside";
 
-/** Which stories the bloc view shows, by who told them. */
+/** Which stories the feed shows, by who told them. */
 export type BlocFilter = "all" | "blind" | "both" | "right" | "left";
 
 export const BLOC_FILTERS: { key: BlocFilter; label: string; dot?: string }[] = [
     { key: "all", label: "הכל" },
-    // the one the app was built for, and now it has a name on the strip
-    { key: "blind", label: "נקודות עיוורות", dot: "#111827" },
+    // the one the app was built for, under the name it goes by
+    { key: "blind", label: "Blindspots", dot: "#111827" },
     { key: "both", label: "שני הצדדים", dot: "#DDA01E" },
     { key: "right", label: "רק ימין", dot: "#C0392F" },
     { key: "left", label: "רק שמאל", dot: "#2B5EA7" },
@@ -54,99 +52,89 @@ const Strip = ({ children, style }: { children: React.ReactNode; style?: any }) 
     );
 };
 
-const FilterIcon = ({ colour }: { colour: string }) => (
-    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-        <Line x1="3" y1="7" x2="9" y2="7" stroke={colour} strokeWidth="2" strokeLinecap="round" />
-        <Line x1="15" y1="7" x2="21" y2="7" stroke={colour} strokeWidth="2" strokeLinecap="round" />
-        <Circle cx="12" cy="7" r="2.6" stroke={colour} strokeWidth="2" />
-        <Line x1="3" y1="17" x2="6" y2="17" stroke={colour} strokeWidth="2" strokeLinecap="round" />
-        <Line x1="12" y1="17" x2="21" y2="17" stroke={colour} strokeWidth="2" strokeLinecap="round" />
-        <Circle cx="9" cy="17" r="2.6" stroke={colour} strokeWidth="2" />
-    </Svg>
-);
+type Panel = "filter" | "sort";
 
 type Props = {
+    /** the day's headline, which shares its line with the two controls */
+    title: string;
     sections: string[];
     selectedSections: string[];
     onToggleSection: (section: string) => void;
     sort: SortKey;
     onSort: (key: SortKey) => void;
-    mode: ViewMode;
-    onMode: (mode: ViewMode) => void;
-    /** only the bloc view asks who told a story, so only it offers this */
     blocFilter: BlocFilter;
     onBlocFilter: (filter: BlocFilter) => void;
-    /** the tour measures the toggle through this, to leave it out of its blur */
-    toggleRef?: React.RefObject<RNView | null>;
     /** whether the reader has told us their side, which makes a blindspot theirs */
     knowsBloc?: boolean;
 }
 
 /**
- * One rail, right to left: the view the reader is in takes the right of it and most
- * of its width, and everything that narrows the feed - which sections, in which
- * order - sits behind a single control on its left. Two controls of their own were
- * two thirds of a rail spent on housekeeping, above a header that was already
- * taking a third of a phone's screen off the news.
+ * The day's title, and on the same line two small icons: the filter and the sort.
+ * Each opens its own panel, and only when it is touched - the rail with a toggle,
+ * a "סינון" button and a strip of bloc filters under it was three rows of
+ * housekeeping between the reader and the first story.
+ *
+ * A filter that is on is never on unnoticed: its icon wears a gold dot, and while
+ * the panel is shut what it is narrowing to sits under the title, each with its ✕.
  */
-const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSort,
-                       mode, onMode, blocFilter, onBlocFilter, toggleRef, knowsBloc }: Props) => {
-    const [open, setOpen] = useState(false);
+const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort, onSort,
+                       blocFilter, onBlocFilter, knowsBloc }: Props) => {
+    const [panel, setPanel] = useState<Panel | null>(null);
     const t = useTheme();
     const dark = t.name === "negative";
 
     const active = selectedSections.filter((c) => c !== "הכל");
-    const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? "";
-    const sortIsDefault = sort === "newest";
+    const filtering = active.length > 0 || blocFilter !== "all";
+    const sorting = sort !== "newest";
+    const bloc = BLOC_FILTERS.find((option) => option.key === blocFilter);
+
+    const icon = (which: Panel, name: keyof typeof Ionicons.glyphMap, label: string, on: boolean) => {
+        const open = panel === which;
+        return (
+            <Press
+                style={[styles.icon, { borderColor: t.line, backgroundColor: t.surface },
+                    on && !open && { borderColor: t.brand },
+                    open && { backgroundColor: t.text, borderColor: t.text }]}
+                onPress={() => setPanel(open ? null : which)}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                accessibilityState={{ expanded: open }}
+                hitSlop={6}
+            >
+                <Ionicons name={name} size={15} color={open ? t.surface : t.text} />
+                {on && !open && <View style={[styles.badge, { backgroundColor: t.brand, borderColor: t.bg }]} />}
+            </Press>
+        );
+    };
+
+    const chip = (key: string, label: string, on: boolean, onPress: () => void, dot?: string) => (
+        <Press key={key}
+            style={[styles.chip, styles.edged,
+                { borderColor: on ? t.text : t.line, backgroundColor: on ? t.text : t.surface }]}
+            onPress={onPress}>
+            {!!dot && <View style={[styles.dot, { backgroundColor: dot }]} />}
+            <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>{label}</Text>
+        </Press>
+    );
 
     return (
         <View style={[styles.wrap, { backgroundColor: t.bg }]}>
-            <View style={styles.rail}>
-                <View ref={toggleRef} style={styles.togglePlace}>
-                    <ViewModeToggle mode={mode} onChange={onMode} compact />
+            <View style={styles.titleRow}>
+                <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>{title}</Text>
+                <View style={styles.icons}>
+                    {icon("filter", "funnel-outline", "סינון", filtering)}
+                    {icon("sort", "swap-vertical", "מיון", sorting)}
                 </View>
-
-                {/* the border turns gold when the feed the reader is looking at is not
-                    the whole feed, so a filter left on is never left on unnoticed */}
-                <Press
-                    style={[styles.control, { borderColor: t.line, backgroundColor: t.surface },
-                        !open && (active.length > 0 || !sortIsDefault) && { borderColor: t.brand },
-                        open && { backgroundColor: t.text, borderColor: t.text }]}
-                    onPress={() => setOpen(!open)}
-                    accessibilityRole="button"
-                    accessibilityLabel="סינון ומיון"
-                >
-                    <FilterIcon colour={open ? t.surface : t.text} />
-                    <Text style={[styles.controlText, { color: open ? t.surface : t.text }]}>
-                        סינון{active.length ? ` · ${active.length}` : ""}
-                    </Text>
-                </Press>
             </View>
 
-            {/* who told the story is a question only the bloc view asks */}
-            {mode === "bloc" && (
+            {filtering && panel !== "filter" && (
                 <Strip style={styles.strip}>
-                    {BLOC_FILTERS.map((option) => {
-                        const on = option.key === blocFilter;
-                        return (
-                            <Press key={option.key}
-                                style={[styles.chip, styles.sectionChip,
-                                    { borderColor: on ? t.text : t.line,
-                                      backgroundColor: on ? t.text : t.surface }]}
-                                onPress={() => onBlocFilter(option.key)}>
-                                {!!option.dot && (
-                                    <View style={[styles.dot, { backgroundColor: option.dot }]} />
-                                )}
-                                <Text style={[styles.chipText,
-                                    { color: on ? t.surface : t.text }]}>{option.label}</Text>
-                            </Press>
-                        );
-                    })}
-                </Strip>
-            )}
-
-            {active.length > 0 && !open && (
-                <Strip style={styles.chosen}>
+                    {blocFilter !== "all" && bloc && (
+                        <Press style={[styles.chip, styles.edged, { borderColor: t.text, backgroundColor: t.surface }]}
+                            onPress={() => onBlocFilter("all")}>
+                            <Text style={[styles.chipText, { color: t.text }]}>{bloc.label}  ✕</Text>
+                        </Press>
+                    )}
                     {active.map((section) => (
                         <Press key={section}
                             style={[styles.chip, { backgroundColor: sectionColour(section, dark) }]}
@@ -157,61 +145,50 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
                 </Strip>
             )}
 
-            {open && (
-                <Text style={[styles.panelLabel, { color: t.textMuted }]}>מדורים</Text>
+            {panel === "filter" && (
+                <>
+                    <Text style={[styles.panelLabel, { color: t.textMuted }]}>מי סיקר</Text>
+                    <Strip style={styles.strip}>
+                        {BLOC_FILTERS.map((option) => chip(option.key, option.label,
+                            option.key === blocFilter, () => onBlocFilter(option.key), option.dot))}
+                    </Strip>
+                    {/* the one filter whose name does not explain itself */}
+                    {blocFilter === "blind" && (
+                        <Text style={[styles.note, { color: t.textMuted }]}>
+                            {knowsBloc
+                                ? "סיפורים שהצד שלכם לא סיקר: שני גופים או יותר מהצד השני, ואפס משלכם."
+                                : "סיפורים שצד אחד סיקר והשני לא. מלאו את שאלון העמדות כדי לראות דווקא את אלה שהצד שלכם פספס."}
+                        </Text>
+                    )}
+                    <Text style={[styles.panelLabel, { color: t.textMuted }]}>מדורים</Text>
+                    <Strip style={styles.strip}>
+                        {sections.map((section) => {
+                            // off, the chip is a tint of its own colour with the name in
+                            // that colour at full strength - the same surface the card's
+                            // tab wears, so the strip and the feed are plainly one palette.
+                            // On, it fills in: the chosen one is the only solid thing here.
+                            const tint = sectionTint(section, dark);
+                            const on = active.includes(section);
+                            return (
+                                <Press key={section}
+                                    style={[styles.chip, styles.edged,
+                                        on ? { borderColor: tint.ink, backgroundColor: tint.ink }
+                                           : { borderColor: tint.edge, backgroundColor: tint.fill }]}
+                                    onPress={() => onToggleSection(section)}>
+                                    <Text style={[styles.chipText,
+                                        on ? styles.chipOn : { color: tint.label }]}>{section}</Text>
+                                </Press>
+                            );
+                        })}
+                    </Strip>
+                </>
             )}
-            {open && (
+
+            {panel === "sort" && (
                 <Strip style={styles.strip}>
-                    {sections.map((section) => {
-                        // off, the chip is a tint of its own colour with the name in
-                        // that colour at full strength - the same surface the card's tab
-                        // wears, so the strip and the feed are plainly one palette. On,
-                        // it fills in: the chosen one is the only solid thing in the row.
-                        const tint = sectionTint(section, dark);
-                        const on = active.includes(section);
-                        return (
-                            <Press key={section}
-                                style={[styles.chip, styles.sectionChip,
-                                    on ? { borderColor: tint.ink, backgroundColor: tint.ink }
-                                       : { borderColor: tint.edge, backgroundColor: tint.fill }]}
-                                onPress={() => onToggleSection(section)}>
-                                <Text style={[styles.chipText,
-                                    on ? styles.chipOn : { color: tint.label }]}>{section}</Text>
-                            </Press>
-                        );
-                    })}
+                    {SORT_OPTIONS.map((option) => chip(option.key, option.label,
+                        option.key === sort, () => onSort(option.key)))}
                 </Strip>
-            )}
-
-            {open && (
-                <Text style={[styles.panelLabel, { color: t.textMuted }]}>סדר הצגה</Text>
-            )}
-            {open && (
-                <Strip style={styles.strip}>
-                    {SORT_OPTIONS.map((opt) => {
-                        const on = opt.key === sort;
-                        return (
-                            <Press key={opt.key}
-                                style={[styles.chip, { backgroundColor: on ? t.text : t.surfaceAlt }]}
-                                onPress={() => onSort(opt.key)}>
-                                <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>{opt.label}</Text>
-                            </Press>
-                        );
-                    })}
-                </Strip>
-            )}
-
-            {/* the one filter whose name does not explain itself */}
-            {mode === "bloc" && blocFilter === "blind" && !open && (
-                <Text style={[styles.blindNote, { color: t.textMuted }]}>
-                    {knowsBloc
-                        ? "סיפורים שהצד שלכם לא סיקר: שני גופים או יותר מהצד השני, ואפס משלכם."
-                        : "סיפורים שצד אחד סיקר והשני לא. מלאו את שאלון העמדות כדי לראות דווקא את אלה שהצד שלכם פספס."}
-                </Text>
-            )}
-
-            {!sortIsDefault && !open && (
-                <Text style={[styles.sortNote, { color: t.textMuted }]}>ממוין: {sortLabel}</Text>
             )}
         </View>
     );
@@ -220,34 +197,36 @@ const FeedControls = ({ sections, selectedSections, onToggleSection, sort, onSor
 export default FeedControls;
 
 const styles = StyleSheet.create({
-    wrap: { width: "100%", paddingTop: 10, paddingBottom: 11, gap: 8 },
-    // row-reverse puts the first child at the right edge
-    rail: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingHorizontal: 16 },
-    control: {
-        flexDirection: "row-reverse", alignItems: "center", gap: 6,
-        borderWidth: 1, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14,
+    wrap: { width: "100%", paddingTop: 2, paddingBottom: 10, gap: 8 },
+    // row-reverse: the title from the right edge, the two icons at the left
+    titleRow: {
+        flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 16,
     },
-    controlText: { ...TYPE.label },
-    // only here so the tour has something to measure; the toggle sizes itself
-    togglePlace: { flex: 1, flexDirection: "row" },
-    // the two halves of the one panel, each said once and quietly
+    title: { ...TYPE.display, flex: 1, textAlign: "right" },
+    icons: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
+    icon: {
+        width: 32, height: 32, borderRadius: 16, borderWidth: 1,
+        alignItems: "center", justifyContent: "center",
+    },
+    // a filter or an order left on: a gold dot on the icon's shoulder
+    badge: {
+        position: "absolute", top: -1, right: -1, width: 9, height: 9, borderRadius: 5,
+        borderWidth: 1.5,
+    },
+    // the panel's two halves, each said once and quietly
     panelLabel: {
         fontFamily: "Heebo_700Bold", fontSize: 10.5, textAlign: "right",
         paddingHorizontal: 16, marginBottom: -3,
     },
-    chosen: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
-    chip: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
+    chip: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 11 },
     // a hairline rather than a 1.5px outline: the chip is a surface with an edge,
     // not a shape drawn in outline
-    sectionChip: {
-        flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1,
-    },
+    edged: { flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1 },
     dot: { width: 7, height: 7, borderRadius: 4 },
-    chipText: { fontFamily: "Heebo_500Medium", fontSize: 12.5, letterSpacing: 0.05 },
+    chipText: { fontFamily: "Heebo_500Medium", fontSize: 12, letterSpacing: 0.05 },
     chipOn: { color: "#FFFFFF", fontFamily: "Heebo_700Bold" },
-    sortNote: { fontFamily: "Heebo_500Medium", fontSize: 10.5, textAlign: "center" },
-    blindNote: {
+    note: {
         fontFamily: "Heebo_500Medium", fontSize: 11, lineHeight: 16,
         textAlign: "right", paddingHorizontal: 16, marginTop: -2,
     },

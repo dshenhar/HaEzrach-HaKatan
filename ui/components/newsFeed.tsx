@@ -3,7 +3,6 @@ import { AppState } from "react-native";
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { I18nManager } from "react-native";
 import FeedControls, { BlocFilter, SortKey } from "./feedControls";
-import ViewModeToggle, { ViewMode } from "./viewModeToggle";
 import ModeGuide from "./modeGuide";
 import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
@@ -23,7 +22,7 @@ import { Alert } from "react-native";
 import PersonalArea from "./personalArea";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TouchableOpacity } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // The logo is navy ink, so negative mode swaps in a pale copy of it.
 // the navy the logo is drawn in, sampled off the file itself, so the words and the
@@ -43,10 +42,10 @@ const TAIL = 120;
 const ANCHOR = 0.32;
 /** a reader this close to the top is at the top: an update lands without moving them */
 const NEAR_TOP = 120;
-/** the tour the i runs: the anchor's welcome, then each view with its guide */
+/** the tour the i runs: the anchor's welcome, then the guide to reading by bloc */
 // The tour ends with the questionnaire for a reader who has not answered it, and
-// two steps earlier for everyone else.
-const TOUR_BASE = ["welcome", "bloc", "citizen"] as const;
+// a step earlier for everyone else.
+const TOUR_BASE = ["welcome", "bloc"] as const;
 type TourStep = (typeof TOUR_BASE)[number] | "questionnaire";
 
 
@@ -82,7 +81,6 @@ export default function NewsFeed() {
 	const [allTopics, setAllTopics] = useState<string[]>([]);
 	const [mergeSource, setMergeSource] = useState<{ id: string | number; title: string } | null>(null);
 	const [sort, setSort] = useState<SortKey>("newest");
-	const [viewMode, setViewMode] = useState<ViewMode>("bloc");
 	const t = useTheme();
 	const dev = useDevMode();
 
@@ -98,33 +96,20 @@ export default function NewsFeed() {
 		scrollRef.current?.scrollTo({ y: 0, animated: true });
 	};
 
-	// The i runs the tour over a blurred feed, one step per touch: the welcome, the
-	// bloc view with the man, the citizen view with the woman. The toggle switches
-	// behind the blur to match each guide, and the last touch hands the feed back the
-	// way the reader had it. Tapping the toggle on its own just switches the view.
+	// The i runs the tour over a blurred feed, one step per touch: the welcome, then
+	// the man who explains reading a story by bloc, then the questionnaire for a
+	// reader who has not answered it.
 	const [tourStep, setTourStep] = useState<number | null>(null);
-	// the band the blur leaves clear, which is wherever the toggle has ended up
-	const toggleBox = useRef<View>(null);
-	const [spot, setSpot] = useState<{ y: number; h: number } | null>(null);
-	const insets = useSafeAreaInsets();
 	const [tour, setTour] = useState<TourStep[]>([...TOUR_BASE]);
 	const { filled, open: askQuestionnaire } = useQuestionnaire();
 	const tourBlur = useRef(new Animated.Value(0)).current;
-	const modeBeforeTour = useRef<ViewMode>("bloc");
 	const startTour = () => {
 		track("tour_started");
-		modeBeforeTour.current = viewMode;
 		// the questionnaire closes the tour, but only for someone it still concerns
 		setTour(filled ? [...TOUR_BASE] : [...TOUR_BASE, "questionnaire"]);
-		// The toggle scrolls with the feed now, so the tour brings it back on screen
-		// before it starts - the guides point at it, and the blur leaves a clear band
-		// where it lands. measureInWindow counts from the top of the screen; the
-		// overlay starts under the notch, which is what the inset takes off again.
+		// the guides speak about the feed from its top, so the tour starts there
 		scrollRef.current?.scrollTo({ y: 0, animated: true });
 		setTimeout(() => {
-			toggleBox.current?.measureInWindow?.((_x, y, _w, h) => {
-				setSpot(h ? { y: y - insets.top, h } : null);
-			});
 			setTourStep(0);
 			Animated.timing(tourBlur, {
 				toValue: 1,
@@ -139,7 +124,6 @@ export default function NewsFeed() {
 		const next = from + 1;
 		if (next < tour.length) {
 			const step = tour[next];
-			if (step === "bloc" || step === "citizen") setViewMode(step);
 			track("tour_step", { step: String(step), index: next });
 			setTourStep(next);
 			return;
@@ -148,7 +132,6 @@ export default function NewsFeed() {
 		endTour();
 	};
 	const endTour = (then?: () => void) => {
-		setViewMode(modeBeforeTour.current);
 		Animated.timing(tourBlur, {
 			toValue: 0,
 			duration: 260,
@@ -186,7 +169,7 @@ export default function NewsFeed() {
 		let list = [...filteredArticles];
 		// A story only one bloc is telling is the most interesting thing the feed
 		// knows, and this is where a reader goes looking for it.
-		if (viewMode === "bloc" && blocFilter !== "all") {
+		if (blocFilter !== "all") {
 			list = list.filter((cluster) => {
 				const { right, left } = split(cluster);
 				if (blocFilter === "both") return right > 0 && left > 0;
@@ -211,16 +194,14 @@ export default function NewsFeed() {
 			default:
 				return list.sort((a, b) => clusterTime(b) - clusterTime(a));
 		}
-	}, [filteredArticles, sort, positions, profile, viewMode, blocFilter]);
+	}, [filteredArticles, sort, positions, profile, blocFilter]);
 
-	// One story open at a time: opening another closes the first, and switching
-	// between the bloc and citizen views closes whatever was open. A story opens and
+	// One story open at a time: opening another closes the first. A story opens and
 	// closes under the reader's finger and nothing else. The feed used to open
 	// whichever story the scroll came to rest on, and to hold the scroll still while
 	// it grew - which read as the feed opening things and moving on its own.
 	const storyKey = (cluster: NewsItem[], index: number) => String(cluster[0]?.groupId ?? index);
 	const [openStory, setOpenStory] = useState<string | null>(null);
-	useEffect(() => { setOpenStory(null); }, [viewMode]);
 
 	// How far down the reader has got, for the drop-off milestones. Nothing here
 	// moves the scroll: it adds up the stories' heights to know which one a position
@@ -480,20 +461,17 @@ export default function NewsFeed() {
 							<Ionicons name="person-circle-outline" size={30} color={t.text} />
 						</TouchableOpacity>
 					</View>
-					<Text style={[styles.title, { color: t.text }]}>כל מה שקרה היום</Text>
 				</View>
 
 				<FeedControls
+					title="כל מה שקרה היום"
 					sections={sections}
 					selectedSections={selectedCategories}
 					onToggleSection={handleSectionToggle}
 					sort={sort}
 					onSort={(next) => { track("sort_changed", { sort: next }); setSort(next); }}
-					mode={viewMode}
-					onMode={(next) => { track("view_mode_changed", { mode: next }); setViewMode(next); }}
 					blocFilter={blocFilter}
 					onBlocFilter={(next) => { track("bloc_filter_changed", { filter: next }); setBlocFilter(next); }}
-					toggleRef={toggleBox}
 					knowsBloc={profile !== null}
 				/>
 				</View>
@@ -511,7 +489,6 @@ export default function NewsFeed() {
 					return (
 						<StoryCard key={key} data={cluster} positions={positions}
 						setRatingOpen={setRatingOpen} setRatingTarget={setRatingTarget}
-						mode={viewMode}
 						topics={allTopics}
 						mergeArmed={mergeSource?.id === cluster[0]?.groupId}
 						onArmMerge={armMerge}
@@ -564,15 +541,15 @@ export default function NewsFeed() {
 			    the pictures change, and each picture moves the tour on when touched */}
 			{tourStep !== null && (
 				<View style={styles.tour}>
-					<GuideBackdrop opacity={tourBlur} hole={spot} />
+					<GuideBackdrop opacity={tourBlur} />
 					{tourStepName === "welcome" ? (
 						<WelcomeGuide key="welcome" onDone={() => advanceTour(tourStep)} />
 					) : tourStepName === "questionnaire" ? (
 						<TourQuestionnaire
 							onFill={() => endTour(askQuestionnaire)}
 							onSkip={() => advanceTour(tourStep)} />
-					) : tourStepName !== null ? (
-						<ModeGuide key={tourStepName} mode={tourStepName} onDone={() => advanceTour(tourStep)} />
+					) : tourStepName === "bloc" ? (
+						<ModeGuide key="bloc" mode="bloc" onDone={() => advanceTour(tourStep)} />
 					) : null}
 				</View>
 			)}
@@ -650,9 +627,6 @@ const styles = StyleSheet.create({
 	brandBottom: {
 		fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 15, letterSpacing: 0.08,
 	},
-	// the one piece of display type in the app, and the one that most wants its
-	// letters pulled back in
-	title: { ...TYPE.display, textAlign: "right" },
 	scrollView: {
 		width: "100%",
 		backgroundColor: '#f8f8f8ff',
