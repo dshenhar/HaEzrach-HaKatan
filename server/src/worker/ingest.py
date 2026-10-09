@@ -870,10 +870,6 @@ def once() -> None:
     except Exception as err:
         print(f"hot      ! not rebuilt this pass: {err!r}")
     cleanup()
-    try:
-        hot_topics.maybe_refresh()
-    except Exception as err:
-        print(f"hot      ! refresh failed this pass: {err!r}")
 
 
 def main() -> None:

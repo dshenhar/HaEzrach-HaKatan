@@ -11,15 +11,18 @@ today's feed is about.
   meta/hot  what the page reads, built with the feed: every affair with its tier
             and its links into the feed, and today's - at most three, only those
             the feed has stories on.
-  refresh   an affair older than a month is written again, a few each pass, and
-            once all are fresh the owner gets the whole pool by mail.
+  refresh   by hand, once a month, in a session with the owner - not by the ingest,
+            which used to rewrite every affair with WRITE_MODEL and mail the pool,
+            and was turned off to save the OpenAI credit. `refresh` below still
+            does it with the model when that is wanted.
 
     python hot_topics.py seed [--count 50]     propose the pool and write every affair
     python hot_topics.py add "<title>"           one more affair
     python hot_topics.py drop <id>               take one out (kept, inactive)
     python hot_topics.py rewrite <id> [...]      write these again now
     python hot_topics.py relevance <id> <1-10>   set how burning an affair is, by hand
-    python hot_topics.py refresh                 the monthly pass, and the report after it
+    python hot_topics.py refresh                 rewrite the month-old affairs with the model,
+                                                 then mail the report (run by hand only)
     python hot_topics.py report [--send]         print the report, and mail it
     python hot_topics.py build                   match the current feed and rebuild meta/hot
     python hot_topics.py table                   the pool, for review
