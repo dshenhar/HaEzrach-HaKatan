@@ -23,8 +23,10 @@ scrape  ->  embed  ->  group into stories  ->  tag  ->  summarise  ->  feed  -> 
   each side covers it, sees it and why, and how burning it is. Every pass matches
   the feed's stories to them with gpt-6-luna. Keeping them current is done by
   hand, about once a month, in a session with the owner. Its commands (seed,
-  add, drop, rewrite, relevance, load, report, table) run in the ingest image
-  with `run-job.sh`. Each affair's picture is the web app's own file,
+  add, drop, rewrite, relevance, load, edit, report, table) run in the ingest
+  image with `run-job.sh`; `edit` sets corrections made by hand, without the
+  model. The affairs speak of the camps' media ("תקשורת הימין") and never name an
+  outlet, unless the outlet is itself the affair. Each affair's picture is the web app's own file,
   `ui/public/topics/<id>.webp` (square, 400px); an affair added to the pool is
   given one there, and until it has one its box shows an empty frame.
 - **serve** `app/server.py` — the api the app calls.
