@@ -22,7 +22,9 @@ SIDES = {
     # the citizen view: every outlet that covered the story, no blocs
     "all": "מכל צדי המפה הפוליטית",
 }
-BLOCS = tuple(SIDES)
+# What the ingest writes ahead of time. "all" was the citizen view's, which the app
+# no longer has; the api still writes one if it is ever asked for.
+BLOCS = ("right", "left")
 
 SUMMARY_WINDOW = timedelta(hours=26)     # a little over the feed's day
 SUMMARY_MAX_PER_CYCLE = 90
@@ -68,8 +70,12 @@ def _summary_via_claude(text_prompt: str) -> str | None:
 
 def _summary_via_openai(text_prompt: str) -> str | None:
     # worker-side only: the api image carries no OpenAI key and falls back to Gemini
-    from gpt_models import summarise as openai_summarise
-    return openai_summarise(text_prompt)
+    from gpt_models import OpenAIUnavailable, summarise as openai_summarise
+    try:
+        return openai_summarise(text_prompt)
+    except OpenAIUnavailable as err:
+        # out of credit, or down after its retries: no use asking for the next story
+        raise QuotaExhausted(f"openai: {err}") from err
 
 
 def summarise(text_prompt: str) -> str | None:

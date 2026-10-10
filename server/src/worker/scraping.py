@@ -89,6 +89,10 @@ KAN_SECTION_TITLES = {
 # and 429s are retried with backoff rather than dropped - a dropped translation
 # means the article is skipped entirely.
 _last_translate_at = 0.0
+# Gemini's free tier, the fallback, refuses for the rest of the day once its quota
+# is spent. Waiting on it - 24 seconds an item - is what held a pass with OpenAI
+# out of credit for fifteen minutes and killed it before the feed was built.
+_gemini_refused = False
 TRANSLATE_MIN_GAP = 4.0
 TRANSLATE_RETRIES = 2
 
@@ -113,14 +117,14 @@ def translate_to_hebrew(header: str, subheader: str) -> tuple[str, str] | None:
     cycle with ten Arabic headlines spent a quarter of an hour backing off - it is
     kept only as the fallback.
     """
-    global _last_translate_at
+    global _last_translate_at, _gemini_refused
     from gpt_models import OPENAI_API_KEY, translate as translate_via_openai
 
     if OPENAI_API_KEY:
         done = translate_via_openai(header, subheader)
         if done:
             return done
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY or _gemini_refused:
         return None
 
     # the columns cap at 512/2048 anyway, and a shorter prompt is less likely to
@@ -151,10 +155,9 @@ def translate_to_hebrew(header: str, subheader: str) -> tuple[str, str] | None:
             )
             _last_translate_at = time.time()
             if r.status_code == 429:
-                wait = 8 * (attempt + 1)
-                print(f"  . מגבלת קצב, ממתין {wait}s")
-                time.sleep(wait)
-                continue
+                _gemini_refused = True
+                print("  ! Gemini refused (429): no more fallback translations this pass")
+                return None
             r.raise_for_status()
 
             parts = r.json()["candidates"][0].get("content", {}).get("parts", [])
