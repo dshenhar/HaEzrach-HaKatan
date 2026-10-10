@@ -28,6 +28,9 @@ today's feed is about.
     python hot_topics.py table                   the pool, for review
     python hot_topics.py load <file.json> [--force]  affairs written elsewhere, e.g.
                                                  /app/migrate/hot_affairs/2026-10-08.json
+    python hot_topics.py edit <file.json>        corrections by hand to affairs' fields,
+                                                 without the model, e.g.
+                                                 /app/migrate/hot_affairs/2026-10-10-no-outlet-names.json
 """
 import argparse
 import base64
@@ -106,7 +109,7 @@ WRITE = """אתה עורך באתר חדשות ישראלי שמציג לקור�
 - title: שם קצר וניטרלי לסוגיה, 2 עד 6 מילים. כשלכל צד שם משלו לאותו דבר (למשל "רפורמה משפטית" ו"הפיכה משטרית") כתוב את שניהם.
 - one_line: משפט אחד, עד 15 מילים, שאומר במה המחלוקת.
 - summary: סיכום עובדתי של פרטי הפרשה - מה בדיוק מוצע או קרה, מי מוביל, הפרטים המהותיים שרוב הציבור לא מכיר, ומה המצב נכון להיום. 70 עד 110 מילים, בלי שיפוט ובלי תארים טעונים.
-- right.coverage: איך כלי התקשורת המזוהים עם הימין מסקרים את הסוגיה - על מה הם שמים דגש ובאיזה מסגור. משפט או שניים.
+- right.coverage: איך כלי התקשורת המזוהים עם הימין מסקרים את הסוגיה - על מה הם שמים דגש ובאיזה מסגור. משפט או שניים. כתוב "תקשורת הימין", "כלי תקשורת ימניים" וכדומה, בלי שמות של כלי תקשורת.
 - right.view: איך הימין תופס את הסוגיה ומה עמדתו. משפט או שניים.
 - right.motives: הערכים, המניעים והאינטרסים של הימין, מנוסחים כפי שהצד עצמו היה מנסח אותם במיטבו. משפט או שניים.
 - left.coverage, left.view, left.motives: אותו דבר לשמאל.
@@ -121,6 +124,7 @@ WRITE = """אתה עורך באתר חדשות ישראלי שמציג לקור�
 - תווית או טענה של צד אחד מיוחסת לו ("לטענת התומכים", "המתנגדים מכנים").
 - בלי קישורים ובלי הפניות למקורות בתוך הטקסט - הם הולכים רק ל-sources.
 - "ימין" ו"שמאל" הם הגושים הפוליטיים בישראל. אם העמדות חוצות גושים, אמור זאת בקצרה.
+- בשום שדה אין שמות של כלי תקשורת - ערוצים, עיתונים, אתרים, תחנות, תוכניות או פודקאסטים - לא כמקור ולא כדוגמה. כתוב "בימין", "תקשורת הימין", "כלי תקשורת המזוהים עם השמאל", "בתקשורת" וכדומה. רק כלי תקשורת שהוא עצמו נושא הסוגיה (למשל תחנה שהממשלה מבקשת לסגור) נקרא בשמו.
 - ענה ב-JSON בלבד."""
 
 UPDATE = """
@@ -384,6 +388,14 @@ def rebuild_from_feed() -> None:
     update(stories, db.read_feed())
 
 
+def rebuild_page() -> None:
+    """Rebuild meta/hot from the matches the feed's stories already carry, asking the
+    model nothing: for when the affairs' words changed and not which affairs there are."""
+    from ingest import feed_stories
+    pool = [t for t in db.all_polar() if t.get("active", True) and t.get("summary")]
+    build(pool, feed_stories(), db.read_feed())
+
+
 # ---- the monthly refresh and its report -----------------------------------------
 
 def _age_days(topic: dict) -> float:
@@ -543,6 +555,44 @@ def load(path: str, force: bool) -> None:
     rebuild_from_feed()
 
 
+EDITABLE = ("title", "one_line", "summary")
+
+
+def edit(path: str) -> None:
+    """Corrections made by hand to affairs already written, from a JSON file of
+    {id: {field: text}}, a field being title, one_line, summary, or a side's
+    "right.coverage", "left.motives" and the like. Only those fields are set, and an
+    affair keeps its updated_at: it was corrected, not written again. The page is then
+    rebuilt without asking the model about any story."""
+    with open(path, encoding="utf-8") as fh:
+        edits = json.load(fh)
+    pool = {t["id"]: t for t in db.all_polar()}
+    for topic_id, fields in edits.items():
+        before = pool.get(topic_id)
+        if not before:
+            print(f"  ! {topic_id}: not in the pool")
+            continue
+        doc = {}
+        for field, text in fields.items():
+            side, _, key = field.partition(".")
+            if key:
+                if side not in ("right", "left") or key not in SIDE["properties"]:
+                    raise ValueError(f"{topic_id}: no field {field}")
+                if (before.get(side) or {}).get(key) != text:
+                    doc[side] = (doc.get(side) or dict(before.get(side) or {})) | {key: text}
+            elif field in EDITABLE:
+                if before.get(field) != text:
+                    doc[field] = text
+            else:
+                raise ValueError(f"{topic_id}: no field {field}")
+        if not doc:
+            print(f"  = {topic_id}: already so")
+            continue
+        db.save_polar(topic_id, doc | {"edited_at": db.now()})
+        print(f"  ✓ {topic_id}: {', '.join(fields)}")
+    rebuild_page()
+
+
 def table() -> None:
     pool = sorted((t for t in db.all_polar() if t.get("active", True)),
                   key=lambda t: -t.get("relevance", 0))
@@ -567,6 +617,7 @@ def main() -> None:
     sub.add_parser("build")
     sub.add_parser("table")
     p = sub.add_parser("load"); p.add_argument("path"); p.add_argument("--force", action="store_true")
+    p = sub.add_parser("edit"); p.add_argument("path")
     args = parser.parse_args()
 
     if args.cmd == "seed":
@@ -604,6 +655,8 @@ def main() -> None:
         table()
     elif args.cmd == "load":
         load(args.path, args.force)
+    elif args.cmd == "edit":
+        edit(args.path)
 
 
 if __name__ == "__main__":
