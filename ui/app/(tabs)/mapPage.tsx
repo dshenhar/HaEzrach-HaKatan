@@ -1,13 +1,17 @@
 import SwipeTabs from '@/components/swipeTabs';
 import HotTopicCard from '@/components/hotTopicCard';
+import Press from '@/components/press';
+import { useStillness } from '@/state/access';
 import { track } from '@/state/analytics';
 import { requestStory } from '@/state/feedFocus';
-import { HotPage, HotTopic, loadHot, polarFive } from '@/state/hotTopics';
-import { SWELL, TYPE } from '@/state/craft';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { HotPage, HotTopic, loadHot, MORE_STEP, polarFive, polarRest } from '@/state/hotTopics';
+import { ELEVATION, SWELL, TYPE } from '@/state/craft';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, I18nManager, NativeScrollEvent, NativeSyntheticEvent, RefreshControl,
     ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 I18nManager.allowRTL(true);
@@ -20,6 +24,7 @@ const PAD_TOP = 10;
 const GAP = 16;
 /** where on the screen the page asks "which box is the reader on", as the feed does */
 const ANCHOR = 0.32;
+const ARRIVE = FadeIn.duration(240);
 
 type Block = { key: string; node: React.ReactNode };
 
@@ -30,6 +35,10 @@ type Block = { key: string; node: React.ReactNode };
  *              covered first - and none at all on a day that has none
  *   polarized  five from the pool of affairs the country is split on: three of
  *              the burning ones and two quieter, drawn again on every visit
+ *
+ * Under them, "more topics" opens five more of the pool at each touch, the most
+ * burning first, until all of it is on the page. Leaving the page folds it back to
+ * the five.
  *
  * A box is folded until it is touched. While the page moves, the box under the
  * reader's thumb swells a little, as a story does in the feed.
@@ -42,6 +51,14 @@ export default function MapPage() {
     const [failed, setFailed] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [open, setOpen] = useState<Set<string>>(() => new Set());
+    const still = useStillness();
+    // how many of the rest "more topics" has opened; the tab stays mounted when the
+    // reader goes elsewhere, so it is put back to none as they leave
+    const [more, setMore] = useState(0);
+    useFocusEffect(useCallback(() => () => {
+        setMore(0);
+        setOpen((current) => new Set([...current].filter((key) => !key.startsWith("more:"))));
+    }, []));
 
     const take = (next: HotPage | null) => {
         if (next) setPage(next);
@@ -60,6 +77,12 @@ export default function MapPage() {
         return page.today.map((id) => byId.get(id)).filter(Boolean) as HotTopic[];
     }, [page]);
     const polar = useMemo(() => (page ? polarFive(page) : []), [page]);
+    const rest = useMemo(() => (page ? polarRest(page, polar) : []), [page, polar]);
+    const showMore = () => {
+        const next = Math.min(more + MORE_STEP, rest.length);
+        setMore(next);
+        track("hot_topics_more", { shown: polar.length + next });
+    };
 
     const openStory = (topic: HotTopic, storyId: string) => {
         track("hot_topic_link_opened", { topic: topic.id });
@@ -105,7 +128,7 @@ export default function MapPage() {
             <View style={styles.rule} />
         </View>
     );
-    const card = (topic: HotTopic, section: "today" | "polar") => {
+    const card = (topic: HotTopic, section: "today" | "polar" | "more") => {
         const key = `${section}:${topic.id}`;
         return {
             key,
@@ -139,6 +162,22 @@ export default function MapPage() {
         blocks.push({ key: "polar-head", node: divider("מקוטבים") });
         blocks.push({ key: "polar-note", node: <Text style={styles.note}>מחלוקות שמפלגות את המדינה</Text> });
         polar.forEach((topic) => blocks.push(card(topic, "polar")));
+        rest.slice(0, more).forEach((topic) => {
+            const { key, node } = card(topic, "more");
+            blocks.push({ key, node: <Animated.View entering={still ? undefined : ARRIVE}>{node}</Animated.View> });
+        });
+        if (more < rest.length) {
+            blocks.push({
+                key: "more",
+                node: (
+                    <Press style={[styles.more, { flexDirection: FROM_RIGHT }]} onPress={showMore}
+                        accessibilityRole="button" accessibilityLabel="עוד נושאים">
+                        <Text style={styles.moreText}>עוד נושאים</Text>
+                        <Ionicons name="chevron-down" size={18} color="#4B5563" />
+                    </Press>
+                ),
+            });
+        }
     }
     const order = blocks.map((block) => block.key);
 
@@ -196,4 +235,10 @@ const styles = StyleSheet.create({
     note: { ...TYPE.caption, color: "#6B7280", textAlign: "right", marginTop: -8 },
     muted: { ...TYPE.body, color: "#9CA3AF", textAlign: "right" },
     retry: { paddingVertical: 20 },
+    more: {
+        alignSelf: "center", alignItems: "center", gap: 6, marginTop: 4,
+        paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999,
+        backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E3E3E1", boxShadow: ELEVATION.rest,
+    },
+    moreText: { ...TYPE.label, fontSize: 15, color: "#111827" },
 });

@@ -70,3 +70,15 @@ export function polarFive(page: HotPage): HotTopic[] {
 	drawn = five.map((t) => t.id);
 	return five;
 }
+
+/** how many more affairs one touch on "more topics" opens */
+export const MORE_STEP = 5;
+
+/**
+ * The rest of the pool after the five, the most burning first: what "more topics"
+ * opens, five at a time, until every affair is on the page.
+ */
+export function polarRest(page: HotPage, five: HotTopic[]): HotTopic[] {
+	const shown = new Set([...page.today, ...five.map((t) => t.id)]);
+	return page.topics.filter((t) => !shown.has(t.id)).sort((a, b) => b.relevance - a.relevance);
+}
