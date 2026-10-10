@@ -372,7 +372,7 @@ def forget_me(request: Request):
 # whose summary is missing - one that joined the feed between two cycles.
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("TAG_MODEL", "gpt-5.6-luna")
+OPENAI_MODEL = os.getenv("LIGHT_MODEL", "gpt-6-luna")
 
 
 async def _openai(prompt: str) -> str | None:

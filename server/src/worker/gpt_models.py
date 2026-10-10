@@ -4,8 +4,13 @@
               column stays as it is. Stories are grouped by these.
   topics      gpt-5.6-luna, answering in a JSON schema whose only allowed values
               are the topic names, so it cannot invent a topic or misspell one.
-              The same model decides whether two stories the embeddings put
-              close together are one event (same_event).
+  light work  gpt-6-luna, at about half the price: whether two stories the
+              embeddings put close together are one event (same_event), the
+              translation of Arabic items, and the one-line summaries. Tried side
+              by side on the same stories (October 2026) it wrote summaries and
+              judged pairs as well as gpt-5.6-luna; on tagging it gave an issue to
+              articles about none - a festival filed under the cost of living - and
+              the issue is what the outlets' map learns from, so tagging stays.
 
 They replace two local models - paraphrase-multilingual-mpnet-base-v2 and a
 zero-shot mDeBERTa - which needed torch, a 1.5GB image and 1.2GB of RAM on the
@@ -22,6 +27,7 @@ import requests
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-large")
 TAG_MODEL = os.getenv("TAG_MODEL", "gpt-5.6-luna")
+LIGHT_MODEL = os.getenv("LIGHT_MODEL", "gpt-6-luna")
 # a little reasoning measurably helps on the narrow topics and costs little at
 # this length; "none" is the cheaper setting if it ever matters
 TAG_EFFORT = os.getenv("TAG_EFFORT", "low")
@@ -185,7 +191,7 @@ def same_event(pairs: list[tuple[list[str], list[str]]]) -> list[bool]:
     payload = json.dumps([{"id": i, "a": a, "b": b} for i, (a, b) in enumerate(pairs)],
                          ensure_ascii=False)
     reply = _post("/chat/completions", {
-        "model": TAG_MODEL,
+        "model": LIGHT_MODEL,
         "reasoning_effort": TAG_EFFORT,
         "messages": [{"role": "developer", "content": SAME_EVENT},
                      {"role": "user", "content": payload}],
@@ -210,7 +216,7 @@ def translate(header: str, subheader: str) -> tuple[str, str] | None:
                              "subheader": {"type": "string"}}}
     try:
         reply = _post("/chat/completions", {
-            "model": TAG_MODEL,
+            "model": LIGHT_MODEL,
             "reasoning_effort": "none",
             "messages": [
                 {"role": "developer", "content":
@@ -233,7 +239,7 @@ def translate(header: str, subheader: str) -> tuple[str, str] | None:
 def summarise(text_prompt: str) -> str | None:
     """One line over a story's headlines. Plain text, no schema to get in the way."""
     reply = _post("/chat/completions", {
-        "model": TAG_MODEL,
+        "model": LIGHT_MODEL,
         "reasoning_effort": "none",
         "max_completion_tokens": 300,
         "messages": [{"role": "user", "content": text_prompt}],

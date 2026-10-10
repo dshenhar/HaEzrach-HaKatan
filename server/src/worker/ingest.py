@@ -564,6 +564,18 @@ def note_coverage(stories: list[dict], topics: list[dict]) -> None:
 
 # ---- summaries ---------------------------------------------------------------
 
+# A side's summary is written when the side has its first headline, and again only
+# when it grows past the next of these. A story picks up outlets all day, and
+# rewriting its line for every one of them was most of what the summaries cost.
+SUMMARY_STEPS = (2, 3, 5, 8, 13)
+
+
+def summary_due(had: int | None, now: int) -> bool:
+    if had is None:
+        return True
+    return any(had < step <= now for step in SUMMARY_STEPS)
+
+
 def write_summaries(stories: list[dict] | None = None) -> None:
     if not GEMINI_API_KEY:
         return
@@ -581,7 +593,7 @@ def write_summaries(stories: list[dict] | None = None) -> None:
         changed = False
         for bloc in BLOCS:
             articles = articles_for(rows, blocs, bloc)
-            if not articles or (have.get(bloc) or {}).get("count") == len(articles):
+            if not articles or not summary_due((have.get(bloc) or {}).get("count"), len(articles)):
                 continue
             if written >= SUMMARY_MAX_PER_CYCLE:
                 break
@@ -768,7 +780,14 @@ def cycle() -> None:
     fresh.sort(key=lambda e: e["created_at"])
 
     print(f"\nembedding and placing {len(fresh)} articles")
-    vectors = embed([f"{e['header']}\n{e['subheader']}" for e in fresh])
+    try:
+        vectors = embed([f"{e['header']}\n{e['subheader']}" for e in fresh])
+    except OpenAIUnavailable as err:
+        # Nothing can be placed without its vector. The articles are not remembered,
+        # so the next pass scrapes them again, and this one goes on to rebuild the
+        # feed from what is stored instead of dying here and leaving it as it was.
+        print(f"  ! OpenAI did not answer, nothing placed this pass: {err}")
+        return
     article_ids = db.next_ids("article", len(fresh))
     story_ids = db.next_ids("story", len(fresh))
     corrections = db.all_corrections()
