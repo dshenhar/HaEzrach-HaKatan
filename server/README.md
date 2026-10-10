@@ -24,7 +24,9 @@ scrape  ->  embed  ->  group into stories  ->  tag  ->  summarise  ->  feed  -> 
   the feed's stories to them with gpt-6-luna. Keeping them current is done by
   hand, about once a month, in a session with the owner. Its commands (seed,
   add, drop, rewrite, relevance, load, report, table) run in the ingest image
-  with `run-job.sh`.
+  with `run-job.sh`. Each affair's picture is the web app's own file,
+  `ui/public/topics/<id>.webp` (square, 400px); an affair added to the pool is
+  given one there, and until it has one its box shows an empty frame.
 - **serve** `app/server.py` — the api the app calls.
 
 Everything it needs to run, and every command worth knowing, is in
