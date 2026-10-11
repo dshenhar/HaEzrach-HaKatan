@@ -1,5 +1,5 @@
 import { useStillness } from '@/state/access';
-import { HotTopic } from '@/state/hotTopics';
+import { HotTopic, topicPicture } from '@/state/hotTopics';
 import { ELEVATION, SETTLE, SWELL, TYPE } from '@/state/craft';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Press from './press';
@@ -17,9 +17,6 @@ const LEFT_SOFT = "#EDF1F9";
 const FROM_RIGHT = I18nManager.isRTL ? "row" : "row-reverse";
 const FROM_LEFT = I18nManager.isRTL ? "row-reverse" : "row";
 
-// Every affair in the pool has a picture of its own, public/topics/<id>.webp,
-// served with the site; a new affair is given one when it is added.
-const PICTURES = Platform.OS === "web" ? "/topics" : "https://haezrach-hakatan.web.app/topics";
 // beside the name while folded, and a little larger once the box is open
 const PICTURE = { folded: 88, open: 124 } as const;
 // between the dispute's line and the facts
@@ -142,7 +139,7 @@ export default function HotTopicCard({ topic, today, open, focused, onToggle, on
                     <Animated.View style={[styles.picture, FLOAT, grow]}>
                         {!missing && (
                             <Image
-                                source={{ uri: `${PICTURES}/${topic.id}.webp` }}
+                                source={{ uri: topicPicture(topic.id) }}
                                 style={styles.pictureImage}
                                 resizeMode="cover"
                                 accessible={false}

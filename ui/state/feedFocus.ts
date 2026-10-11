@@ -1,26 +1,43 @@
 /**
- * Another screen asking the feed to open one story and bring it into view - a hot
- * topic's link, today. The request waits here until the feed takes it, so it holds
- * even when the feed has not been mounted yet or has not loaded its stories.
+ * One screen asking another to open something and bring it into view: a story in
+ * the feed (a hot topic's link, a search result) or an affair on the hot topics
+ * page (a search result). A request waits here until its screen takes it, so it
+ * holds even when that screen has not been mounted yet or has not loaded.
  */
-type Listener = (storyId: string) => void;
+export type FocusRequest = {
+	id: string;
+	/** what asked, for the analytics: "hot_topic", "search" */
+	how: string;
+};
+type Listener = () => void;
 
-let pending: string | null = null;
-const listeners = new Set<Listener>();
-
-export function requestStory(storyId: string) {
-	pending = storyId;
-	listeners.forEach((listener) => listener(storyId));
+function channel() {
+	let pending: FocusRequest | null = null;
+	const listeners = new Set<Listener>();
+	return {
+		ask(request: FocusRequest) {
+			pending = request;
+			listeners.forEach((listener) => listener());
+		},
+		/** the request waiting, if any; taking it clears it */
+		take(): FocusRequest | null {
+			const request = pending;
+			pending = null;
+			return request;
+		},
+		on(listener: Listener): () => void {
+			listeners.add(listener);
+			return () => { listeners.delete(listener); };
+		},
+	};
 }
 
-/** the story asked for, if any; asking clears it */
-export function takeStoryRequest(): string | null {
-	const storyId = pending;
-	pending = null;
-	return storyId;
-}
+const stories = channel();
+export const requestStory = (id: string, how = "hot_topic") => stories.ask({ id, how });
+export const takeStoryRequest = stories.take;
+export const onStoryRequest = stories.on;
 
-export function onStoryRequest(listener: Listener): () => void {
-	listeners.add(listener);
-	return () => { listeners.delete(listener); };
-}
+const topics = channel();
+export const requestTopic = (id: string, how = "search") => topics.ask({ id, how });
+export const takeTopicRequest = topics.take;
+export const onTopicRequest = topics.on;

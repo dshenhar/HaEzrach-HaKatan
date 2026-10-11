@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { URL_BASE } from "./engagement";
 
 /** how one bloc covers an affair, sees it, and why */
@@ -27,11 +28,28 @@ export async function loadHot(): Promise<HotPage | null> {
 		const res = await fetch(`${URL_BASE}/hot`);
 		if (!res.ok) return null;
 		const data = await res.json();
-		return { today: data.today ?? [], topics: data.topics ?? [] };
+		const page = { today: data.today ?? [], topics: data.topics ?? [] };
+		kept = { at: Date.now(), page };
+		return page;
 	} catch {
 		return null;
 	}
 }
+
+// the last page loaded, for the search: the affairs change once a half hour at most
+let kept: { at: number; page: HotPage } | null = null;
+const KEPT_MS = 10 * 60 * 1000;
+
+/** the hot topics as last loaded, or loaded now when there are none or they are old */
+export async function keptHot(): Promise<HotPage | null> {
+	if (kept && Date.now() - kept.at < KEPT_MS) return kept.page;
+	return (await loadHot()) ?? kept?.page ?? null;
+}
+
+/** Every affair in the pool has a picture of its own, public/topics/<id>.webp,
+ *  served with the site; a new affair is given one when it is added. */
+export const topicPicture = (id: string) =>
+	`${Platform.OS === "web" ? "" : "https://haezrach-hakatan.web.app"}/topics/${id}.webp`;
 
 const HIGH_SHOWN = 3;
 const LOW_SHOWN = 2;
