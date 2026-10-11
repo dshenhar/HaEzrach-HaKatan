@@ -40,10 +40,14 @@ export async function loadHot(): Promise<HotPage | null> {
 let kept: { at: number; page: HotPage } | null = null;
 const KEPT_MS = 10 * 60 * 1000;
 
-/** the hot topics as last loaded, or loaded now when there are none or they are old */
+let loading: Promise<HotPage | null> | null = null;
+
+/** the hot topics as last loaded, or loaded now when there are none or they are old;
+ *  the search row asks as it opens, so the affairs are in by the time it is sent */
 export async function keptHot(): Promise<HotPage | null> {
 	if (kept && Date.now() - kept.at < KEPT_MS) return kept.page;
-	return (await loadHot()) ?? kept?.page ?? null;
+	loading ??= loadHot().finally(() => { loading = null; });
+	return (await loading) ?? kept?.page ?? null;
 }
 
 /** Every affair in the pool has a picture of its own, public/topics/<id>.webp,
