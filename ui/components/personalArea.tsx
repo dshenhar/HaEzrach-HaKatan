@@ -303,9 +303,10 @@ const styles = StyleSheet.create({
 
     codeRow: { borderRadius: 12, padding: 13, gap: 8 },
     codeLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+    // 16, as every field in the app: below it iPhone's Safari zooms in on a touch
     codeInput: {
         flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-        fontFamily: "Heebo_500Medium", fontSize: 14, textAlign: "right",
+        fontFamily: "Heebo_500Medium", fontSize: 16, textAlign: "right",
     },
     codeButton: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
     codeButtonText: { fontFamily: "Heebo_700Bold", fontSize: 14 },

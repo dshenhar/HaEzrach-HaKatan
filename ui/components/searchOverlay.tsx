@@ -195,8 +195,10 @@ const styles = StyleSheet.create({
         alignItems: "center", gap: 8, height: 40, borderRadius: 999, borderWidth: 1,
         paddingHorizontal: 14,
     },
+    // 16 and not less: iPhone's Safari zooms into a field set smaller, and stays
+    // zoomed in after it, with the results under the reader's thumb half off screen
     input: {
-        flex: 1, height: "100%", fontFamily: "Heebo_500Medium", fontSize: 15,
+        flex: 1, height: "100%", fontFamily: "Heebo_500Medium", fontSize: 16,
         textAlign: "right", writingDirection: "rtl", paddingVertical: 0,
     },
     count: { ...TYPE.caption, textAlign: "right", paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 },
