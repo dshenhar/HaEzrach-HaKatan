@@ -9,9 +9,14 @@ import { HotTopic } from "./hotTopics";
  * found in the name counts for more than one found in the text under it. An affair
  * whose name has none of the words only mentions them, and is told apart from one
  * that is about them: the pool's texts are long, and a name like Netanyahu's is in
- * a third of them. Hebrew
- * glues ו, ה, ב, ל, מ, ש and כ to the front of a word, so "בגיוס" also finds
- * "גיוס"; niqqud and the gershayim are taken out, so צה"ל finds צה״ל and צהל.
+ * a third of them.
+ *
+ * A word is looked for where a word starts, after any of the letters Hebrew glues
+ * to its front - ו, ה, ב, ל, מ, ש, כ - so "גיוס" finds "הגיוס" and "גיוסים" and
+ * not the middle of another word. A query word that starts with one of those
+ * letters is also tried without it, but then only as a whole word: "בעזה" finds
+ * "עזה", and "ביבי" does not find "יבי" in "תקציבי". Niqqud and the gershayim are
+ * taken out, so צה"ל finds צה״ל and צהל.
  */
 
 export const MIN_QUERY = 2;
@@ -22,26 +27,34 @@ const PREFIXES = "ובהלמשכ";
 export function normalise(text: string): string {
 	return text
 		.toLowerCase()
-		.replace(/[֑-ׇ]/g, "")
+		.replace(/[\u0591-\u05C7]/g, "")
 		.replace(/["'`״׳]/g, "")
 		.replace(/[^\p{L}\p{N}]+/gu, " ")
 		.trim();
 }
 
-/** the query's words, each with the forms it may be found in */
-export function queryWords(query: string): string[][] {
-	return normalise(query).split(" ").filter(Boolean).map((word) =>
-		word.length > 3 && PREFIXES.includes(word[0]) ? [word, word.slice(1)] : [word]);
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const AFTER_PREFIXES = `(?:^| )[${PREFIXES}]{0,3}`;
+
+/** the query's words, each as the patterns it may be found by in a normalised text */
+export function queryWords(query: string): RegExp[][] {
+	return normalise(query).split(" ").filter(Boolean).map((word) => {
+		const forms = [new RegExp(AFTER_PREFIXES + escape(word))];
+		if (word.length > 3 && PREFIXES.includes(word[0])) {
+			forms.push(new RegExp(`${AFTER_PREFIXES}${escape(word.slice(1))}(?: |$)`));
+		}
+		return forms;
+	});
 }
 
 /** how well a name and a body answer the query, 0 when a word is in neither, and
  *  whether any of the words is in the name */
-function score(words: string[][], name: string, body: string): { score: number; named: boolean } {
+function score(words: RegExp[][], name: string, body: string): { score: number; named: boolean } {
 	let total = 0;
 	let named = false;
 	for (const forms of words) {
-		if (forms.some((form) => name.includes(form))) { total += 3; named = true; }
-		else if (forms.some((form) => body.includes(form))) total += 1;
+		if (forms.some((form) => form.test(name))) { total += 3; named = true; }
+		else if (forms.some((form) => form.test(body))) total += 1;
 		else return { score: 0, named: false };
 	}
 	return { score: total, named };
