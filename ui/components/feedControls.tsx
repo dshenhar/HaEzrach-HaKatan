@@ -2,6 +2,7 @@ import { sectionColour, sectionTint } from '@/state/sections';
 import { useTheme } from '@/state/theme';
 import { TYPE } from '@/state/craft';
 import Press from './press';
+import { SearchField } from './searchOverlay';
 import React, { useRef, useState } from 'react';
 import { I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -52,7 +53,7 @@ const Strip = ({ children, style }: { children: React.ReactNode; style?: any }) 
     );
 };
 
-type Panel = "filter" | "sort";
+type Panel = "filter" | "sort" | "search";
 
 type Props = {
     /** the day's headline, which shares its line with the two controls */
@@ -66,11 +67,15 @@ type Props = {
     onBlocFilter: (filter: BlocFilter) => void;
     /** whether the reader has told us their side, which makes a blindspot theirs */
     knowsBloc?: boolean;
+    query: string;
+    onQuery: (text: string) => void;
+    /** the query is sent: its results open over the app */
+    onSearch: () => void;
 }
 
 /**
- * The day's title, and on the same line two small icons: the filter and the sort.
- * Each opens its own panel, and only when it is touched - the rail with a toggle,
+ * The day's title, and on the same line three small icons: the filter, the sort and
+ * the search. Each opens its own panel, and only when it is touched - the rail with a toggle,
  * a "סינון" button and a strip of bloc filters under it was three rows of
  * housekeeping between the reader and the first story.
  *
@@ -78,7 +83,7 @@ type Props = {
  * the panel is shut what it is narrowing to sits under the title, each with its ✕.
  */
 const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort, onSort,
-                       blocFilter, onBlocFilter, knowsBloc }: Props) => {
+                       blocFilter, onBlocFilter, knowsBloc, query, onQuery, onSearch }: Props) => {
     const [panel, setPanel] = useState<Panel | null>(null);
     const t = useTheme();
     const dark = t.name === "negative";
@@ -124,6 +129,7 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                 <View style={styles.icons}>
                     {icon("filter", "funnel-outline", "סינון", filtering)}
                     {icon("sort", "swap-vertical", "מיון", sorting)}
+                    {icon("search", "search", "חיפוש", false)}
                 </View>
             </View>
 
@@ -184,6 +190,20 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                 </>
             )}
 
+            {/* the search row opens where the other two panels do; what it finds
+                opens over the whole app, the feed and the hot topics both */}
+            {panel === "search" && (
+                <View style={styles.searchRow}>
+                    <View style={styles.searchField}>
+                        <SearchField value={query} onChange={onQuery} onSubmit={onSearch} autoFocus />
+                    </View>
+                    <Press style={[styles.go, { backgroundColor: t.text }]} onPress={onSearch}
+                        accessibilityRole="button" accessibilityLabel="הצגת התוצאות">
+                        <Text style={[styles.goText, { color: t.surface }]}>חיפוש</Text>
+                    </Press>
+                </View>
+            )}
+
             {panel === "sort" && (
                 <Strip style={styles.strip}>
                     {SORT_OPTIONS.map((option) => chip(option.key, option.label,
@@ -226,6 +246,10 @@ const styles = StyleSheet.create({
     dot: { width: 7, height: 7, borderRadius: 4 },
     chipText: { fontFamily: "Heebo_500Medium", fontSize: 12, letterSpacing: 0.05 },
     chipOn: { color: "#FFFFFF", fontFamily: "Heebo_700Bold" },
+    searchRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingHorizontal: 16 },
+    searchField: { flex: 1 },
+    go: { height: 40, borderRadius: 999, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
+    goText: { fontFamily: "Heebo_700Bold", fontSize: 14 },
     note: {
         fontFamily: "Heebo_500Medium", fontSize: 11, lineHeight: 16,
         textAlign: "right", paddingHorizontal: 16, marginTop: -2,

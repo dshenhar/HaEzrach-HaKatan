@@ -3,6 +3,7 @@ import { AppState } from "react-native";
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { I18nManager } from "react-native";
 import FeedControls, { BlocFilter, SortKey } from "./feedControls";
+import SearchOverlay from "./searchOverlay";
 import ModeGuide from "./modeGuide";
 import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
@@ -15,8 +16,9 @@ import { ELEVATION, glass, SWELL, TYPE } from "@/state/craft";
 import { blindTo } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { useArrivalTour } from "@/state/tour";
-import { onStoryRequest, takeStoryRequest } from "@/state/feedFocus";
+import { FocusRequest, onStoryRequest, requestStory, requestTopic, takeStoryRequest } from "@/state/feedFocus";
 import { ScrollLock } from "@/state/scrollLock";
+import { useStable } from "@/state/useStable";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
 import { Alert } from "react-native";
@@ -25,6 +27,8 @@ import PersonalArea from "./personalArea";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { MIN_QUERY, normalise, queryWords } from "@/state/search";
 
 // The logo is navy ink, so negative mode swaps in a pale copy of it.
 // the navy the logo is drawn in, sampled off the file itself, so the words and the
@@ -49,16 +53,6 @@ const NEAR_TOP = 120;
 const TOUR = ["welcome", "bloc", "questionnaire"] as const;
 
 
-/**
- * A callback the cards can hold on to: its identity never changes, so a story that
- * has not itself changed does not re-render when the feed does, and it still runs
- * against the latest state.
- */
-function useStable<T extends (...args: any[]) => any>(fn: T): T {
-	const held = useRef(fn);
-	held.current = fn;
-	return useCallback(((...args: any[]) => held.current(...args)) as T, []);
-}
 
 export default function NewsFeed() {
 	const [selectedCategories, setSelectedCategories] = useState<string[]>(["הכל"]);
@@ -81,6 +75,10 @@ export default function NewsFeed() {
 	const [allTopics, setAllTopics] = useState<string[]>([]);
 	const [mergeSource, setMergeSource] = useState<{ id: string | number; title: string } | null>(null);
 	const [sort, setSort] = useState<SortKey>("newest");
+	// the search: what is typed, and whether its results are open over the app
+	const [query, setQuery] = useState("");
+	const [searching, setSearching] = useState(false);
+	const router = useRouter();
 	const t = useTheme();
 	const dev = useDevMode();
 
@@ -360,10 +358,10 @@ export default function NewsFeed() {
 		});
 	});
 
-	// A hot topic's link asks for a story: it opens here and is brought into view.
-	// The request waits for the stories to load, reloads them once if the story is
-	// not among them, and clears the filters if they are what hides it.
-	const [wanted, setWanted] = useState<string | null>(() => takeStoryRequest());
+	// A hot topic's link or a search result asks for a story: it opens here and is
+	// brought into view. The request waits for the stories to load, reloads them once
+	// if the story is not among them, and clears the filters if they are what hides it.
+	const [wanted, setWanted] = useState<FocusRequest | null>(() => takeStoryRequest());
 	useEffect(() => onStoryRequest(() => setWanted(takeStoryRequest())), []);
 	const reloadedFor = useRef<string | null>(null);
 	const bringTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -379,10 +377,10 @@ export default function NewsFeed() {
 	});
 	const serveRequest = useStable(() => {
 		if (!wanted || articles.length === 0) return;
-		const has = (list: NewsItem[][]) => list.some((story) => String(story[0]?.groupId) === wanted);
+		const has = (list: NewsItem[][]) => list.some((story) => String(story[0]?.groupId) === wanted.id);
 		if (!has(articles)) {
-			if (reloadedFor.current === wanted) { setWanted(null); return; }
-			reloadedFor.current = wanted;
+			if (reloadedFor.current === wanted.id) { setWanted(null); return; }
+			reloadedFor.current = wanted.id;
 			loadFeed().then((next) => {
 				if (!next) { setWanted(null); return; }
 				pendingRef.current = null;
@@ -396,12 +394,12 @@ export default function NewsFeed() {
 			setBlocFilter("all");
 			return;
 		}
-		const key = wanted;
+		const { id: key, how } = wanted;
 		setWanted(null);
 		setOpenStory((current) => {
 			if (current !== key) {
 				leaveStory(current);
-				track("story_opened", { how: "hot_topic", ...shapeOf(key) });
+				track("story_opened", { how, ...shapeOf(key) });
 				openedAt.current = Date.now();
 			}
 			return key;
@@ -443,6 +441,24 @@ export default function NewsFeed() {
 	};
 
 	const brandInk = t.name === "negative" ? BRAND_INK_DARK : BRAND_INK;
+
+	// what was searched is not sent anywhere, only how long it was
+	const runSearch = () => {
+		if (normalise(query).length < MIN_QUERY) return;
+		track("search", { words: queryWords(query).length });
+		setSearching(true);
+	};
+	const searchedStory = (story: NewsItem[], rank: number) => {
+		track("search_result_opened", { kind: "story", rank });
+		setSearching(false);
+		requestStory(String(story[0].groupId), "search");
+	};
+	const searchedTopic = (topicId: string, rank: number) => {
+		track("search_result_opened", { kind: "hot_topic", rank });
+		setSearching(false);
+		requestTopic(topicId, "search");
+		router.navigate("/mapPage");
+	};
 
 	const handleSectionToggle = (category: string) => {
 	track("section_filter_changed", { section: category });
@@ -553,6 +569,9 @@ export default function NewsFeed() {
 					blocFilter={blocFilter}
 					onBlocFilter={(next) => { track("bloc_filter_changed", { filter: next }); setBlocFilter(next); }}
 					knowsBloc={profile !== null}
+					query={query}
+					onQuery={setQuery}
+					onSearch={runSearch}
 				/>
 				</View>
 
@@ -655,6 +674,16 @@ export default function NewsFeed() {
 				onClose={() => setPersonalOpen(false)}
 				profile={profile}
 				onRetakeQuestionnaire={() => setProfile(null)}
+			/>
+
+			<SearchOverlay
+				open={searching}
+				query={query}
+				onQuery={setQuery}
+				onClose={() => setSearching(false)}
+				stories={articles}
+				onStory={searchedStory}
+				onTopic={(topic, rank) => searchedTopic(topic.id, rank)}
 			/>
 		</SafeAreaView>
 	);

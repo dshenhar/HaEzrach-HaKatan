@@ -3,9 +3,10 @@ import HotTopicCard from '@/components/hotTopicCard';
 import Press from '@/components/press';
 import { useStillness } from '@/state/access';
 import { track } from '@/state/analytics';
-import { requestStory } from '@/state/feedFocus';
+import { FocusRequest, onTopicRequest, requestStory, takeTopicRequest } from '@/state/feedFocus';
 import { HotPage, HotTopic, loadHot, MORE_STEP, polarFive, polarRest } from '@/state/hotTopics';
 import { ELEVATION, SWELL, TYPE } from '@/state/craft';
+import { useStable } from '@/state/useStable';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -40,6 +41,10 @@ type Block = { key: string; node: React.ReactNode };
  * burning first, until all of it is on the page. Leaving the page folds it back to
  * the five.
  *
+ * A search result can ask for an affair: it is opened and brought into view, and
+ * one that is not on the page is put at the head of the polarized, until the reader
+ * leaves.
+ *
  * A box is folded until it is touched. While the page moves, the box under the
  * reader's thumb swells a little, as a story does in the feed.
  *
@@ -55,9 +60,12 @@ export default function MapPage() {
     // how many of the rest "more topics" has opened; the tab stays mounted when the
     // reader goes elsewhere, so it is put back to none as they leave
     const [more, setMore] = useState(0);
+    // an affair a search asked for that the page did not have on it
+    const [pinned, setPinned] = useState<string | null>(null);
     useFocusEffect(useCallback(() => () => {
         setMore(0);
-        setOpen((current) => new Set([...current].filter((key) => !key.startsWith("more:"))));
+        setPinned(null);
+        setOpen((current) => new Set([...current].filter((key) => !/^(more|found):/.test(key))));
     }, []));
 
     const take = (next: HotPage | null) => {
@@ -77,7 +85,9 @@ export default function MapPage() {
         return page.today.map((id) => byId.get(id)).filter(Boolean) as HotTopic[];
     }, [page]);
     const polar = useMemo(() => (page ? polarFive(page) : []), [page]);
-    const rest = useMemo(() => (page ? polarRest(page, polar) : []), [page, polar]);
+    const rest = useMemo(() => (page ? polarRest(page, polar).filter((t) => t.id !== pinned) : []),
+        [page, polar, pinned]);
+    const found = useMemo(() => page?.topics.find((t) => t.id === pinned) ?? null, [page, pinned]);
     const showMore = () => {
         const next = Math.min(more + MORE_STEP, rest.length);
         setMore(next);
@@ -128,7 +138,7 @@ export default function MapPage() {
             <View style={styles.rule} />
         </View>
     );
-    const card = (topic: HotTopic, section: "today" | "polar" | "more") => {
+    const card = (topic: HotTopic, section: "today" | "polar" | "more" | "found") => {
         const key = `${section}:${topic.id}`;
         return {
             key,
@@ -161,6 +171,7 @@ export default function MapPage() {
         today.forEach((topic) => blocks.push(card(topic, "today")));
         blocks.push({ key: "polar-head", node: divider("מקוטבים") });
         blocks.push({ key: "polar-note", node: <Text style={styles.note}>מחלוקות שמפלגות את המדינה</Text> });
+        if (found) blocks.push(card(found, "found"));
         polar.forEach((topic) => blocks.push(card(topic, "polar")));
         rest.slice(0, more).forEach((topic) => {
             const { key, node } = card(topic, "more");
@@ -180,6 +191,43 @@ export default function MapPage() {
         }
     }
     const order = blocks.map((block) => block.key);
+
+    // A search asks for an affair: it is opened where it stands, or put at the head
+    // of the polarized when it is not on the page, and brought into view. The request
+    // waits for the page to load.
+    const scrollRef = useRef<ScrollView>(null);
+    const [sought, setSought] = useState<FocusRequest | null>(() => takeTopicRequest());
+    useEffect(() => onTopicRequest(() => setSought(takeTopicRequest())), []);
+    const bringTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+    useEffect(() => () => bringTimers.current.forEach(clearTimeout), []);
+    const bringIntoView = useStable((key: string) => {
+        let y = PAD_TOP;
+        for (const k of order) {
+            if (k === key) break;
+            y += (heights.current[k] ?? 0) + GAP;
+        }
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - 10), animated: true });
+    });
+    const serveRequest = useStable(() => {
+        if (!sought || !page) return;
+        const { id, how } = sought;
+        setSought(null);
+        const topic = page.topics.find((t) => t.id === id);
+        if (!topic) return;
+        const among = (list: HotTopic[]) => list.some((t) => t.id === id);
+        let key = `found:${id}`;
+        if (among(today)) key = `today:${id}`;
+        else if (among(polar)) key = `polar:${id}`;
+        else if (among(rest.slice(0, more))) key = `more:${id}`;
+        else setPinned(id);
+        setOpen((current) => new Set(current).add(key));
+        track("hot_topic_opened", { topic: id, section: how });
+        // after the move to this tab, and after the new box has been laid out
+        bringTimers.current.push(
+            setTimeout(() => bringIntoView(key), 450),
+            setTimeout(() => bringIntoView(key), 1000));
+    });
+    useEffect(() => { serveRequest(); }, [sought, page, serveRequest]);
 
     const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const line = e.nativeEvent.contentOffset.y + viewportH.current * ANCHOR;
@@ -203,6 +251,7 @@ export default function MapPage() {
         <SwipeTabs>
             <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
                 <ScrollView
+                    ref={scrollRef}
                     style={styles.scroll}
                     contentContainerStyle={styles.body}
                     showsVerticalScrollIndicator={false}
