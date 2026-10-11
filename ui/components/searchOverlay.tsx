@@ -62,10 +62,9 @@ type Props = {
 
 /**
  * The results of a search, in a window that floats over the whole app - most of the
- * screen, with the rest blurred behind it, and a touch there closes it. The hot
- * topics whose name has the words come first, then today's stories, then the hot
- * topics that only mention them; a touch on any takes the reader to it, open: the
- * story in the feed, the affair on its page.
+ * screen, with the rest blurred behind it, and a touch there closes it. Today's
+ * stories come first, then today's hot topics, then the rest of the pool; a touch
+ * on any takes the reader to it, open: the story in the feed, the affair on its page.
  *
  * The query can be changed in the window itself, and the results follow as it is
  * typed.
@@ -74,17 +73,23 @@ export default function SearchOverlay({ open, query, onQuery, onClose, stories, 
     const t = useTheme();
     const dark = t.name === "negative";
     const [topics, setTopics] = useState<HotTopic[]>([]);
+    const [todayIds, setTodayIds] = useState<ReadonlySet<string>>(() => new Set());
     useEffect(() => {
         if (!open) return;
         let live = true;
-        keptHot().then((page) => { if (live && page) setTopics(page.topics); });
+        keptHot().then((page) => {
+            if (!live || !page) return;
+            setTopics(page.topics);
+            setTodayIds(new Set(page.today));
+        });
         return () => { live = false; };
     }, [open]);
 
     const storyIndex = useMemo(() => indexStories(stories), [stories]);
     const topicIndex = useMemo(() => indexTopics(topics), [topics]);
-    const found = useMemo(() => search(query, storyIndex, topicIndex), [query, storyIndex, topicIndex]);
-    const count = found.topics.length + found.stories.length + found.mentions.length;
+    const found = useMemo(() => search(query, storyIndex, topicIndex, todayIds),
+        [query, storyIndex, topicIndex, todayIds]);
+    const count = found.stories.length + found.today.length + found.others.length;
     const short = normalise(query).length < MIN_QUERY;
 
     const words = (text: string, style: TextStyle | TextStyle[], lines: number) => (
@@ -137,13 +142,8 @@ export default function SearchOverlay({ open, query, onQuery, onClose, stories, 
 
                     <ScrollView style={styles.scroll} contentContainerStyle={styles.list}
                         keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                        {found.topics.length > 0 && (
-                            <Text style={[styles.label, { color: t.textMuted }]}>נושאים חמים</Text>
-                        )}
-                        {found.topics.map((topic, i) => affair(topic, i))}
-
                         {found.stories.length > 0 && (
-                            <Text style={[styles.label, { color: t.textMuted }]}>בפיד היום</Text>
+                            <Text style={[styles.label, { color: t.textMuted }]}>מהפיד</Text>
                         )}
                         {found.stories.map((story, i) => {
                             const first = story[0];
@@ -167,10 +167,15 @@ export default function SearchOverlay({ open, query, onQuery, onClose, stories, 
                             );
                         })}
 
-                        {found.mentions.length > 0 && (
-                            <Text style={[styles.label, { color: t.textMuted }]}>מוזכר בנושאים החמים</Text>
+                        {found.today.length > 0 && (
+                            <Text style={[styles.label, { color: t.textMuted }]}>נושאים חמים מהיום</Text>
                         )}
-                        {found.mentions.map((topic, i) => affair(topic, found.topics.length + i))}
+                        {found.today.map((topic, i) => affair(topic, i))}
+
+                        {found.others.length > 0 && (
+                            <Text style={[styles.label, { color: t.textMuted }]}>בעוד נושאים חמים</Text>
+                        )}
+                        {found.others.map((topic, i) => affair(topic, found.today.length + i))}
                     </ScrollView>
                 </View>
             </View>

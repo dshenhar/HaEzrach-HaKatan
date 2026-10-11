@@ -7,10 +7,12 @@ import { ALIASES } from "./searchAliases";
  * both are already loaded, so there is nothing to ask a server.
  *
  * Every word of the query has to be found somewhere in what is searched, and a word
- * found in the name counts for more than one found in the text under it. An affair
- * whose name has none of the words only mentions them, and is told apart from one
- * that is about them: the pool's texts are long, and a name like Netanyahu's is in
- * a third of them.
+ * found in the name counts for more than one found in the text under it - the pool's
+ * texts are long, and a name like Netanyahu's is in a third of them, so an affair
+ * that is about it comes before one that only mentions it.
+ *
+ * What is found comes in three: today's stories, then the affairs among today's hot
+ * topics (the ones at the head of their page), then the rest of the pool.
  *
  * A word is looked for where a word starts, after any of the letters Hebrew glues
  * to its front - ו, ה, ב, ל, מ, ש, כ - so "גיוס" finds "הגיוס" and "גיוסים" and
@@ -116,17 +118,15 @@ function parse(query: string): { words: RegExp[][]; groups: number[] } {
 
 export const queryWords = (query: string): RegExp[][] => parse(query).words;
 
-/** how well a name and a body answer the query, 0 when a word is in neither, and
- *  whether any of the words is in the name */
-function score(words: RegExp[][], name: string, body: string): { score: number; named: boolean } {
+/** how well a name and a body answer the query; 0 when a word is in neither */
+function score(words: RegExp[][], name: string, body: string): number {
 	let total = 0;
-	let named = false;
 	for (const forms of words) {
-		if (forms.some((form) => form.test(name))) { total += 3; named = true; }
+		if (forms.some((form) => form.test(name))) total += 3;
 		else if (forms.some((form) => form.test(body))) total += 1;
-		else return { score: 0, named: false };
+		else return 0;
 	}
-	return { score: total, named };
+	return total;
 }
 
 export type Indexed<T> = { item: T; name: string; body: string };
@@ -155,26 +155,28 @@ export function indexTopics(topics: HotTopic[]): Indexed<HotTopic>[] {
 }
 
 export type Results = {
-	/** affairs with a word of the query in their name */
-	topics: HotTopic[];
 	stories: NewsItem[][];
-	/** affairs that only mention the words */
-	mentions: HotTopic[];
+	/** affairs among today's hot topics */
+	today: HotTopic[];
+	/** the rest of the pool */
+	others: HotTopic[];
 };
 
-export function search(query: string, stories: Indexed<NewsItem[]>[], topics: Indexed<HotTopic>[]): Results {
+export function search(query: string, stories: Indexed<NewsItem[]>[], topics: Indexed<HotTopic>[],
+	todayIds: ReadonlySet<string>): Results {
 	const words = queryWords(query);
-	if (normalise(query).length < MIN_QUERY || words.length === 0) return { topics: [], stories: [], mentions: [] };
+	if (normalise(query).length < MIN_QUERY || words.length === 0) return { stories: [], today: [], others: [] };
 	const found = <T,>(list: Indexed<T>[], tie: (item: T) => number) => list
-		.map((entry) => ({ item: entry.item, ...score(words, entry.name, entry.body) }))
+		.map((entry) => ({ item: entry.item, score: score(words, entry.name, entry.body) }))
 		.filter((hit) => hit.score > 0)
-		.sort((a, b) => b.score - a.score || tie(b.item) - tie(a.item));
+		.sort((a, b) => b.score - a.score || tie(b.item) - tie(a.item))
+		.map((hit) => hit.item);
 	// the more burning affair first, and the story more outlets told
 	const affairs = found(topics, (topic) => topic.relevance);
 	return {
-		topics: affairs.filter((hit) => hit.named).map((hit) => hit.item),
-		stories: found(stories, (story) => story.length).slice(0, STORIES_SHOWN).map((hit) => hit.item),
-		mentions: affairs.filter((hit) => !hit.named).map((hit) => hit.item),
+		stories: found(stories, (story) => story.length).slice(0, STORIES_SHOWN),
+		today: affairs.filter((topic) => todayIds.has(topic.id)),
+		others: affairs.filter((topic) => !todayIds.has(topic.id)),
 	};
 }
 

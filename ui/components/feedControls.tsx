@@ -3,6 +3,7 @@ import { useTheme } from '@/state/theme';
 import { TYPE } from '@/state/craft';
 import Press from './press';
 import { SearchField } from './searchOverlay';
+import { keptHot } from '@/state/hotTopics';
 import React, { useRef, useState } from 'react';
 import { I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -100,7 +101,11 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                 style={[styles.icon, { borderColor: t.line, backgroundColor: t.surface },
                     on && !open && { borderColor: t.brand },
                     open && { backgroundColor: t.text, borderColor: t.text }]}
-                onPress={() => setPanel(open ? null : which)}
+                onPress={() => {
+                    // the hot topics are fetched as the search row opens, not when it is sent
+                    if (which === "search" && !open) void keptHot();
+                    setPanel(open ? null : which);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={label}
                 accessibilityState={{ expanded: open }}
