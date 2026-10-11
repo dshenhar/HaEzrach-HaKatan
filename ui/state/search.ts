@@ -1,5 +1,6 @@
 import { NewsItem } from "./engagement";
 import { HotTopic } from "./hotTopics";
+import { ALIASES } from "./searchAliases";
 
 /**
  * Searching the app: today's feed and the hot topics, in the reader's own phone -
@@ -14,9 +15,14 @@ import { HotTopic } from "./hotTopics";
  * A word is looked for where a word starts, after any of the letters Hebrew glues
  * to its front - ו, ה, ב, ל, מ, ש, כ - so "גיוס" finds "הגיוס" and "גיוסים" and
  * not the middle of another word. A query word that starts with one of those
- * letters is also tried without it, but then only as a whole word: "בעזה" finds
- * "עזה", and "ביבי" does not find "יבי" in "תקציבי". Niqqud and the gershayim are
- * taken out, so צה"ל finds צה״ל and צהל.
+ * letters is also tried without it, but then only as a word standing on its own or
+ * after ה: "בעזה" finds "עזה" and "בגיוס" finds "הגיוס", while "ביבי" finds neither
+ * "יבי" in "תקציבי" nor the heart in "מדם ליבי". Niqqud and the gershayim are taken
+ * out, so צה"ל finds צה״ל and צהל.
+ *
+ * A name in the list of aliases (searchAliases.ts) finds the rest of its group as
+ * well: "ביבי" finds "נתניהו", בג"ץ finds "בית המשפט העליון", "התנחלויות" finds
+ * "התיישבות". The others are found as whole words, so ת"א does not find "תאונה".
  */
 
 export const MIN_QUERY = 2;
@@ -34,18 +40,81 @@ export function normalise(text: string): string {
 }
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const AFTER_PREFIXES = `(?:^| )[${PREFIXES}]{0,3}`;
+const START = "(?:^| )";
+const PREFIXED = `[${PREFIXES}]{0,3}`;
 
-/** the query's words, each as the patterns it may be found by in a normalised text */
-export function queryWords(query: string): RegExp[][] {
-	return normalise(query).split(" ").filter(Boolean).map((word) => {
-		const forms = [new RegExp(AFTER_PREFIXES + escape(word))];
-		if (word.length > 3 && PREFIXES.includes(word[0])) {
-			forms.push(new RegExp(`${AFTER_PREFIXES}${escape(word.slice(1))}(?: |$)`));
+/** a word of a term, where a word starts, after any prefixes - and when it starts
+ *  with the article, also without it, as after ב, ל or כ Hebrew drops it: "בגדה" */
+const termWord = (word: string) => PREFIXED +
+	(word.length > 2 && word[0] === "ה" ? `ה?${escape(word.slice(1))}` : escape(word));
+
+/** a term as a pattern; a stem then goes on into whatever word it starts, and
+ *  anything else ends where the term does */
+const termPattern = (term: string, stem: boolean) => new RegExp(
+	START + term.split(" ").map(termWord).join(" ") + (stem ? "" : "(?: |$)"));
+
+const GROUPS = ALIASES.map((group) => group.map((raw) => {
+	const stem = raw.endsWith("*");
+	const text = normalise(raw);
+	return { raw: raw.replace(/\*$/, ""), text, stem, pattern: termPattern(text, stem) };
+}));
+// the terms of more than one word, the longest first: in a query, "בית המשפט העליון"
+// is one thing and not three words
+const PHRASES = GROUPS.flatMap((terms, group) => terms
+	.filter((term) => term.text.includes(" "))
+	.map((term) => ({ group, words: term.text.split(" ").length, pattern: termPattern(term.text, false) })))
+	.sort((a, b) => b.words - a.words);
+
+/** the alias group a single query word belongs to, if any, and whether the word is
+ *  itself one of the group's whole words */
+function aliasOf(word: string): { group: number; exact: boolean } | null {
+	for (let group = 0; group < GROUPS.length; group++) {
+		for (const term of GROUPS[group]) {
+			if (term.text.includes(" ")) continue;
+			if (term.stem ? word.startsWith(term.text) : word === term.text) {
+				return { group, exact: !term.stem };
+			}
 		}
-		return forms;
-	});
+	}
+	return null;
 }
+
+/** the query's words, each as the patterns it may be found by in a normalised text,
+ *  and the alias groups the query called up */
+function parse(query: string): { words: RegExp[][]; groups: number[] } {
+	const words: RegExp[][] = [];
+	const groups: number[] = [];
+	const called = (group: number) => {
+		groups.push(group);
+		return GROUPS[group].map((term) => term.pattern);
+	};
+	let rest = normalise(query);
+	for (const phrase of PHRASES) {
+		if (!groups.includes(phrase.group) && phrase.pattern.test(rest)) {
+			words.push(called(phrase.group));
+			rest = rest.replace(phrase.pattern, " ");
+		}
+	}
+	for (const word of rest.split(" ").filter(Boolean)) {
+		const alias = aliasOf(word);
+		// a name of the list is a whole word: ת"א is Tel Aviv and not the start of "תאונה"
+		const forms = alias?.exact ? [] : [new RegExp(START + PREFIXED + escape(word))];
+		// tried without its first letter as if that were a prefix, it must stand as a
+		// word on its own: after the article if the letter was another prefix, after any
+		// prefix if it was the article ("הגיוס" finds "בגיוס")
+		const bare = word.length > 3 && PREFIXES.includes(word[0]) ? word.slice(1) : null;
+		if (bare) {
+			const before = word[0] === "ה" ? PREFIXED : "ה?";
+			forms.push(new RegExp(`${START}${before}${escape(bare)}(?: |$)`));
+		}
+		const group = alias ?? (bare ? aliasOf(bare) : null);
+		if (group) forms.push(...called(group.group));
+		words.push(forms);
+	}
+	return { words, groups };
+}
+
+export const queryWords = (query: string): RegExp[][] => parse(query).words;
 
 /** how well a name and a body answer the query, 0 when a word is in neither, and
  *  whether any of the words is in the name */
@@ -110,17 +179,19 @@ export function search(query: string, stories: Indexed<NewsItem[]>[], topics: In
 }
 
 /**
- * A text cut where the query's words are found in it, so they can be set apart.
- * It looks for the words as typed, which is enough for a headline: a word that only
- * matched with its quotes or prefix taken off is found and not marked.
+ * A text cut where the query's words are found in it, so they can be set apart -
+ * the words as typed, and the aliases they called up, a gershayim or an apostrophe
+ * written either way. It is enough for a headline: a word that only matched with its
+ * prefix taken off is found and not marked.
  */
 export function marked(text: string, query: string): { text: string; hit: boolean }[] {
-	const words = query.trim().split(/\s+/).filter((word) => word.length >= MIN_QUERY);
+	const aliases = parse(query).groups.flatMap((group) => GROUPS[group].map((term) => term.raw));
+	const words = [...query.trim().split(/\s+/), ...aliases].filter((word) => word.length >= MIN_QUERY);
 	if (words.length === 0) return [{ text, hit: false }];
-	const escaped = words.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+	const escaped = words.map((word) => escape(word).replace(/["״]/g, '["״]').replace(/['׳]/g, "['׳]"));
+	// split by a pattern that captures, every second part is what it matched
 	const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
-	return text.split(pattern).filter(Boolean).map((part) => ({
-		text: part,
-		hit: words.some((word) => word.toLowerCase() === part.toLowerCase()),
-	}));
+	return text.split(pattern)
+		.map((part, i) => ({ text: part, hit: i % 2 === 1 }))
+		.filter((part) => part.text);
 }
