@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "${CLAUDE_PROJECT_DIR:-.}/.claude/playwright-mcp.sh"
+      ],
+      "env": {}
+    }
+  }
+}
