@@ -1,6 +1,6 @@
 import {
-	Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black,
-} from '@expo-google-fonts/rubik';
+	Heebo_400Regular, Heebo_500Medium, Heebo_600SemiBold, Heebo_700Bold, Heebo_800ExtraBold, Heebo_900Black,
+} from '@expo-google-fonts/heebo';
 import { ConsentProvider } from '@/state/consent';
 import { rememberBloc, track, trackScreen } from '@/state/analytics';
 import { QuestionnaireContext } from '@/state/questionnaire';
@@ -78,7 +78,7 @@ export default function RootLayout() {
 
 function useFonts() {
 	return loadFonts({
-		Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black,
+		Heebo_400Regular, Heebo_500Medium, Heebo_600SemiBold, Heebo_700Bold, Heebo_800ExtraBold, Heebo_900Black,
 	});
 }
 
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
 	},
 	beside: { width: 300, gap: 14 },
 	besideName: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
-	besideTitle: { fontFamily: 'Rubik_900Black', fontSize: 34, lineHeight: 40, color: '#FFFFFF', letterSpacing: -0.6 },
-	besideLine: { fontFamily: 'Rubik_600SemiBold', fontSize: 20, lineHeight: 28, color: '#FFFFFF', textAlign: 'right', writingDirection: 'rtl' },
-	besideSmall: { fontFamily: 'Rubik_400Regular', fontSize: 15, lineHeight: 23, color: 'rgba(255,255,255,0.72)', textAlign: 'right', writingDirection: 'rtl' },
+	besideTitle: { fontFamily: 'Heebo_900Black', fontSize: 34, lineHeight: 40, color: '#FFFFFF', letterSpacing: -0.6 },
+	besideLine: { fontFamily: 'Heebo_600SemiBold', fontSize: 20, lineHeight: 28, color: '#FFFFFF', textAlign: 'right', writingDirection: 'rtl' },
+	besideSmall: { fontFamily: 'Heebo_400Regular', fontSize: 15, lineHeight: 23, color: 'rgba(255,255,255,0.72)', textAlign: 'right', writingDirection: 'rtl' },
 });

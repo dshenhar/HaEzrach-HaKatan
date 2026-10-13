@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     sectionHead: { justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, marginTop: 30, marginBottom: 12 },
     sectionTitle: { alignItems: "center", gap: 8 },
     count: { minWidth: 24, height: 22, borderRadius: 11, paddingHorizontal: 7, alignItems: "center", justifyContent: "center" },
-    countText: { fontFamily: "Rubik_700Bold", fontSize: 12.5, fontVariant: ["tabular-nums"] },
+    countText: { fontFamily: "Heebo_700Bold", fontSize: 12.5, fontVariant: ["tabular-nums"] },
     card: { borderRadius: RADIUS.card, padding: 16, boxShadow: "0 1px 2px rgba(15,17,21,0.05), 0 4px 14px rgba(15,17,21,0.05)" },
     pressed: { transform: [{ scale: 0.98 }], opacity: 0.94 },
     shelf: { paddingHorizontal: 16, paddingVertical: 4 },

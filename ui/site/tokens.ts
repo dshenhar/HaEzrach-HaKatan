@@ -112,14 +112,14 @@ export const DEEP = { right: "#C62A22", left: "#1F55C2", none: "#3B4250" } as co
 /** what stands around the phone on a wide screen */
 export const BOARD = { light: "#1D1442", negative: "#000000", contrast: "#000000" } as const;
 
-/** One family, every weight: Rubik reads as a tool and still has a voice. */
+/** One family, every weight: Heebo, the Hebrew of the phone, from its regular to its black. */
 export const FACE = {
-    regular: "Rubik_400Regular",
-    medium: "Rubik_500Medium",
-    semi: "Rubik_600SemiBold",
-    bold: "Rubik_700Bold",
-    heavy: "Rubik_800ExtraBold",
-    black: "Rubik_900Black",
+    regular: "Heebo_400Regular",
+    medium: "Heebo_500Medium",
+    semi: "Heebo_600SemiBold",
+    bold: "Heebo_700Bold",
+    heavy: "Heebo_800ExtraBold",
+    black: "Heebo_900Black",
 } as const;
 
 const rtl: TextStyle = { writingDirection: "rtl", textAlign: "right" };
