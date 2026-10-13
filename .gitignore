@@ -8,3 +8,12 @@ __pycache__/
 
 # firebase deploy cache
 .firebase/
+
+# Claude Code: per-machine settings, the Impeccable engine binary (its launcher
+# downloads it), Impeccable's local state, and Playwright MCP snapshots
+.claude/settings.local.json
+.claude/skills/impeccable/scripts/bin/
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/live/
+.playwright-mcp/
