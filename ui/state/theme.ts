@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { DEV_CODE_KEY } from "./engagement";
+import { paletteOf, useSkin } from "./direction";
 
 const THEME_KEY = "theme_pref";
 const DEV_KEY = "dev_mode";
@@ -63,9 +64,6 @@ export const CONTRAST: Theme = {
 	rightSoft: "#FBEFEE", leftSoft: "#EEF2FA",
 };
 
-const PALETTES: Record<ThemeName, Theme> = {
-	light: LIGHT, negative: NEGATIVE, contrast: CONTRAST,
-};
 
 type Ctx = {
 	theme: Theme;
@@ -85,6 +83,7 @@ export const useDevMode = () => useContext(ThemeContext).devMode;
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
 	const [name, setName] = useState<ThemeName>("light");
 	const [devMode, setDev] = useState(false);
+	const skin = useSkin();
 
 	useEffect(() => {
 		AsyncStorage.getItem(THEME_KEY).then((v) => {
@@ -107,7 +106,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 	return React.createElement(
 		ThemeContext.Provider,
-		{ value: { theme: PALETTES[name] ?? LIGHT, setThemeName, devMode, setDevMode } },
+		// the palette is the chosen world's, in the theme the reader asked for
+		{ value: { theme: paletteOf(skin.name, name), setThemeName, devMode, setDevMode } },
 		children,
 	);
 }

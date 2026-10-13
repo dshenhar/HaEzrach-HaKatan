@@ -50,6 +50,17 @@ const ANONYMOUS = {
 
 type Params = Record<string, string | number | boolean | undefined>;
 
+/**
+ * A preview build - a Firebase preview channel, whose address carries "--", or a
+ * build on this machine - is marked, so what the owner and testers do there can
+ * be told apart from the readers'. `traffic_type: internal` is the mark Google
+ * Analytics' own "Internal Traffic" filter reads: in the property's data filters
+ * it can be set to keep these out of the reports, or left on test to show them.
+ */
+const PREVIEW = typeof location !== "undefined"
+    && (location.hostname.includes("--") || location.hostname === "localhost");
+const MARK = PREVIEW ? { traffic_type: "internal", app_build: "preview" } : {};
+
 let analytics: any = null;
 let starting: Promise<void> | null = null;
 let on = true;
@@ -73,7 +84,7 @@ async function start(): Promise<void> {
     const debugging = typeof location !== "undefined"
         && (location.search.includes("debug=1") || location.hostname === "localhost");
     analytics = measure.initializeAnalytics(app, {
-        config: debugging ? { ...ANONYMOUS, debug_mode: true } : ANONYMOUS,
+        config: debugging ? { ...ANONYMOUS, ...MARK, debug_mode: true } : { ...ANONYMOUS, ...MARK },
     });
     for (const queued of waiting.splice(0)) {
         measure.logEvent(analytics, queued.name as any, queued.params);
@@ -127,6 +138,8 @@ export function track(name: string, params?: Params) {
     for (const [key, value] of Object.entries(params ?? {})) {
         if (value !== undefined && value !== null && value !== "") clean[key] = value;
     }
+    // and on every event too, not only on the configuration, so no report misses it
+    if (PREVIEW) Object.assign(clean, MARK);
     if ("outlet_bloc" in clean) {
         const crossed = crossing(clean.outlet_bloc);
         if (crossed) clean.crossed = crossed;

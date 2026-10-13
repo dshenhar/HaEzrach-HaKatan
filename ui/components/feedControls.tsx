@@ -1,6 +1,6 @@
 import { sectionColour, sectionTint } from '@/state/sections';
 import { useTheme } from '@/state/theme';
-import { TYPE } from '@/state/craft';
+import { useSkin } from '@/state/direction';
 import Press from './press';
 import { SearchField } from './searchOverlay';
 import { keptHot } from '@/state/hotTopics';
@@ -87,7 +87,30 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                        blocFilter, onBlocFilter, knowsBloc, query, onQuery, onSearch }: Props) => {
     const [panel, setPanel] = useState<Panel | null>(null);
     const t = useTheme();
+    const skin = useSkin();
+    const f = skin.faces;
     const dark = t.name === "negative";
+    // The icons: on the booth's tray they are small white slips, on the page they
+    // are bare ink, on the concourse they are black pictogram squares. Open, each
+    // takes the world's mark for "this one": the stamp, an ink fill, a yellow face.
+    const iconBox = skin.name === "sign"
+        ? { backgroundColor: t.text, borderColor: t.text }
+        : skin.name === "daf"
+            ? { backgroundColor: "transparent", borderColor: "transparent" }
+            : { backgroundColor: t.surface, borderColor: t.line };
+    const iconInk = skin.name === "sign" ? t.surface : t.text;
+    const openBox = skin.name === "sign"
+        ? { backgroundColor: t.brand, borderColor: t.text }
+        : { backgroundColor: t.select, borderColor: t.select };
+    const openInk = skin.name === "sign" ? t.brandInk : t.selectInk;
+    // chosen, a chip wears the same mark
+    const chosen = skin.name === "sign"
+        ? { backgroundColor: t.brand, borderColor: t.text }
+        : { backgroundColor: t.select, borderColor: t.select };
+    const chosenInk = skin.name === "sign" ? t.brandInk : t.selectInk;
+    // the filters' dots name the blocs; they take the world's inks for them
+    const inkOf = (dot: string) => dot === "#C0392F" ? t.right : dot === "#2B5EA7" ? t.left
+        : dot === "#111827" ? t.text : skin.name === "sign" ? t.brandInk : t.select;
 
     const active = selectedSections.filter((c) => c !== "הכל");
     const filtering = active.length > 0 || blocFilter !== "all";
@@ -98,9 +121,8 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
         const open = panel === which;
         return (
             <Press
-                style={[styles.icon, { borderColor: t.line, backgroundColor: t.surface },
-                    on && !open && { borderColor: t.brand },
-                    open && { backgroundColor: t.text, borderColor: t.text }]}
+                style={[styles.icon, iconBox, { borderRadius: skin.radius.control },
+                    open && openBox]}
                 onPress={() => {
                     // the hot topics are fetched as the search row opens, not when it is sent
                     if (which === "search" && !open) void keptHot();
@@ -111,26 +133,29 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                 accessibilityState={{ expanded: open }}
                 hitSlop={6}
             >
-                <Ionicons name={name} size={15} color={open ? t.surface : t.text} />
-                {on && !open && <View style={[styles.badge, { backgroundColor: t.brand, borderColor: t.bg }]} />}
+                <Ionicons name={name} size={skin.name === "daf" ? 19 : 16} color={open ? openInk : iconInk} />
+                {on && !open && <View style={[styles.badge, { backgroundColor: skin.name === "sign" ? t.brand : t.select,
+                    borderColor: t.bg }]} />}
             </Press>
         );
     };
 
     const chip = (key: string, label: string, on: boolean, onPress: () => void, dot?: string) => (
         <Press key={key}
-            style={[styles.chip, styles.edged,
-                { borderColor: on ? t.text : t.line, backgroundColor: on ? t.text : t.surface }]}
+            style={[styles.chip, styles.edged, { borderRadius: skin.radius.chip },
+                on ? chosen : { borderColor: t.line, backgroundColor: t.surface }]}
             onPress={onPress}>
-            {!!dot && <View style={[styles.dot, { backgroundColor: dot }]} />}
-            <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>{label}</Text>
+            {!!dot && <View style={[styles.dot, { backgroundColor: inkOf(dot),
+                borderRadius: skin.name === "ballot" ? 0 : 4 }]} />}
+            <Text style={[styles.chipText, { color: on ? chosenInk : t.text, fontFamily: on ? f.uiStrong : f.ui }]}>{label}</Text>
         </Press>
     );
 
     return (
         <View style={[styles.wrap, { backgroundColor: t.bg }]}>
             <View style={styles.titleRow}>
-                <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>{title}</Text>
+                <Text style={[styles.title, { color: t.text, fontFamily: f.display },
+                    skin.name === "daf" && styles.titlePage]} numberOfLines={1}>{title}</Text>
                 <View style={styles.icons}>
                     {icon("filter", "funnel-outline", "סינון", filtering)}
                     {icon("sort", "swap-vertical", "מיון", sorting)}
@@ -141,16 +166,18 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
             {filtering && panel !== "filter" && (
                 <Strip style={styles.strip}>
                     {blocFilter !== "all" && bloc && (
-                        <Press style={[styles.chip, styles.edged, { borderColor: t.text, backgroundColor: t.surface }]}
+                        <Press style={[styles.chip, styles.edged, chosen, { borderRadius: skin.radius.chip }]}
                             onPress={() => onBlocFilter("all")}>
-                            <Text style={[styles.chipText, { color: t.text }]}>{bloc.label}  ✕</Text>
+                            <Text style={[styles.chipText, { color: chosenInk, fontFamily: f.uiStrong }]}>{bloc.label}  ✕</Text>
                         </Press>
                     )}
                     {active.map((section) => (
                         <Press key={section}
-                            style={[styles.chip, { backgroundColor: sectionColour(section, dark) }]}
+                            style={[styles.chip, styles.edged, { borderRadius: skin.radius.chip },
+                                skin.name === "ballot" ? chosen
+                                    : { backgroundColor: sectionColour(section, dark), borderColor: sectionColour(section, dark) }]}
                             onPress={() => onToggleSection(section)}>
-                            <Text style={[styles.chipText, styles.chipOn]}>{section}  ✕</Text>
+                            <Text style={[styles.chipText, styles.chipOn, { fontFamily: f.uiStrong }]}>{section}  ✕</Text>
                         </Press>
                     ))}
                 </Strip>
@@ -158,20 +185,20 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
 
             {panel === "filter" && (
                 <>
-                    <Text style={[styles.panelLabel, { color: t.textMuted }]}>מי סיקר</Text>
+                    <Text style={[styles.panelLabel, { color: t.textMuted, fontFamily: f.uiStrong }]}>מי סיקר</Text>
                     <Strip style={styles.strip}>
                         {BLOC_FILTERS.map((option) => chip(option.key, option.label,
                             option.key === blocFilter, () => onBlocFilter(option.key), option.dot))}
                     </Strip>
                     {/* the one filter whose name does not explain itself */}
                     {blocFilter === "blind" && (
-                        <Text style={[styles.note, { color: t.textMuted }]}>
+                        <Text style={[styles.note, { color: t.textMuted, fontFamily: f.ui }]}>
                             {knowsBloc
                                 ? "סיפורים שהצד שלכם לא סיקר: שני גופים או יותר מהצד השני, ואפס משלכם."
                                 : "סיפורים שצד אחד סיקר והשני לא. מלאו את שאלון העמדות כדי לראות דווקא את אלה שהצד שלכם פספס."}
                         </Text>
                     )}
-                    <Text style={[styles.panelLabel, { color: t.textMuted }]}>מדורים</Text>
+                    <Text style={[styles.panelLabel, { color: t.textMuted, fontFamily: f.uiStrong }]}>מדורים</Text>
                     <Strip style={styles.strip}>
                         {sections.map((section) => {
                             // off, the chip is a tint of its own colour with the name in
@@ -180,13 +207,17 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                             // On, it fills in: the chosen one is the only solid thing here.
                             const tint = sectionTint(section, dark);
                             const on = active.includes(section);
+                            // the booth keeps one ink: a section is a plain slip there,
+                            // and the stamp marks the chosen. The page and the
+                            // concourse keep each section's colour, as a route does.
+                            if (skin.name === "ballot") return chip(section, section, on, () => onToggleSection(section));
                             return (
                                 <Press key={section}
-                                    style={[styles.chip, styles.edged,
+                                    style={[styles.chip, styles.edged, { borderRadius: skin.radius.chip },
                                         on ? { borderColor: tint.ink, backgroundColor: tint.ink }
                                            : { borderColor: tint.edge, backgroundColor: tint.fill }]}
                                     onPress={() => onToggleSection(section)}>
-                                    <Text style={[styles.chipText,
+                                    <Text style={[styles.chipText, { fontFamily: on ? f.uiStrong : f.ui },
                                         on ? styles.chipOn : { color: tint.label }]}>{section}</Text>
                                 </Press>
                             );
@@ -202,9 +233,12 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                     <View style={styles.searchField}>
                         <SearchField value={query} onChange={onQuery} onSubmit={onSearch} autoFocus />
                     </View>
-                    <Press style={[styles.go, { backgroundColor: t.text }]} onPress={onSearch}
+                    <Press style={[styles.go, { borderRadius: skin.radius.control === 0 ? 2 : Math.max(skin.radius.control, 3) },
+                        skin.name === "sign" ? { backgroundColor: t.brand, borderWidth: 1, borderColor: t.text }
+                            : { backgroundColor: skin.name === "ballot" ? t.select : t.text }]} onPress={onSearch}
                         accessibilityRole="button" accessibilityLabel="הצגת התוצאות">
-                        <Text style={[styles.goText, { color: t.surface }]}>חיפוש</Text>
+                        <Text style={[styles.goText, { color: skin.name === "sign" ? t.brandInk : skin.name === "ballot" ? t.selectInk : t.surface,
+                            fontFamily: f.uiStrong }]}>חיפוש</Text>
                     </Press>
                 </View>
             )}
@@ -227,10 +261,11 @@ const styles = StyleSheet.create({
     titleRow: {
         flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 16,
     },
-    title: { ...TYPE.display, flex: 1, textAlign: "right" },
+    title: { fontSize: 29, lineHeight: 35, letterSpacing: -0.4, flex: 1, textAlign: "right" },
+    titlePage: { fontSize: 27, letterSpacing: -0.5 },
     icons: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
     icon: {
-        width: 32, height: 32, borderRadius: 16, borderWidth: 1,
+        width: 34, height: 34, borderWidth: 1,
         alignItems: "center", justifyContent: "center",
     },
     // a filter or an order left on: a gold dot on the icon's shoulder
@@ -240,23 +275,23 @@ const styles = StyleSheet.create({
     },
     // the panel's two halves, each said once and quietly
     panelLabel: {
-        fontFamily: "Heebo_700Bold", fontSize: 10.5, textAlign: "right",
+        fontSize: 11.5, textAlign: "right",
         paddingHorizontal: 16, marginBottom: -3,
     },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
-    chip: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 11 },
+    chip: { paddingVertical: 6, paddingHorizontal: 11 },
     // a hairline rather than a 1.5px outline: the chip is a surface with an edge,
     // not a shape drawn in outline
     edged: { flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1 },
     dot: { width: 7, height: 7, borderRadius: 4 },
-    chipText: { fontFamily: "Heebo_500Medium", fontSize: 12, letterSpacing: 0.05 },
-    chipOn: { color: "#FFFFFF", fontFamily: "Heebo_700Bold" },
+    chipText: { fontSize: 13, letterSpacing: 0.05 },
+    chipOn: { color: "#FFFFFF" },
     searchRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingHorizontal: 16 },
     searchField: { flex: 1 },
-    go: { height: 40, borderRadius: 999, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
-    goText: { fontFamily: "Heebo_700Bold", fontSize: 14 },
+    go: { height: 40, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
+    goText: { fontSize: 14 },
     note: {
-        fontFamily: "Heebo_500Medium", fontSize: 11, lineHeight: 16,
+        fontSize: 12, lineHeight: 17,
         textAlign: "right", paddingHorizontal: 16, marginTop: -2,
     },
 });

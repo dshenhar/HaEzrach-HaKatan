@@ -5,6 +5,19 @@ import {
 	Heebo_800ExtraBold,
 	useFonts,
 } from '@expo-google-fonts/heebo';
+import { SecularOne_400Regular } from '@expo-google-fonts/secular-one';
+import {
+	Assistant_400Regular, Assistant_600SemiBold, Assistant_700Bold, Assistant_800ExtraBold,
+} from '@expo-google-fonts/assistant';
+import {
+	FrankRuhlLibre_400Regular, FrankRuhlLibre_500Medium, FrankRuhlLibre_700Bold, FrankRuhlLibre_900Black,
+} from '@expo-google-fonts/frank-ruhl-libre';
+import { NotoSansHebrew_500Medium, NotoSansHebrew_700Bold } from '@expo-google-fonts/noto-sans-hebrew';
+import {
+	Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold,
+} from '@expo-google-fonts/rubik';
+import DirectionSwitcher from '@/components/directionSwitcher';
+import { DirectionProvider, useSkin } from '@/state/direction';
 import AccessibilityBar from '@/components/accessibilityBar';
 import { ConsentProvider } from '@/state/consent';
 import { rememberBloc, track, trackScreen } from '@/state/analytics';
@@ -42,6 +55,12 @@ export default function RootLayout() {
 		Heebo_500Medium,
 		Heebo_700Bold,
 		Heebo_800ExtraBold,
+		// the three worlds on the preview, each with its own faces
+		SecularOne_400Regular,
+		Assistant_400Regular, Assistant_600SemiBold, Assistant_700Bold, Assistant_800ExtraBold,
+		FrankRuhlLibre_400Regular, FrankRuhlLibre_500Medium, FrankRuhlLibre_700Bold, FrankRuhlLibre_900Black,
+		NotoSansHebrew_500Medium, NotoSansHebrew_700Bold,
+		Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold,
 	});
 
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);
@@ -133,11 +152,13 @@ export default function RootLayout() {
 		return (
 			<GestureHandlerRootView style={styles.root}>
 				<AccessProvider>
+					<DirectionProvider>
 					<ThemeProvider>
 						<ConsentProvider>
 							<QuestionnaireContext.Provider value={ask}>{shell}</QuestionnaireContext.Provider>
 						</ConsentProvider>
 					</ThemeProvider>
+					</DirectionProvider>
 				</AccessProvider>
 			</GestureHandlerRootView>
 		);
@@ -145,6 +166,7 @@ export default function RootLayout() {
 
 	return (
 		<AccessProvider>
+			<DirectionProvider>
 			<ThemeProvider>
 				<ConsentProvider>
 					<QuestionnaireContext.Provider value={ask}>
@@ -152,6 +174,7 @@ export default function RootLayout() {
 					</QuestionnaireContext.Provider>
 				</ConsentProvider>
 			</ThemeProvider>
+			</DirectionProvider>
 		</AccessProvider>
 	);
 }
@@ -214,16 +237,21 @@ function AccessProvider({ children }: { children: React.ReactNode }) {
 
 function WebFrame({ children }: { children: React.ReactNode }) {
 	const t = useTheme();
-	const board = t.name === "negative" ? "#08080A" : "#E7E5E0";
+	const skin = useSkin();
 	return (
-		<View style={[styles.web, { backgroundColor: board }]}>
-			<View style={[styles.frame, { backgroundColor: t.bg, borderColor: t.line }]}>{children}</View>
+		<View style={[styles.web, { backgroundColor: skin.board(t.name) }]}>
+			<View style={[styles.frame, { backgroundColor: t.bg, borderColor: t.line }]}>
+				{/* the preview's choice of world, above the app and not part of it */}
+				<DirectionSwitcher />
+				<View style={styles.fill}>{children}</View>
+			</View>
 		</View>
 	);
 }
 
 const styles = StyleSheet.create({
 	root: { flex: 1 },
+	fill: { flex: 1 },
 	web: {
 		flex: 1,
 		alignItems: 'center',

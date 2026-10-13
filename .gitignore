@@ -17,3 +17,7 @@ __pycache__/
 .impeccable/hook.cache.json
 .impeccable/live/
 .playwright-mcp/
+# Impeccable's working files: decision boards, review captures, the roll
+.impeccable/mocks/
+.impeccable/review/
+.impeccable/questions/

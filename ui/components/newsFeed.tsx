@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
-import { I18nManager } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import FeedControls, { BlocFilter, SortKey } from "./feedControls";
 import SearchOverlay from "./searchOverlay";
 import ModeGuide from "./modeGuide";
@@ -12,7 +11,7 @@ import RatingSheet from "./ratingSheet";
 import { fetchArticles, getSitePositions, getTopics, loadFeed, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
-import { ELEVATION, glass, SWELL, TYPE } from "@/state/craft";
+import { ELEVATION, SWELL } from "@/state/craft";
 import { blindTo } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { useArrivalTour } from "@/state/tour";
@@ -21,6 +20,8 @@ import { ScrollLock } from "@/state/scrollLock";
 import { useStable } from "@/state/useStable";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
+import { useSkin } from "@/state/direction";
+import FeedHeader from "./feedHeader";
 import { Alert } from "react-native";
 import { InstallBanner } from "./installOffer";
 import PersonalArea from "./personalArea";
@@ -30,17 +31,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { MIN_QUERY, normalise, queryWords } from "@/state/search";
 
-// The logo is navy ink, so negative mode swaps in a pale copy of it.
-// the navy the logo is drawn in, sampled off the file itself, so the words and the
-// mark beside them are the same ink
-const BRAND_INK = "#192F50";
-const BRAND_INK_DARK = "#C7D4E8";
-const MARK_INK = require("../assets/images/mark-ink.png");
-const MARK_LIGHT = require("../assets/images/mark-light.png");
-/** the doodled paper the stories are printed on - light theme only, where it is
- *  paper. The tile is mirrored into its own quarters, so it repeats without a seam. */
-const PAPER = require("../assets/images/paper.webp");
-const MARK_RATIO = 426 / 372;
 /** room under the last story, so the tab bar never sits on a headline */
 const TAIL = 120;
 /** where on the screen the feed asks "which story is the reader on", as a share of
@@ -80,7 +70,16 @@ export default function NewsFeed() {
 	const [searching, setSearching] = useState(false);
 	const router = useRouter();
 	const t = useTheme();
+	const skin = useSkin();
 	const dev = useDevMode();
+	// the floating buttons wear the world's own chrome: a black slip, a ruled
+	// white tab, a yellow sign
+	const chrome = skin.name === "ballot"
+		? { backgroundColor: t.brand, borderColor: t.brand, borderRadius: 3 }
+		: skin.name === "sign"
+			? { backgroundColor: t.brand, borderColor: "#0F0F0F", borderRadius: 6 }
+			: { backgroundColor: t.surface, borderColor: t.text, borderRadius: 2 };
+	const chromeInk = skin.name === "daf" ? t.text : t.brandInk;
 
 	const onFeedScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
 		const y = e.nativeEvent.contentOffset.y;
@@ -440,8 +439,6 @@ export default function NewsFeed() {
 		}
 	};
 
-	const brandInk = t.name === "negative" ? BRAND_INK_DARK : BRAND_INK;
-
 	// what was searched is not sent anywhere, only how long it was
 	const runSearch = () => {
 		if (normalise(query).length < MIN_QUERY) return;
@@ -509,7 +506,8 @@ export default function NewsFeed() {
 	}, [selectedCategories])
 
 	return (
-		<SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: t.bg }]}>
+		<SafeAreaView edges={["top", "left", "right"]}
+			style={[styles.container, { backgroundColor: skin.name === "daf" ? t.bg : t.brand }]}>
 			{dev && (
 				<View style={[styles.devBar, { backgroundColor: t.brand }]}>
 					<Text style={styles.devBarText}>
@@ -520,7 +518,7 @@ export default function NewsFeed() {
 			<View style={styles.feedArea}>
 			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
-				style={[styles.scrollView, { backgroundColor: t.name === "light" ? "transparent" : t.bg }]}
+				style={[styles.scrollView, { backgroundColor: t.bg }]}
 				scrollEnabled={!scrollLocked}
 				contentContainerStyle={{ paddingBottom: TAIL }}
 				onScroll={onFeedScroll}
@@ -533,29 +531,7 @@ export default function NewsFeed() {
 				{/* the name, the day and the controls scroll away with the list: on a
 				    phone they were taking a third of the screen off the news */}
 				<View onLayout={(e) => { topH.current = e.nativeEvent.layout.height; }}>
-				<View style={styles.header}>
-					<View style={styles.headerTop}>
-						<TouchableOpacity onPress={() => startTour()} hitSlop={10} accessibilityLabel="על האפליקציה">
-							<Ionicons name="information-circle-outline" size={30} color={t.text} />
-						</TouchableOpacity>
-						{/* the name set rather than drawn: "חדשות" leads, "האזרח הקטן" sits
-						    under it, and the book with the dove stands to their right */}
-						<View style={styles.brand} accessibilityLabel="חדשות האזרח הקטן">
-							<Image
-								source={t.name === "negative" ? MARK_LIGHT : MARK_INK}
-								style={styles.mark}
-								resizeMode="contain"
-							/>
-							<View style={styles.brandWords}>
-								<Text style={[styles.brandTop, { color: brandInk }]}>חדשות</Text>
-								<Text style={[styles.brandBottom, { color: brandInk }]}>האזרח הקטן</Text>
-							</View>
-						</View>
-						<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}>
-							<Ionicons name="person-circle-outline" size={30} color={t.text} />
-						</TouchableOpacity>
-					</View>
-				</View>
+				<FeedHeader onAbout={() => startTour()} onPersonal={() => setPersonalOpen(true)} />
 
 				<InstallBanner />
 
@@ -576,12 +552,8 @@ export default function NewsFeed() {
 				</View>
 
 				<View style={styles.cardsArea}>
-				{/* only under the stories, and only just there: the header and the
-				    controls keep the plain ground they had */}
-				{t.name === "light" && (
-					<Image source={PAPER} style={styles.paper} resizeMode="repeat" />
-				)}
-				<View style={styles.cards}>
+				<View style={[styles.cards, skin.name === "daf" && styles.cardsPage,
+					skin.name === "daf" && { borderBottomColor: t.text }]}>
 				{sortedArticles.map((cluster, index) => {
 					const key = storyKey(cluster, index);
 					const bind = handlers(key);
@@ -607,14 +579,14 @@ export default function NewsFeed() {
 			{pending && (
 				<View style={styles.freshRow} pointerEvents="box-none">
 					<TouchableOpacity
-						style={styles.fresh}
+						style={[styles.fresh, chrome]}
 						onPress={() => { track("feed_update_taken", { fresh: freshCount }); takeUpdate(true); }}
 						accessibilityRole="button"
 						accessibilityLabel="הצגת העדכון וחזרה לראש הפיד"
 						hitSlop={8}
 					>
-						<Ionicons name="arrow-up" size={14} color={t.text} />
-						<Text style={[styles.freshText, { color: t.text }]}>
+						<Ionicons name="arrow-up" size={14} color={chromeInk} />
+						<Text style={[styles.freshText, { color: chromeInk, fontFamily: skin.faces.uiStrong }]}>
 							{freshCount > 1 ? `${freshCount} סיפורים חדשים`
 								: freshCount === 1 ? "סיפור חדש" : "הפיד התעדכן"}
 						</Text>
@@ -625,13 +597,13 @@ export default function NewsFeed() {
 			{/* the way back, once the day is long: opposite the accessibility button */}
 			{deep && (
 				<TouchableOpacity
-					style={styles.toTop}
+					style={[styles.toTop, chrome, { borderRadius: skin.name === "sign" ? 6 : 20 }]}
 					onPress={backToTop}
 					accessibilityRole="button"
 					accessibilityLabel="חזרה לראש הפיד"
 					hitSlop={8}
 				>
-					<Ionicons name="chevron-up" size={20} color={t.text} />
+					<Ionicons name="chevron-up" size={20} color={chromeInk} />
 				</TouchableOpacity>
 			)}
 
@@ -693,10 +665,9 @@ const styles = StyleSheet.create({
 	// glass rather than a white disc: it sits over moving content, and a solid
 	// circle over a scrolling feed reads as a hole punched in it
 	toTop: {
-		position: "absolute", right: 12, bottom: 92, width: 40, height: 40, borderRadius: 20,
+		position: "absolute", right: 12, bottom: 92, width: 40, height: 40,
 		alignItems: "center", justifyContent: "center",
-		...glass(false), borderWidth: 1,
-		boxShadow: ELEVATION.float, zIndex: 30,
+		borderWidth: 1, boxShadow: ELEVATION.float, zIndex: 30,
 	},
 
 	freshRow: {
@@ -705,10 +676,10 @@ const styles = StyleSheet.create({
 	},
 	fresh: {
 		flexDirection: "row-reverse", alignItems: "center", gap: 6,
-		paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
-		...glass(false), borderWidth: 1, boxShadow: ELEVATION.float,
+		paddingHorizontal: 14, paddingVertical: 7,
+		borderWidth: 1, boxShadow: ELEVATION.float,
 	},
-	freshText: { fontFamily: "Heebo_700Bold", fontSize: 12.5 },
+	freshText: { fontSize: 13 },
 
 	container: { 
 		flex: 1, 
@@ -716,36 +687,8 @@ const styles = StyleSheet.create({
 		width: "100%", 
 		backgroundColor: '#f8f8f8ff',
 	},
-	header: {
-		paddingHorizontal: 16,
-		paddingTop: 8,
-		paddingBottom: 2,
-		gap: 2,
-		width: "100%"
-	},
 	devBar: { width: "100%", paddingVertical: 5, alignItems: "center" },
 	devBarText: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#04310F" },
-	headerTop: {
-		// right to left: the i, the logo, the personal area - the two icons are the
-		// same size, so space-between centres the logo; the direction keeps that order
-		// on the physical screen whether or not RTL layout is on
-		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
-		alignItems: "center",
-		justifyContent: "space-between",
-		gap: 10,
-	},
-	// row-reverse puts the mark on the right of the words, as the logo has it
-	brand: {
-		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
-		alignItems: "center",
-		gap: 8,
-	},
-	mark: { height: 40, width: 40 * MARK_RATIO },
-	brandWords: { alignItems: "flex-end" },
-	brandTop: { ...TYPE.brand },
-	brandBottom: {
-		fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 15, letterSpacing: 0.08,
-	},
 	scrollView: {
 		width: "100%",
 		backgroundColor: '#f8f8f8ff',
@@ -755,15 +698,9 @@ const styles = StyleSheet.create({
 	// the stories keep the narrow side margin the header does not want; the paper
 	// sits in the box around them, so it runs edge to edge under the list alone
 	cardsArea: { position: "relative" },
-	cards: { paddingHorizontal: 6 },
+	cards: { paddingHorizontal: 10 },
+	// the page's passages run to its edges and close on a rule of their own
+	cardsPage: { paddingHorizontal: 0, borderBottomWidth: 1 },
 	feedArea: { flex: 1, width: "100%" },
-	// it sits still while the feed moves over it, so it reads as the page rather
-	// than as something in the list
-	// width and height spelled out: react-native-web otherwise stamps the asset's
-	// own 760 square on it inline, which beats anything a stylesheet says
-	paper: {
-		position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-		opacity: 0.22, pointerEvents: "none",
-	},
 	tour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 });
