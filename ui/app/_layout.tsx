@@ -1,9 +1,6 @@
 import {
-	FrankRuhlLibre_400Regular, FrankRuhlLibre_500Medium, FrankRuhlLibre_700Bold, FrankRuhlLibre_900Black,
-} from '@expo-google-fonts/frank-ruhl-libre';
-import {
-	Assistant_400Regular, Assistant_600SemiBold, Assistant_700Bold, Assistant_800ExtraBold,
-} from '@expo-google-fonts/assistant';
+	Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black,
+} from '@expo-google-fonts/rubik';
 import { ConsentProvider } from '@/state/consent';
 import { rememberBloc, track, trackScreen } from '@/state/analytics';
 import { QuestionnaireContext } from '@/state/questionnaire';
@@ -14,12 +11,13 @@ import { ThemeProvider } from '@/state/theme';
 import { NewsProvider } from '@/site/news';
 import { ReadingProvider } from '@/site/reading';
 import { ChromeProvider } from '@/site/chrome';
-import { useSite } from '@/site/tokens';
+import { BOARD, PHONE, useSite } from '@/site/tokens';
+import { Mark } from '@/site/meter';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts as loadFonts } from 'expo-font';
 import React, { useEffect, useState } from 'react';
-import { I18nManager, Platform, StyleSheet, View } from 'react-native';
+import { I18nManager, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 I18nManager.allowRTL(true);
@@ -55,20 +53,20 @@ export default function RootLayout() {
 	const shell = (
 		<AccessProvider>
 			<ThemeProvider>
-				<ConsentProvider>
-					<Questionnaire profile={profile} setProfile={setProfile}>
-						<NewsProvider>
-							<ReadingProvider>
-								<ChromeProvider>
-									<Paper>
-										<Stack screenOptions={{ headerShown: false, animation: "fade" }} />
-									</Paper>
-									<Measured />
-								</ChromeProvider>
-							</ReadingProvider>
-						</NewsProvider>
-					</Questionnaire>
-				</ConsentProvider>
+				<Phone>
+					<ConsentProvider>
+						<Questionnaire profile={profile} setProfile={setProfile}>
+							<NewsProvider>
+								<ReadingProvider>
+									<ChromeProvider>
+										<Stack screenOptions={{ headerShown: false, animation: "slide_from_left" }} />
+										<Measured />
+									</ChromeProvider>
+								</ReadingProvider>
+							</NewsProvider>
+						</Questionnaire>
+					</ConsentProvider>
+				</Phone>
 			</ThemeProvider>
 		</AccessProvider>
 	);
@@ -80,34 +78,55 @@ export default function RootLayout() {
 
 function useFonts() {
 	return loadFonts({
-		FrankRuhlLibre_400Regular, FrankRuhlLibre_500Medium, FrankRuhlLibre_700Bold, FrankRuhlLibre_900Black,
-		Assistant_400Regular, Assistant_600SemiBold, Assistant_700Bold, Assistant_800ExtraBold,
+		Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black,
 	});
 }
 
-/** the paper under every page, and the browser's own surfaces in its inks */
-function Paper({ children }: { children: React.ReactNode }) {
-	const { c } = useSite();
+/**
+ * The app is a phone app. On a phone it is the whole screen; on anything wider
+ * it stands as a phone in the middle of it, on a deep ground, with its name
+ * beside it when there is room - the same app, not a stretched one.
+ */
+function Phone({ children }: { children: React.ReactNode }) {
+	const { c, framed, theme } = useSite();
+	const { width, height } = useWindowDimensions();
+	const board = BOARD[theme] ?? BOARD.light;
 	useEffect(() => {
 		if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-		document.body.style.backgroundColor = c.paper;
-		const meta = document.querySelector('meta[name="theme-color"]');
-		meta?.setAttribute('content', c.paper);
-		let style = document.getElementById('paper-surfaces');
+		document.body.style.backgroundColor = framed ? board : c.bg;
+		let style = document.getElementById('app-surfaces');
 		if (!style) {
 			style = document.createElement('style');
-			style.id = 'paper-surfaces';
+			style.id = 'app-surfaces';
 			document.head.appendChild(style);
 		}
 		// the parts of the page nobody draws: a selection, the focus ring, the scrollbar
 		style.textContent = `
-			::selection { background: ${c.mark}; color: ${c.ink}; }
-			:focus-visible { outline: 2px solid ${c.ink}; outline-offset: 2px; }
-			* { scrollbar-width: thin; scrollbar-color: ${c.rule} transparent; }
+			::selection { background: ${c.hi}; color: ${c.hiInk}; }
+			:focus-visible { outline: 2px solid ${c.brand}; outline-offset: 2px; }
+			input:focus-visible, textarea:focus-visible { outline: none; }
+			* { scrollbar-width: none; }
 			a { -webkit-tap-highlight-color: transparent; }
 		`;
-	}, [c]);
-	return <View style={[styles.fill, { backgroundColor: c.paper }]}>{children}</View>;
+	}, [c, framed, board]);
+
+	if (!framed) return <View style={[styles.fill, { backgroundColor: c.bg }]}>{children}</View>;
+	const tall = Math.min(height - 48, 940);
+	return (
+		<View style={[styles.board, { backgroundColor: board }]}>
+			{width > PHONE + 520 && (
+				<View style={styles.beside} accessible={false}>
+					<View style={styles.besideName}>
+						<Mark size={34} />
+						<Text style={styles.besideTitle}>האזרח הקטן</Text>
+					</View>
+					<Text style={styles.besideLine}>כל החדשות, משני צדי המפה.</Text>
+					<Text style={styles.besideSmall}>האפליקציה בנויה לטלפון. פתחו את הכתובת בטלפון, והיא תמלא את כל המסך.</Text>
+				</View>
+			)}
+			<View style={[styles.phone, { width: PHONE, height: tall, backgroundColor: c.bg }]}>{children}</View>
+		</View>
+	);
 }
 
 /** the questionnaire, reachable from any page; answering it changes what the site can say */
@@ -186,4 +205,14 @@ function AccessProvider({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
 	fill: { flex: 1 },
+	board: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 72 },
+	phone: {
+		borderRadius: 44, overflow: 'hidden', borderWidth: 10, borderColor: '#0A0A10',
+		boxShadow: '0 30px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.08)',
+	},
+	beside: { width: 300, gap: 14 },
+	besideName: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
+	besideTitle: { fontFamily: 'Rubik_900Black', fontSize: 34, lineHeight: 40, color: '#FFFFFF', letterSpacing: -0.6 },
+	besideLine: { fontFamily: 'Rubik_600SemiBold', fontSize: 20, lineHeight: 28, color: '#FFFFFF', textAlign: 'right', writingDirection: 'rtl' },
+	besideSmall: { fontFamily: 'Rubik_400Regular', fontSize: 15, lineHeight: 23, color: 'rgba(255,255,255,0.72)', textAlign: 'right', writingDirection: 'rtl' },
 });

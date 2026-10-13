@@ -2,36 +2,43 @@ import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { track } from "@/state/analytics";
 import { useQuestionnaire } from "@/state/questionnaire";
-import { ROW, useSite } from "./tokens";
+import { TYPE, useSite } from "./tokens";
 import { byNewest, Reading } from "./news";
-import { Row } from "./stories";
-import { Button, Tabs } from "./controls";
+import { StoryCard } from "./stories";
+import { Button, Chips } from "./controls";
 
 type Who = "all" | "both" | "right" | "left" | "blind";
 type Order = "newest" | "covered" | "outside" | "oldest";
 
-const WHO: { key: Who; label: string }[] = [
-    { key: "all", label: "הכל" },
-    { key: "both", label: "שני הצדדים" },
-    { key: "right", label: "רק ימין" },
-    { key: "left", label: "רק שמאל" },
-    { key: "blind", label: "נקודות עיוורות" },
-];
-
 const STEP = 20;
 
 /**
- * The day, story by story, by the clock. Over it, who told them - both sides,
- * one, or the blindspots - and in what order: newest, most told, or, for a reader
- * who has said where they stand, the ones that came most from the other side.
+ * The day, story by story. Over it, who told them - both sides, one, or the
+ * blindspots - and in what order: newest, most told, or, for a reader who has
+ * said where they stand, the ones that came most from the other side.
  */
 export default function River({ readings, how, showSection = true }: { readings: Reading[]; how: string; showSection?: boolean }) {
-    const { c, type } = useSite();
+    const { c } = useSite();
     const { profile } = useQuestionnaire();
     const [who, setWho] = useState<Who>("all");
     const [order, setOrder] = useState<Order>("newest");
     const [shown, setShown] = useState(STEP);
 
+    const counts = useMemo(() => ({
+        all: readings.length,
+        both: readings.filter((r) => r.right > 0 && r.left > 0).length,
+        right: readings.filter((r) => r.right > 0 && r.left === 0).length,
+        left: readings.filter((r) => r.left > 0 && r.right === 0).length,
+        blind: readings.filter((r) => (profile ? r.missing === profile.bloc : r.missing !== null)).length,
+    }), [readings, profile]);
+
+    const whos: { key: Who; label: string; count: number }[] = [
+        { key: "all", label: "הכל", count: counts.all },
+        { key: "both", label: "שני הצדדים", count: counts.both },
+        { key: "right", label: "רק ימין", count: counts.right },
+        { key: "left", label: "רק שמאל", count: counts.left },
+        { key: "blind", label: "נקודות עיוורות", count: counts.blind },
+    ];
     const orders: { key: Order; label: string }[] = [
         { key: "newest", label: "חדש קודם" },
         { key: "covered", label: "הכי מסוקר" },
@@ -63,34 +70,29 @@ export default function River({ readings, how, showSection = true }: { readings:
 
     return (
         <View>
-            <Tabs label="מי סיקר" items={WHO} value={who}
+            <Chips label="מי סיקר" items={whos} value={who}
                 onChange={(next) => { track("bloc_filter_changed", { filter: next }); setWho(next); setShown(STEP); }} />
-            <View style={[styles.orders, { flexDirection: ROW }]}>
-                <Text style={[type.meta, { color: c.muted }]}>סדר:</Text>
-                {orders.map((o) => (
-                    <Text key={o.key} accessibilityRole="button" accessibilityState={{ selected: o.key === order }}
-                        onPress={() => { track("sort_changed", { sort: o.key }); setOrder(o.key); }}
-                        style={[type.meta, { color: o.key === order ? c.ink : c.ink2,
-                            textDecorationLine: o.key === order ? "underline" : "none" }]}>
-                        {o.label}
-                    </Text>
-                ))}
+            <View style={styles.orders}>
+                <Chips small label="סדר" items={orders} value={order}
+                    onChange={(next) => { track("sort_changed", { sort: next }); setOrder(next); }} />
             </View>
             {who === "blind" && (
-                <Text style={[type.small, styles.note, { color: c.ink2 }]}>
+                <Text style={[TYPE.small, styles.note, { color: c.ink2 }]}>
                     {profile
                         ? "סיפורים שהצד שלכם לא סיקר: שני גופים או יותר מהצד השני, ואפס משלכם."
                         : "סיפורים שצד אחד סיקר והשני לא. מלאו את שאלון העמדות כדי לראות דווקא את אלה שהצד שלכם פספס."}
                 </Text>
             )}
-            {list.length === 0 ? (
-                <Text style={[type.small, styles.empty, { color: c.muted }]}>אין כרגע סיפורים כאלה.</Text>
-            ) : (
-                list.slice(0, shown).map((r) => <Row key={r.id} r={r} how={how} showSection={showSection} />)
-            )}
+            <View style={styles.list}>
+                {list.length === 0 ? (
+                    <Text style={[TYPE.small, styles.empty, { color: c.muted }]}>אין כרגע סיפורים כאלה.</Text>
+                ) : (
+                    list.slice(0, shown).map((r) => <StoryCard key={r.id} r={r} how={how} showSection={showSection} />)
+                )}
+            </View>
             {list.length > shown && (
                 <View style={styles.more}>
-                    <Button quiet label={`עוד ${Math.min(STEP, list.length - shown)} סיפורים`}
+                    <Button quiet wide label={`עוד ${Math.min(STEP, list.length - shown)} סיפורים`}
                         onPress={() => { track("river_more", { shown }); setShown((n) => n + STEP); }} />
                 </View>
             )}
@@ -99,8 +101,9 @@ export default function River({ readings, how, showSection = true }: { readings:
 }
 
 const styles = StyleSheet.create({
-    orders: { alignItems: "center", gap: 14, paddingVertical: 12, flexWrap: "wrap" },
-    note: { paddingBottom: 10 },
+    orders: { marginTop: 8 },
+    note: { paddingHorizontal: 18, paddingTop: 12 },
+    list: { marginTop: 14 },
     empty: { paddingVertical: 28, textAlign: "center" },
-    more: { paddingTop: 18, alignItems: "center" },
+    more: { paddingHorizontal: 12, paddingTop: 6 },
 });

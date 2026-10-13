@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Link } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { buildProfile, QUESTIONS, saveProfile, SCALE } from "@/state/profile";
 import { useQuestionnaire } from "@/state/questionnaire";
-import { ROW, useSite } from "@/site/tokens";
-import { Page, Wrap } from "@/site/page";
+import { RADIUS, ROW, TYPE, useSite } from "@/site/tokens";
+import { Group, ListRow, Screen } from "@/site/page";
 import { Button } from "@/site/controls";
 
 /**
@@ -12,7 +12,7 @@ import { Button } from "@/site/controls";
  * the outlets are placed on, and never leave the device.
  */
 export default function Questionnaire() {
-    const { c, type, wide } = useSite();
+    const { c, dark } = useSite();
     const { answered } = useQuestionnaire();
     const [answers, setAnswers] = useState<Record<string, number>>({});
     const [done, setDone] = useState(false);
@@ -25,68 +25,79 @@ export default function Questionnaire() {
         setDone(true);
     };
 
+    const head = (
+        <>
+            <Text style={[TYPE.screen, { color: c.brandInk }]} accessibilityRole="header">שאלון העמדות</Text>
+            {done ? (
+                <View style={[styles.done, { flexDirection: ROW }]}>
+                    <Ionicons name="checkmark-circle" size={26} color={c.brandInk} />
+                    <Text style={[TYPE.body, { color: c.brandInk, flex: 1 }]}>
+                        נשמר. מעכשיו הנקודות העיוורות ידברו על הצד שלכם, והקריאה שלכם תימדד מול העמדות שהצהרתם עליהן.
+                    </Text>
+                </View>
+            ) : (
+                <>
+                    <Text style={[TYPE.body, { color: c.brandInk, opacity: 0.9 }]}>
+                        שמונה היגדים, כדקה. התשובות מאפשרות להשוות בין מה שאתם חושבים לבין מה שאתם קוראים, והן נשארות במכשיר שלכם.
+                    </Text>
+                    <View style={styles.progress} accessible accessibilityLabel={`${count} מתוך ${QUESTIONS.length} נענו`}>
+                        <View style={[styles.track, { backgroundColor: "rgba(255,255,255,0.25)", flexDirection: ROW }]}>
+                            <View style={[styles.fill, { backgroundColor: c.brandInk, width: `${(count / QUESTIONS.length) * 100}%` }]} />
+                        </View>
+                        <Text style={[TYPE.meta, { color: c.brandInk }]}>{count} מתוך {QUESTIONS.length} נענו</Text>
+                    </View>
+                </>
+            )}
+        </>
+    );
+
     return (
-        <Page back title="שאלון העמדות">
-            <Wrap style={styles.page}>
-                <View style={styles.column}>
-                    <Text style={[type.h1, { color: c.ink }]} accessibilityRole="header">שאלון העמדות</Text>
-                    {done ? (
-                        <View style={styles.done}>
-                            <Text style={[type.dek, { color: c.ink }]}>נשמר. מעכשיו הנקודות העיוורות ידברו על הצד שלכם, והקריאה שלכם תימדד מול העמדות שהצהרתם עליהן.</Text>
-                            <View style={[styles.doneLinks, { flexDirection: ROW }]}>
-                                <Link href="/me" style={StyleSheet.flatten([type.uiStrong, styles.link, { color: c.ink }])}>הקריאה שלי</Link>
-                                <Link href="/" style={StyleSheet.flatten([type.uiStrong, styles.link, { color: c.ink }])}>לעמוד הראשי</Link>
+        <Screen back docTitle="שאלון העמדות" colour={c.brand} tone={dark ? "dark" : "light"} head={head}>
+            {done ? (
+                <Group>
+                    <ListRow icon="person-circle" colour={c.brand} label="הקריאה שלי" href="/me" />
+                    <ListRow icon="newspaper" colour="#0E6870" label="לעמוד הראשי" href="/" />
+                </Group>
+            ) : (
+                <>
+                    {QUESTIONS.map((q, i) => (
+                        <View key={q.topic} style={[styles.q, { backgroundColor: c.card }]}>
+                            <Text style={[TYPE.meta, { color: c.muted }]}>{i + 1} מתוך {QUESTIONS.length}</Text>
+                            <Text style={[TYPE.title, { color: c.ink }]}>{q.statement}</Text>
+                            <View style={[styles.scale, { flexDirection: ROW }]}
+                                accessibilityRole="radiogroup" accessibilityLabel={q.statement}>
+                                {/* strongly for at the reading edge, strongly against at the far one */}
+                                {[...SCALE].reverse().map((s) => {
+                                    const on = answers[q.topic] === s.value;
+                                    return (
+                                        <Pressable key={s.value} onPress={() => setAnswers((a) => ({ ...a, [q.topic]: s.value }))}
+                                            accessibilityRole="radio" accessibilityState={{ checked: on }}
+                                            style={({ pressed }) => [styles.option, {
+                                                backgroundColor: on ? c.brand : pressed ? c.pressed : c.sunk }]}>
+                                            <Text style={[TYPE.label, { color: on ? c.brandInk : c.ink, textAlign: "center" }]}>{s.label}</Text>
+                                        </Pressable>
+                                    );
+                                })}
                             </View>
                         </View>
-                    ) : (
-                        <>
-                            <Text style={[type.dek, styles.dek, { color: c.ink2, borderBottomColor: c.ruleStrong }]}>
-                                שמונה היגדים, כדקה. התשובות מאפשרות להשוות בין מה שאתם חושבים לבין מה שאתם קוראים, והן נשארות במכשיר שלכם.
-                            </Text>
-                            {QUESTIONS.map((q, i) => (
-                                <View key={q.topic} style={[styles.q, { borderBottomColor: c.rule }]}>
-                                    <Text style={[type.meta, { color: c.muted }]}>{i + 1} מתוך {QUESTIONS.length}</Text>
-                                    <Text style={[type.major, { color: c.ink }]}>{q.statement}</Text>
-                                    <View style={[styles.scale, { flexDirection: ROW }]}
-                                        accessibilityRole="radiogroup" accessibilityLabel={q.statement}>
-                                        {/* strongly for at the reading edge, strongly against at the far one */}
-                                        {[...SCALE].reverse().map((s) => {
-                                            const on = answers[q.topic] === s.value;
-                                            return (
-                                                <Pressable key={s.value} onPress={() => setAnswers((a) => ({ ...a, [q.topic]: s.value }))}
-                                                    accessibilityRole="radio" accessibilityState={{ checked: on }}
-                                                    style={({ hovered }: any) => [styles.option, { borderColor: on ? c.ink : c.rule,
-                                                        backgroundColor: on ? c.ink : hovered ? c.pressed : c.paper }]}>
-                                                    <Text style={[type.uiStrong, { color: on ? c.paper : c.ink, textAlign: "center" }]}>
-                                                        {wide ? s.label.replace("\n", " ") : s.label}
-                                                    </Text>
-                                                </Pressable>
-                                            );
-                                        })}
-                                    </View>
-                                </View>
-                            ))}
-                            <View style={[styles.submit, { flexDirection: ROW }]}>
-                                <Button label="שמירה" onPress={finish} disabled={count < QUESTIONS.length} />
-                                <Text style={[type.meta, { color: c.muted }]}>{count} מתוך {QUESTIONS.length} נענו</Text>
-                            </View>
-                        </>
-                    )}
-                </View>
-            </Wrap>
-        </Page>
+                    ))}
+                    <View style={styles.submit}>
+                        <Button wide label={count < QUESTIONS.length ? `שמירה (${count} מתוך ${QUESTIONS.length})` : "שמירה"}
+                            onPress={finish} disabled={count < QUESTIONS.length} />
+                    </View>
+                </>
+            )}
+        </Screen>
     );
 }
 
 const styles = StyleSheet.create({
-    page: { paddingTop: 22 },
-    column: { maxWidth: 760, width: "100%", alignSelf: "center", gap: 14 },
-    dek: { borderBottomWidth: 3, paddingBottom: 18 },
-    q: { gap: 10, paddingVertical: 18, borderBottomWidth: 1 },
-    scale: { gap: 4, marginTop: 4 },
-    option: { flex: 1, borderWidth: 1.5, paddingVertical: 9, paddingHorizontal: 2, alignItems: "center", justifyContent: "center", minHeight: 58 },
-    submit: { alignItems: "center", gap: 16, marginTop: 8 },
-    done: { gap: 18, paddingTop: 6 },
-    doneLinks: { gap: 24 },
-    link: { textDecorationLine: "underline" },
+    done: { alignItems: "center", gap: 10 },
+    progress: { gap: 6, marginTop: 4 },
+    track: { height: 8, borderRadius: 4, overflow: "hidden" },
+    fill: { height: 8, borderRadius: 4 },
+    q: { marginHorizontal: 12, marginTop: 12, borderRadius: RADIUS.card, padding: 16, gap: 10 },
+    scale: { gap: 5, marginTop: 4 },
+    option: { flex: 1, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 2, alignItems: "center", justifyContent: "center", minHeight: 58 },
+    submit: { paddingHorizontal: 12, marginTop: 18 },
 });

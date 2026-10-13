@@ -2,6 +2,7 @@ import { getSitePositions, loadFeed, NewsItem, SitePosition, storySummaries } fr
 import { HotPage, HotTopic, loadHot } from "@/state/hotTopics";
 import { blindTo } from "@/state/blindspot";
 import { orderSections } from "@/state/sections";
+import { TILE, tileColour } from "./tokens";
 import { track } from "@/state/analytics";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
@@ -96,6 +97,10 @@ type News = {
     refresh: () => Promise<void>;
     byId: (id: string) => Reading | undefined;
     hotById: (id: string) => HotTopic | undefined;
+    /** the controversies in the order they are shown: today's first, then the most burning */
+    hotOrdered: HotTopic[];
+    /** a controversy's colour, the same wherever it appears, and never the same as the one beside it */
+    tileOf: (id: string) => string;
 };
 
 const NewsContext = createContext<News | null>(null);
@@ -155,6 +160,10 @@ export function NewsProvider({ children }: { children: React.ReactNode }) {
         const readings = (feed ?? []).filter((s) => s.length).map((s) => read(s, positions));
         const index = new Map(readings.map((r) => [r.id, r]));
         const hotIndex = new Map((hot?.topics ?? []).map((t) => [t.id, t]));
+        const today = (hot?.today ?? []).map((id) => hotIndex.get(id)).filter((t): t is HotTopic => !!t);
+        const hotOrdered = [...today, ...(hot?.topics ?? []).filter((t) => !hot?.today.includes(t.id))
+            .sort((a, b) => b.relevance - a.relevance)];
+        const tiles = new Map(hotOrdered.map((t, i) => [t.id, TILE[i % TILE.length]]));
         const lasts = readings.map((r) => r.last?.getTime() ?? 0);
         return {
             readings,
@@ -167,6 +176,8 @@ export function NewsProvider({ children }: { children: React.ReactNode }) {
             refresh,
             byId: (id) => index.get(id),
             hotById: (id) => hotIndex.get(id),
+            hotOrdered,
+            tileOf: (id) => tiles.get(id) ?? tileColour(id),
         };
     }, [feed, positions, hot, loading, failed, refresh]);
 

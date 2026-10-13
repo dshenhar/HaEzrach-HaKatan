@@ -6,7 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { getTopicPoles, isRatable, NewsItem, saveRating, saveWatch, SitePosition, TopicPoles } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { useStillness } from "@/state/access";
-import { FACE, ROW, useSite } from "./tokens";
+import { FACE, RADIUS, ROW, TYPE, useSite } from "./tokens";
 
 type Opener = (item: NewsItem, ctx: { outlets: number; positions: Record<string, SitePosition>; from: string }) => void;
 
@@ -53,10 +53,41 @@ export function ReadingProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
-const STEPS = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5];
+/** the axis's eleven steps, +5 at the right edge and -5 at the left: the axis lies the way the map does */
+const STEPS = [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5];
+
+/** where an article stands on its issue's axis, in one tap, with the issue's two poles over the ends */
+export function Steps({ value, onChange, poles }: {
+    value: number | null; onChange: (v: number) => void; poles?: { right: string; left: string };
+}) {
+    const { c } = useSite();
+    const ink = (v: number) => (v > 0 ? c.right : v < 0 ? c.left : c.ink);
+    const tint = (v: number) => (v > 0 ? c.rightTint : v < 0 ? c.leftTint : c.sunk);
+    return (
+        <View style={styles.steps}>
+            <View style={[styles.poles, { flexDirection: ROW }]}>
+                <Text style={[TYPE.label, styles.pole, { color: c.right }]}>{poles?.right ?? "ימין"}</Text>
+                <Text style={[TYPE.label, styles.pole, { color: c.left, textAlign: "left" }]}>{poles?.left ?? "שמאל"}</Text>
+            </View>
+            <View style={[styles.scale, { flexDirection: ROW }]}>
+                {STEPS.map((v) => {
+                    const on = value === v;
+                    return (
+                        <Pressable key={v} onPress={() => onChange(v)} accessibilityRole="button"
+                            accessibilityState={{ selected: on }}
+                            accessibilityLabel={v === 0 ? "באמצע" : v > 0 ? `${v} לכיוון ${poles?.right ?? "הימין"}` : `${-v} לכיוון ${poles?.left ?? "השמאל"}`}
+                            style={[styles.step, { backgroundColor: on ? ink(v) : tint(v) }]}>
+                            <Text style={[styles.stepText, { color: on ? "#FFFFFF" : ink(v) }]}>{Math.abs(v)}</Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
 
 function RatePrompt({ item, poles, onDone }: { item: NewsItem | null; poles?: { right: string; left: string }; onDone: () => void }) {
-    const { c, type } = useSite();
+    const { c } = useSite();
     const still = useStillness();
     const insets = useSafeAreaInsets();
     const [value, setValue] = useState<number | null>(null);
@@ -71,9 +102,9 @@ function RatePrompt({ item, poles, onDone }: { item: NewsItem | null; poles?: { 
     const shown = useSharedValue(0);
 
     useEffect(() => {
-        shown.value = withTiming(item ? 1 : 0, { duration: still ? 0 : item ? 260 : 180, easing: Easing.out(Easing.cubic) });
+        shown.value = withTiming(item ? 1 : 0, { duration: still ? 0 : item ? 280 : 190, easing: Easing.out(Easing.cubic) });
     }, [item, still, shown]);
-    const sheet = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - shown.value) * 320 }] }));
+    const sheet = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - shown.value) * 420 }] }));
 
     if (!target) return null;
 
@@ -89,46 +120,32 @@ function RatePrompt({ item, poles, onDone }: { item: NewsItem | null; poles?: { 
         setTimeout(onDone, 900);
     };
 
-    const ink = (v: number) => (v > 0 ? c.right : v < 0 ? c.left : c.ink);
-
     return (
         <Animated.View pointerEvents={item ? "auto" : "none"}
-            style={[styles.sheet, { backgroundColor: c.paper, borderTopColor: c.ruleStrong, paddingBottom: insets.bottom + 18 }, sheet]}
+            style={[styles.sheet, { backgroundColor: c.card, paddingBottom: insets.bottom + 18 }, sheet]}
             accessibilityViewIsModal>
+            <View style={[styles.grab, { backgroundColor: c.rule }]} />
             <View style={[styles.head, { flexDirection: ROW }]}>
-                <Text style={[type.label, { color: c.muted }]}>{target.source}, על {target.topic}</Text>
-                <Pressable onPress={close} hitSlop={10} accessibilityRole="button" accessibilityLabel="לא עכשיו" style={styles.close}>
-                    <Ionicons name="close" size={24} color={c.ink} />
+                <Text style={[TYPE.label, styles.headText, { color: c.muted }]} numberOfLines={1}>{target.source}, על {target.topic}</Text>
+                <Pressable onPress={close} hitSlop={10} accessibilityRole="button" accessibilityLabel="לא עכשיו"
+                    style={[styles.close, { backgroundColor: c.sunk }]}>
+                    <Ionicons name="close" size={22} color={c.ink} />
                 </Pressable>
             </View>
             {sent ? (
-                <Text style={[type.major, { color: c.ink }]}>נשמר. תודה.</Text>
+                <View style={[styles.sent, { flexDirection: ROW }]}>
+                    <Ionicons name="checkmark-circle" size={28} color={c.brand} />
+                    <Text style={[TYPE.section, { color: c.ink }]}>נשמר. תודה.</Text>
+                </View>
             ) : (
                 <>
-                    <Text style={[type.major, { color: c.ink }]}>איפה הייתם מציבים את הכתבה שקראתם?</Text>
-                    <View style={[styles.poles, { flexDirection: ROW }]}>
-                        <Text style={[type.label, { color: c.right }]}>{poles?.right ?? "ימין"}</Text>
-                        <Text style={[type.label, { color: c.left }]}>{poles?.left ?? "שמאל"}</Text>
-                    </View>
-                    {/* +5 at the right edge, -5 at the left: the axis lies the way the map does */}
-                    <View style={[styles.scale, { flexDirection: ROW }]}>
-                        {[...STEPS].reverse().map((v) => {
-                            const on = value === v;
-                            return (
-                                <Pressable key={v} onPress={() => setValue(v)} accessibilityRole="button"
-                                    accessibilityState={{ selected: on }}
-                                    accessibilityLabel={v === 0 ? "באמצע" : v > 0 ? `${v} לכיוון הימין` : `${-v} לכיוון השמאל`}
-                                    style={[styles.step, { borderColor: on ? ink(v) : c.rule, backgroundColor: on ? ink(v) : c.paper }]}>
-                                    <Text style={[styles.stepText, { color: on ? c.paper : ink(v) }]}>{Math.abs(v)}</Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
+                    <Text style={[TYPE.section, { color: c.ink }]}>איפה הייתם מציבים את הכתבה שקראתם?</Text>
+                    <Steps value={value} onChange={setValue} poles={poles} />
                     <Pressable onPress={send} disabled={value === null} accessibilityRole="button"
-                        style={[styles.send, { backgroundColor: value === null ? c.rule : c.ink }]}>
-                        <Text style={[type.uiStrong, { color: value === null ? c.muted : c.paper }]}>שליחה</Text>
+                        style={[styles.send, { backgroundColor: value === null ? c.rule : c.brand }]}>
+                        <Text style={[TYPE.uiStrong, { color: value === null ? c.muted : c.brandInk }]}>שליחה</Text>
                     </Pressable>
-                    <Text style={[type.meta, { color: c.muted }]}>דירוגי הקוראים הם מה שמזיז את עמדות הגופים לאורך זמן.</Text>
+                    <Text style={[TYPE.meta, { color: c.muted }]}>דירוגי הקוראים הם מה שמזיז את עמדות הגופים לאורך זמן.</Text>
                 </>
             )}
         </Animated.View>
@@ -137,15 +154,21 @@ function RatePrompt({ item, poles, onDone }: { item: NewsItem | null; poles?: { 
 
 const styles = StyleSheet.create({
     sheet: {
-        position: "absolute", left: 0, right: 0, bottom: 0, borderTopWidth: 3,
-        paddingHorizontal: 18, paddingTop: 10, gap: 12, maxWidth: 640, alignSelf: "center", width: "100%",
-        boxShadow: "0 -8px 30px rgba(0,0,0,0.12)",
+        position: "absolute", left: 0, right: 0, bottom: 0,
+        paddingHorizontal: 18, paddingTop: 10, gap: 14,
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        boxShadow: "0 -10px 40px rgba(10,10,30,0.2)",
     },
-    head: { justifyContent: "space-between", alignItems: "center" },
-    close: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-    poles: { justifyContent: "space-between" },
+    grab: { width: 40, height: 5, borderRadius: 3, alignSelf: "center" },
+    head: { justifyContent: "space-between", alignItems: "center", gap: 10 },
+    headText: { flex: 1 },
+    close: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+    sent: { alignItems: "center", gap: 10, paddingVertical: 18 },
+    steps: { gap: 8 },
+    poles: { justifyContent: "space-between", gap: 12 },
+    pole: { flex: 1 },
     scale: { gap: 4 },
-    step: { flex: 1, height: 42, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-    stepText: { fontFamily: FACE.sansHeavy, fontSize: 15, fontVariant: ["tabular-nums"] },
-    send: { height: 48, alignItems: "center", justifyContent: "center" },
+    step: { flex: 1, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    stepText: { fontFamily: FACE.bold, fontSize: 15, fontVariant: ["tabular-nums"] },
+    send: { height: 50, borderRadius: RADIUS.button, alignItems: "center", justifyContent: "center" },
 });

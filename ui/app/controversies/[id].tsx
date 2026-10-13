@@ -1,11 +1,12 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import { StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { HotSide } from "@/state/hotTopics";
 import { track } from "@/state/analytics";
-import { FACE, ROW, useSite } from "@/site/tokens";
+import { FACE, RADIUS, ROW, TYPE, useSite } from "@/site/tokens";
 import { outlets, useNews } from "@/site/news";
-import { Page, pressTint, SectionHead, Wrap } from "@/site/page";
+import { Go, Screen, SectionHead } from "@/site/page";
 import { Skeleton } from "@/site/controls";
 
 const PARTS: { key: keyof HotSide; label: string }[] = [
@@ -15,90 +16,100 @@ const PARTS: { key: keyof HotSide; label: string }[] = [
 ];
 
 /**
- * One affair: what it is, and then the two camps' media on it in two columns,
- * part by part - how each covers it, how each sees it, and why. It speaks of the
- * camps' media and never names an outlet.
+ * One affair, in its own colour: what it is, and then the two camps' media on
+ * it, part by part - how each covers it, how each sees it, and why - the right's
+ * and the left's one under the other, so each part is read as a pair. It speaks
+ * of the camps' media and never names an outlet.
  */
 export default function Controversy() {
     const { id } = useLocalSearchParams<{ id: string }>();
-    const { c, type, wide } = useSite();
-    const { hotById, loading, hot } = useNews();
-    const router = useRouter();
+    const { c } = useSite();
+    const { hotById, loading, hot, tileOf } = useNews();
     const t = hotById(String(id));
 
     if (!t) {
         return (
-            <Page back title="מחלוקת" nav="controversies">
-                <Wrap style={styles.page}>
-                    {loading || !hot ? <Skeleton lines={4} big /> : (
-                        <>
-                            <Text style={[type.h1, { color: c.ink }]}>המחלוקת הזאת לא נמצאה</Text>
-                            <Link href="/controversies" style={StyleSheet.flatten([type.uiStrong, { color: c.ink, textDecorationLine: "underline" }])}>לכל המחלוקות</Link>
-                        </>
+            <Screen back docTitle="מחלוקת">
+                <View style={styles.missing}>
+                    {loading || !hot ? <Skeleton tall cards={2} /> : (
+                        <View style={[styles.card, styles.missingCard, { backgroundColor: c.card }]}>
+                            <Text style={[TYPE.title, { color: c.ink, textAlign: "center" }]}>המחלוקת הזאת לא נמצאה</Text>
+                            <Go href="/controversies" plain><Text style={[TYPE.uiStrong, { color: c.brand }]}>לכל המחלוקות</Text></Go>
+                        </View>
                     )}
-                </Wrap>
-            </Page>
+                </View>
+            </Screen>
         );
     }
 
-    const side = (which: "right" | "left") => {
-        const ink = which === "right" ? c.right : c.left;
-        return (
-            <View style={styles.col}>
-                <Text style={[type.section, styles.colHead, { color: ink, borderTopColor: ink }]}>
-                    {which === "right" ? "תקשורת הימין" : "תקשורת השמאל"}
-                </Text>
-                {PARTS.map((p) => (
-                    <View key={p.key} style={styles.part}>
-                        <Text style={[type.label, { color: c.ink }]}>{p.label}</Text>
-                        <Text style={[type.body, { color: c.ink }]}>{t[which][p.key]}</Text>
-                    </View>
-                ))}
-            </View>
-        );
-    };
+    const head = (
+        <>
+            <Text style={[TYPE.h1, { color: c.onColour }]} accessibilityRole="header">{t.title}</Text>
+            <Text style={[TYPE.body, { color: c.onColourMuted }]}>{t.one_line}</Text>
+            {!!t.status_date && (
+                <Text style={[TYPE.meta, { color: c.onColourMuted }]}>נכון ל-{t.status_date.split("-").reverse().map(Number).join(".")}</Text>
+            )}
+        </>
+    );
 
     return (
-        <Page back title={t.title} nav="controversies">
-            <Wrap style={styles.page}>
-                <View style={styles.column}>
-                    <Text style={[type.h1, { color: c.ink }]} accessibilityRole="header">{t.title}</Text>
-                    <Text style={[type.dek, { color: c.ink2 }]}>{t.one_line}</Text>
-                    {!!t.status_date && <Text style={[type.meta, { color: c.muted }]}>נכון ל-{t.status_date.split("-").reverse().map(Number).join(".")}</Text>}
-                    <Text style={[type.body, styles.summary, { color: c.ink, borderTopColor: c.ruleStrong }]}>{t.summary}</Text>
-                </View>
-                <View style={[styles.sides, { flexDirection: wide ? ROW : "column" }]}>
-                    {side("right")}
-                    {wide && <View style={[styles.spine, { backgroundColor: c.rule }]} />}
-                    {side("left")}
-                </View>
-                {t.links.length > 0 && (
-                    <View style={[styles.column, styles.links]}>
-                        <SectionHead title="בחדשות היום" />
-                        {t.links.map((l) => (
-                            <Pressable key={l.id} accessibilityRole="link"
-                                onPress={() => { track("story_opened", { how: "hot_topic" }); router.push({ pathname: "/story/[id]", params: { id: l.id } }); }}
-                                style={(s) => [styles.link, { borderTopColor: c.rule }, pressTint(c)(s)]}>
-                                <Text style={[type.row, { color: c.ink }]}>{l.title}</Text>
-                                <Text style={[type.meta, { color: c.muted }]}>{outlets(l.outlets)}</Text>
-                            </Pressable>
+        <Screen back docTitle={t.title} colour={tileOf(t.id)} head={head}>
+            <View style={[styles.card, { backgroundColor: c.card }]}>
+                <Text style={[TYPE.label, { color: c.muted }]}>מה קרה</Text>
+                <Text style={[TYPE.body, { color: c.ink }]}>{t.summary}</Text>
+            </View>
+            {PARTS.map((p) => (
+                <View key={p.key}>
+                    <SectionHead title={p.label} />
+                    <View style={styles.pair}>
+                        {(["right", "left"] as const).map((side) => (
+                            <View key={side} style={[styles.side, { backgroundColor: c.card }]}>
+                                <View style={[styles.sideHead, { backgroundColor: side === "right" ? c.rightTint : c.leftTint, flexDirection: ROW }]}>
+                                    <View style={[styles.sideMark, { backgroundColor: side === "right" ? c.right : c.left }]} />
+                                    <Text style={[styles.sideName, { color: side === "right" ? c.right : c.left }]}>
+                                        {side === "right" ? "תקשורת הימין" : "תקשורת השמאל"}
+                                    </Text>
+                                </View>
+                                <Text style={[TYPE.body, styles.sideText, { color: c.ink }]}>{t[side][p.key]}</Text>
+                            </View>
                         ))}
                     </View>
-                )}
-            </Wrap>
-        </Page>
+                </View>
+            ))}
+            {t.links.length > 0 && (
+                <>
+                    <SectionHead title="בחדשות היום" count={t.links.length} />
+                    <View style={[styles.links, { backgroundColor: c.card }]}>
+                        {t.links.map((l, i) => (
+                            <Go key={l.id} href={{ pathname: "/story/[id]", params: { id: l.id } }} label={l.title}
+                                onPress={() => track("story_opened", { how: "hot_topic" })}>
+                                <View style={[styles.link, { flexDirection: ROW, borderTopColor: c.rule, borderTopWidth: i ? StyleSheet.hairlineWidth : 0 }]}>
+                                    <View style={styles.linkWords}>
+                                        <Text style={[TYPE.row, { color: c.ink }]}>{l.title}</Text>
+                                        <Text style={[TYPE.meta, { color: c.muted }]}>{outlets(l.outlets)}</Text>
+                                    </View>
+                                    <Ionicons name="chevron-back" size={18} color={c.muted} />
+                                </View>
+                            </Go>
+                        ))}
+                    </View>
+                </>
+            )}
+        </Screen>
     );
 }
 
 const styles = StyleSheet.create({
-    page: { paddingTop: 22 },
-    column: { maxWidth: 760, width: "100%", alignSelf: "flex-end", gap: 12 },
-    summary: { borderTopWidth: 3, paddingTop: 16, marginTop: 6 },
-    sides: { marginTop: 34, gap: 28, alignItems: "stretch" },
-    spine: { width: 1 },
-    col: { flex: 1, gap: 16 },
-    colHead: { borderTopWidth: 4, paddingTop: 10, fontFamily: FACE.serifBlack },
-    part: { gap: 6 },
-    links: { marginTop: 36 },
-    link: { gap: 5, paddingVertical: 14, borderTopWidth: 1, paddingHorizontal: 6, marginHorizontal: -6 },
+    missing: { paddingTop: 8 },
+    missingCard: { alignItems: "center", padding: 28 },
+    card: { marginHorizontal: 12, marginTop: 12, borderRadius: RADIUS.card, padding: 16, gap: 8 },
+    pair: { gap: 10, paddingHorizontal: 12 },
+    side: { borderRadius: RADIUS.card, overflow: "hidden" },
+    sideHead: { alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 9 },
+    sideMark: { width: 10, height: 10, borderRadius: 3 },
+    sideName: { fontFamily: FACE.bold, fontSize: 14.5, lineHeight: 19 },
+    sideText: { paddingHorizontal: 16, paddingVertical: 13 },
+    links: { marginHorizontal: 12, borderRadius: RADIUS.card, overflow: "hidden" },
+    link: { alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 13 },
+    linkWords: { flex: 1, gap: 4 },
 });

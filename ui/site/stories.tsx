@@ -4,10 +4,10 @@ import { useRouter } from "expo-router";
 import { track } from "@/state/analytics";
 import { blindLabel } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
-import { FACE, ROW, useSite } from "./tokens";
+import { FACE, RADIUS, ROW, sectionColour, sectionWash, TYPE, useSite } from "./tokens";
 import Meter from "./meter";
-import { clock, outlets, Reading, Side, when } from "./news";
-import { pressTint } from "./page";
+import { outlets, Reading, Side, when } from "./news";
+import { Card } from "./page";
 
 /** what the measurement learns about a story being opened, and nothing else */
 const shape = (r: Reading) => ({
@@ -24,194 +24,171 @@ export function useOpenStory() {
     };
 }
 
-/** the line under a headline: its section, when it broke, how many told it */
-export function Meta({ r, onBand, showSection = true }: { r: Reading; onBand?: boolean; showSection?: boolean }) {
-    const { c, type } = useSite();
-    const ink = onBand ? c.bandInk : c.ink;
-    const quiet = onBand ? c.bandMuted : c.muted;
-    const sep = <View style={[styles.sep, { backgroundColor: onBand ? c.bandRule : c.rule }]} />;
+/** a story's section, as a chip in its colour: washed on white, or white on its colour */
+export function SectionChip({ name, onColour }: { name: string; onColour?: boolean }) {
+    const { dark } = useSite();
+    if (!name) return null;
+    const ink = sectionColour(name);
     return (
-        <View style={[styles.meta, { flexDirection: ROW }]}>
-            {showSection && !!r.section && <Text style={[type.meta, { color: ink, fontFamily: FACE.sansBold }]}>{r.section}</Text>}
-            {showSection && !!r.section && sep}
-            <Text style={[type.meta, { color: quiet }]}>{when(r.first)}</Text>
-            {sep}
-            <Text style={[type.meta, { color: quiet }]}>{outlets(r.total)}</Text>
+        <View style={[styles.chip, { backgroundColor: onColour ? "rgba(255,255,255,0.22)" : sectionWash(name, dark) }]}>
+            <Text style={[styles.chipText, { color: onColour ? "#FFFFFF" : dark ? "#FFFFFF" : ink }]} numberOfLines={1}>{name}</Text>
         </View>
     );
 }
 
 /**
- * Which side left the story out, said in plain words: a count, so it can stand
- * on a headline where a label could not. When the reader has told us their side
- * and it is theirs, it says so.
+ * Which side left the story out, on the highlighter: the one finding the app
+ * makes, so the one thing in yellow. A count, so it can stand on a headline;
+ * when the reader has told us their side and it is theirs, it says so.
  */
-export function BlindNote({ r, onBand }: { r: Reading; onBand?: boolean }) {
-    const { c, type } = useSite();
+export function BlindBadge({ r }: { r: Reading }) {
+    const { c } = useSite();
     const { profile } = useQuestionnaire();
     if (!r.missing) return null;
-    const ink = r.missing === "right" ? (onBand ? c.bandRight : c.right) : (onBand ? c.bandLeft : c.left);
-    const mine = profile?.bloc === r.missing;
     return (
-        <View style={[styles.blind, { flexDirection: ROW }]}>
-            <View style={[styles.blindMark, { borderColor: ink }, mine && { backgroundColor: ink }]} />
-            <Text style={[type.label, { color: ink }]}>{blindLabel(r.missing, profile?.bloc)}</Text>
+        <View style={[styles.badge, { backgroundColor: c.hi, flexDirection: ROW }]}>
+            <View style={[styles.badgeMark, { backgroundColor: r.missing === "right" ? c.right : c.left }]} />
+            <Text style={[styles.badgeText, { color: c.hiInk }]}>{blindLabel(r.missing, profile?.bloc)}</Text>
         </View>
     );
 }
 
 /** a story's summary when no bloc is asked: the one across both, or the lead's own standfirst */
-const dekOf = (r: Reading) => {
+export const dekOf = (r: Reading) => {
     if (r.summaries.all) return r.summaries.all;
     const s = r.lead.summary?.trim();
     return s && s !== r.lead.title.trim() ? s : "";
 };
 
 /**
- * The day's lead. The headline at the paper's largest, what happened in a line,
- * the meter at full width, and how each side told it in two equal columns - the
- * whole idea of the site before the first scroll.
+ * The day's lead, as the screen's big card in its section's colour: the
+ * headline, the meter, and how each side told it in two white cards of the same
+ * size - the whole idea of the app before the first scroll.
  */
-export function Lead({ r }: { r: Reading }) {
-    const { c, type, desk } = useSite();
+export function Hero({ r }: { r: Reading }) {
+    const { c } = useSite();
     const open = useOpenStory();
-    const dek = dekOf(r);
     return (
-        <View style={styles.lead}>
-            <Pressable onPress={() => open(r, "lead")} accessibilityRole="link"
-                style={(s) => [styles.pressable, pressTint(c)(s)]}>
-                <Text style={[type.lead, { color: c.ink }]}>{r.lead.title}</Text>
-            </Pressable>
-            {!!dek && <Text style={[type.dek, { color: c.ink2 }]}>{dek}</Text>}
-            <Meta r={r} />
-            <BlindNote r={r} />
-            <View style={styles.leadMeter}><Meter right={r.right} left={r.left} other={r.other} size="md" /></View>
-            <Twin r={r} lines={desk ? 7 : 5} big={desk} />
-            <Pressable onPress={() => open(r, "lead_more")} accessibilityRole="link" style={styles.more}>
-                {({ hovered }: any) => (
-                    <Text style={[type.uiStrong, { color: c.ink, textDecorationLine: hovered ? "underline" : "none" }]}>
-                        שני הצדדים, וכל הכתבות ←
-                    </Text>
-                )}
-            </Pressable>
-        </View>
+        <Pressable onPress={() => open(r, "lead")} accessibilityRole="link" accessibilityLabel={r.lead.title}
+            style={({ pressed }) => [styles.hero, { backgroundColor: sectionColour(r.section) }, pressed && styles.pressed]}>
+            <View style={[styles.heroTop, { flexDirection: ROW }]}>
+                <SectionChip name={r.section} onColour />
+                <Text style={[TYPE.meta, { color: c.onColourMuted }]}>{when(r.first)}  ·  {outlets(r.total)}</Text>
+            </View>
+            <Text style={[TYPE.hero, { color: c.onColour }]}>{r.lead.title}</Text>
+            {r.missing && <View style={styles.heroBadge}><BlindBadge r={r} /></View>}
+            <Meter right={r.right} left={r.left} other={r.other} size="md" onColour />
+            <View style={[styles.heroTwin, { flexDirection: ROW }]}>
+                {(["right", "left"] as Side[]).map((side) => (
+                    <SideCard key={side} r={r} side={side} lines={5} />
+                ))}
+            </View>
+            <View style={[styles.heroMore, { flexDirection: ROW }]}>
+                <Text style={[TYPE.uiStrong, { color: c.onColour }]}>לשני הצדדים ולכל הכתבות</Text>
+                <Text style={[TYPE.uiStrong, { color: c.onColour }]}>←</Text>
+            </View>
+        </Pressable>
     );
 }
 
 /**
- * The two sides of one story, in two columns of the same width: the right's on
- * the right, the left's on the left. A side that told none of it keeps its column,
- * and the column says so.
+ * One side's telling of a story, as a white card headed in that side's ink.
+ * A side that told none of it keeps its card, and the card says so.
  */
-export function Twin({ r, lines, full, texts, big }: {
-    r: Reading;
-    lines?: number;
-    /** the reading size, without the story page's waiting state */
+export function SideCard({ r, side, lines, text, big }: {
+    r: Reading; side: Side; lines?: number;
+    /** given by the story screen, which fetches a missing summary; undefined there is "on its way" */
+    text?: string | null;
     big?: boolean;
-    /** on the story's own page: the texts may arrive late, and are set larger */
-    full?: boolean;
-    texts?: Partial<Record<Side, string | null>>;
 }) {
-    const { c, type } = useSite();
-    const col = (side: Side) => {
-        const n = side === "right" ? r.right : r.left;
-        const ink = side === "right" ? c.right : c.left;
-        const text = texts ? texts[side] : r.summaries[side];
-        return (
-            <View style={styles.col}>
-                <View style={[styles.colHead, { flexDirection: ROW, borderBottomColor: ink }]}>
-                    <Text style={[type.label, { color: ink, fontSize: full ? 16 : 14 }]}>
-                        {side === "right" ? "כך סופר בימין" : "כך סופר בשמאל"}
-                    </Text>
-                    <Text style={[type.meta, { color: c.muted }]}>{outlets(n)}</Text>
-                </View>
+    const { c } = useSite();
+    const n = side === "right" ? r.right : r.left;
+    const ink = side === "right" ? c.right : c.left;
+    const tint = side === "right" ? c.rightTint : c.leftTint;
+    const said = text !== undefined ? text : r.summaries[side];
+    const fallback = (side === "right" ? r.rightItems : r.leftItems).map((i) => i.source).join(", ");
+    return (
+        <View style={[styles.side, { backgroundColor: c.card }]}>
+            <View style={[styles.sideHead, { backgroundColor: tint, flexDirection: ROW }]}>
+                <Text style={[styles.sideLabel, { color: ink }]}>{side === "right" ? "ימין" : "שמאל"}</Text>
+                <Text style={[styles.sideCount, { color: ink }]}>{n}</Text>
+            </View>
+            <View style={styles.sideBody}>
                 {n === 0 ? (
-                    <Text style={[full ? type.body : type.small, { color: c.muted }]}>אף גוף מהצד הזה לא סיקר</Text>
-                ) : text ? (
-                    <Text style={[full || big ? type.body : type.small, { color: c.ink }]} numberOfLines={lines}>{text}</Text>
-                ) : text === undefined && full ? (
-                    <Text style={[type.small, { color: c.muted }]}>מכין סיכום…</Text>
+                    <Text style={[big ? TYPE.body : TYPE.small, { color: c.muted }]}>אף גוף מהצד הזה לא סיקר</Text>
+                ) : said ? (
+                    <Text style={[big ? TYPE.body : TYPE.small, { color: c.ink }]} numberOfLines={lines}>{said}</Text>
+                ) : said === undefined && text === undefined && big ? (
+                    <Text style={[TYPE.small, { color: c.muted }]}>מכין סיכום…</Text>
                 ) : (
-                    <Text style={[type.small, { color: c.ink2 }]} numberOfLines={3}>
-                        {(side === "right" ? r.rightItems : r.leftItems).map((i) => i.source).join(", ")}
-                    </Text>
+                    <Text style={[TYPE.small, { color: c.ink2 }]} numberOfLines={lines}>{fallback}</Text>
                 )}
             </View>
-        );
-    };
-    return (
-        <View style={[styles.twin, { flexDirection: ROW }]}>
-            {col("right")}
-            <View style={[styles.spine, { backgroundColor: c.rule }]} />
-            {col("left")}
         </View>
     );
 }
 
-/** a story given room, under the lead or beside it */
-export function Major({ r, how }: { r: Reading; how: string }) {
-    const { c, type } = useSite();
+/** a story on a shelf: its section's colour, the headline, the meter */
+export function ShelfCard({ r, how }: { r: Reading; how: string }) {
+    const { c } = useSite();
     const open = useOpenStory();
     return (
-        <Pressable onPress={() => open(r, how)} accessibilityRole="link"
-            style={(s) => [styles.major, { borderTopColor: c.rule }, pressTint(c)(s)]}>
-            <Text style={[type.major, { color: c.ink }]}>{r.lead.title}</Text>
-            <Meta r={r} />
-            <BlindNote r={r} />
-            <Meter right={r.right} left={r.left} other={r.other} size="sm" />
+        <Pressable onPress={() => open(r, how)} accessibilityRole="link" accessibilityLabel={r.lead.title}
+            style={({ pressed }) => [styles.shelfCard, { backgroundColor: sectionColour(r.section) }, pressed && styles.pressed]}>
+            <View style={[styles.heroTop, { flexDirection: ROW }]}>
+                <SectionChip name={r.section} onColour />
+                <Text style={[TYPE.meta, { color: c.onColourMuted }]}>{when(r.first)}</Text>
+            </View>
+            <Text style={[TYPE.title, { color: c.onColour }]} numberOfLines={4}>{r.lead.title}</Text>
+            <View style={styles.fill} />
+            <Meter right={r.right} left={r.left} other={r.other} size="sm" onColour />
         </Pressable>
     );
 }
 
-/**
- * One line of the day: when it broke in its own column, the headline, and the
- * meter at its thinnest. A list a reader can run down by the clock.
- */
-export function Row({ r, how, onBand, showSection = true, showBlind = true }: {
-    r: Reading; how: string; onBand?: boolean; showSection?: boolean; showBlind?: boolean;
+/** a story in the day's list: a white card with its section, its headline and its meter */
+export function StoryCard({ r, how, showSection = true, showBlind = true }: {
+    r: Reading; how: string; showSection?: boolean; showBlind?: boolean;
 }) {
-    const { c, type } = useSite();
+    const { c } = useSite();
     const open = useOpenStory();
-    const ink = onBand ? c.bandInk : c.ink;
     return (
-        <Pressable onPress={() => open(r, how)} accessibilityRole="link"
-            style={(s) => [styles.row, { borderTopColor: onBand ? c.bandRule : c.rule, flexDirection: ROW },
-                !onBand && pressTint(c)(s)]}>
-            <Text style={[styles.time, { color: onBand ? c.bandMuted : c.ink }]}>{clock(r.first)}</Text>
-            <View style={styles.rowBody}>
-                <Text style={[type.row, { color: ink }]}>{r.lead.title}</Text>
-                <View style={[styles.rowMeta, { flexDirection: ROW }]}>
-                    {showSection && !!r.section && (
-                        <Text style={[type.meta, { color: ink, fontFamily: FACE.sansBold }]}>{r.section}</Text>
-                    )}
-                    <Text style={[type.meta, { color: onBand ? c.bandMuted : c.muted }]}>{outlets(r.total)}</Text>
-                    {!onBand && showBlind && <BlindNote r={r} />}
-                </View>
-                <View style={styles.rowMeter}>
-                    <Meter right={r.right} left={r.left} other={r.other} size="sm" onBand={onBand} />
-                </View>
+        <Card onPress={() => open(r, how)} label={r.lead.title} style={styles.storyCard}>
+            <View style={[styles.cardTop, { flexDirection: ROW }]}>
+                {showSection && <SectionChip name={r.section} />}
+                <Text style={[TYPE.meta, { color: c.muted }]}>{when(r.first)}</Text>
+                <View style={styles.fill} />
+                <Text style={[TYPE.meta, { color: c.muted }]}>{outlets(r.total)}</Text>
             </View>
-        </Pressable>
+            <Text style={[TYPE.row, { color: c.ink }]}>{r.lead.title}</Text>
+            {showBlind && r.missing && <BlindBadge r={r} />}
+            <Meter right={r.right} left={r.left} other={r.other} size="sm" />
+        </Card>
     );
 }
 
 const styles = StyleSheet.create({
-    pressable: { marginHorizontal: -6, paddingHorizontal: 6, paddingVertical: 2 },
-    meta: { alignItems: "center", gap: 10, flexWrap: "wrap" },
-    sep: { width: 1, height: 12 },
-    blind: { alignItems: "center", gap: 7 },
-    blindMark: { width: 10, height: 10, borderWidth: 2 },
-    lead: { gap: 14 },
-    leadMeter: { marginTop: 2 },
-    twin: { gap: 16, alignItems: "stretch", marginTop: 4 },
-    col: { flex: 1, gap: 8 },
-    colHead: { justifyContent: "space-between", alignItems: "baseline", borderBottomWidth: 2, paddingBottom: 6, gap: 6, flexWrap: "wrap" },
-    spine: { width: 1 },
-    more: { alignSelf: "flex-end", paddingVertical: 6 },
-    major: { gap: 10, paddingVertical: 16, borderTopWidth: 1, marginHorizontal: -6, paddingHorizontal: 6 },
-    row: { gap: 14, paddingVertical: 15, borderTopWidth: 1, alignItems: "flex-start", marginHorizontal: -6, paddingHorizontal: 6 },
-    time: { fontFamily: FACE.sansHeavy, fontSize: 15, lineHeight: 25, width: 44, textAlign: "right", fontVariant: ["tabular-nums"] },
-    rowBody: { flex: 1, gap: 7 },
-    rowMeta: { alignItems: "center", gap: 12, flexWrap: "wrap" },
-    rowMeter: { marginTop: 2 },
+    pressed: { transform: [{ scale: 0.98 }], opacity: 0.95 },
+    fill: { flex: 1 },
+    chip: { borderRadius: RADIUS.chip, paddingHorizontal: 10, paddingVertical: 4, maxWidth: 170 },
+    chipText: { fontFamily: FACE.semi, fontSize: 12.5, lineHeight: 16 },
+    badge: { alignSelf: "flex-end", alignItems: "center", gap: 6, borderRadius: RADIUS.chip, paddingHorizontal: 10, paddingVertical: 4 },
+    badgeMark: { width: 8, height: 8, borderRadius: 2 },
+    badgeText: { fontFamily: FACE.bold, fontSize: 12.5, lineHeight: 16 },
+
+    hero: { marginHorizontal: 12, borderRadius: 26, padding: 18, gap: 14 },
+    heroTop: { justifyContent: "space-between", alignItems: "center", gap: 10 },
+    heroBadge: { marginTop: -4 },
+    heroTwin: { gap: 8, alignItems: "stretch" },
+    heroMore: { justifyContent: "space-between", alignItems: "center", paddingTop: 2 },
+
+    side: { flex: 1, borderRadius: RADIUS.inner, overflow: "hidden" },
+    sideHead: { justifyContent: "space-between", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8 },
+    sideLabel: { fontFamily: FACE.heavy, fontSize: 15, lineHeight: 19 },
+    sideCount: { fontFamily: FACE.heavy, fontSize: 16, fontVariant: ["tabular-nums"] },
+    sideBody: { padding: 12 },
+
+    shelfCard: { width: 264, minHeight: 210, borderRadius: 22, padding: 16, gap: 12 },
+    storyCard: { marginHorizontal: 12, marginBottom: 10, gap: 10 },
+    cardTop: { alignItems: "center", gap: 8 },
 });

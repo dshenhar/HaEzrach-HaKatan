@@ -28,7 +28,7 @@ export default function Root({ children }: PropsWithChildren) {
 
                 <title>{TITLE}</title>
                 <meta name="description" content={DESCRIPTION} />
-                <meta name="theme-color" content="#f8f8f8" />
+                <meta name="theme-color" content="#F1F2F5" />
 
                 {/* Installed to a home screen the app runs standalone, and the
                     phone - not the app - then opens an outlet's article in its own
@@ -62,7 +62,7 @@ export default function Root({ children }: PropsWithChildren) {
 
                 {/* the native scroll of the page, off - the app does its own scrolling */}
                 <ScrollViewStyleReset />
-                <style dangerouslySetInnerHTML={{ __html: `body { background-color: #f8f8f8; }` }} />
+                <style dangerouslySetInnerHTML={{ __html: `body { background-color: #F1F2F5; }` }} />
             </head>
             <body>{children}</body>
         </html>

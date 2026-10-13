@@ -1,46 +1,52 @@
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useSite } from "@/site/tokens";
+import { sectionColour, TYPE, useSite } from "@/site/tokens";
 import { byNewest, pickLead, useNews } from "@/site/news";
-import { Page, Wrap } from "@/site/page";
-import { Lead } from "@/site/stories";
+import { Screen } from "@/site/page";
+import { Hero } from "@/site/stories";
 import { Skeleton } from "@/site/controls";
 import River from "@/site/river";
 
-/** One section of the paper: its biggest story on top, then the rest of the day in it. */
-export default function SectionPage() {
+/** One section of the news, in its colour: its biggest story on top, then the rest of the day in it. */
+export default function SectionScreen() {
     const { name } = useLocalSearchParams<{ name: string }>();
     const section = String(name ?? "");
-    const { c, type, wide } = useSite();
+    const { c } = useSite();
     const { readings, loading } = useNews();
     const mine = useMemo(() => readings.filter((r) => r.section === section).sort(byNewest), [readings, section]);
     const lead = pickLead(mine);
+    const told = mine.reduce((n, r) => n + r.total, 0);
+
+    const head = (
+        <>
+            <Text style={[TYPE.screen, { color: c.onColour }]} accessibilityRole="header">{section}</Text>
+            {mine.length > 0 && (
+                <Text style={[TYPE.uiStrong, { color: c.onColourMuted }]}>
+                    {mine.length === 1 ? "סיפור אחד היום" : `${mine.length} סיפורים היום`}  ·  {told === 1 ? "כתבה אחת" : `${told} כתבות`}
+                </Text>
+            )}
+        </>
+    );
 
     return (
-        <Page back title={section} nav={`section:${section}`}>
-            <Wrap style={styles.page}>
-                <Text style={[type.h1, styles.title, { color: c.ink, borderBottomColor: c.ruleStrong }]} accessibilityRole="header">{section}</Text>
-                {loading && !readings.length ? <Skeleton lines={4} big /> : !mine.length ? (
-                    <Text style={[type.body, { color: c.muted }]}>אין היום סיפורים במדור הזה.</Text>
-                ) : (
-                    <>
-                        {lead && <View style={[styles.lead, wide && styles.leadWide]}><Lead r={lead} /></View>}
-                        <View style={[styles.river, wide && styles.riverWide]}>
-                            <River readings={mine.filter((r) => r !== lead)} how={`section:${section}`} showSection={false} />
-                        </View>
-                    </>
-                )}
-            </Wrap>
-        </Page>
+        <Screen back docTitle={section} colour={sectionColour(section)} head={head}>
+            {loading && !readings.length ? <Skeleton tall cards={2} /> : !mine.length ? (
+                <Text style={[TYPE.body, styles.empty, { color: c.muted }]}>אין היום סיפורים במדור הזה.</Text>
+            ) : (
+                <>
+                    {lead && <View style={styles.lead}><Hero r={lead} /></View>}
+                    <View style={styles.river}>
+                        <River readings={mine.filter((r) => r !== lead)} how={`section:${section}`} showSection={false} />
+                    </View>
+                </>
+            )}
+        </Screen>
     );
 }
 
 const styles = StyleSheet.create({
-    page: { paddingTop: 22 },
-    title: { borderBottomWidth: 3, paddingBottom: 12, marginBottom: 22 },
-    lead: {},
-    leadWide: { maxWidth: 820, alignSelf: "flex-end", width: "100%" },
-    river: { marginTop: 36 },
-    riverWide: { maxWidth: 820, alignSelf: "flex-end", width: "100%" },
+    empty: { paddingHorizontal: 18, paddingTop: 20 },
+    lead: { paddingTop: 12 },
+    river: { marginTop: 22 },
 });
