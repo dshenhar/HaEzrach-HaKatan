@@ -1,35 +1,24 @@
-import { BlindArticle, getBlindArticle, placeBlind } from '@/state/engagement';
-import { useStillness } from '@/state/access';
-import { track, trackScreen } from '@/state/analytics';
-import { useTheme } from '@/state/theme';
-import Slider from '@react-native-community/slider';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { BlindArticle, getBlindArticle, placeBlind } from "@/state/engagement";
+import { track } from "@/state/analytics";
+import { FACE, ROW, useSite } from "@/site/tokens";
+import { Page, Wrap } from "@/site/page";
+import { Button, Skeleton } from "@/site/controls";
 
-const RIGHT = "#C0392F";
-const LEFT = "#2B5EA7";
+const STEPS = [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5];
 
 /**
- * The benchmark, measured instead of estimated.
- *
- * Everywhere else in the app the masthead comes first, which is the honest way to
- * read a feed and the useless way to rate one: a reader who can see whose article
- * it is mostly confirms what they already believe about that outlet, and the model
- * learns the reputation rather than the writing. Here the name is withheld until
- * the vote is in, and then given - which is also the only moment in the app where
- * a reader can be surprised by their own answer.
+ * The blind poll. Everywhere else the outlet's name comes first, which is the
+ * honest way to read and the useless way to rate: a reader who can see whose
+ * article it is mostly confirms what they already think of that outlet. Here the
+ * name is withheld until the vote is in.
  */
-export default function BlindSurvey() {
-    const t = useTheme();
-    const router = useRouter();
-    const still = useStillness();
+export default function BlindPoll() {
+    const { c, type } = useSite();
     const [item, setItem] = useState<BlindArticle | null>(null);
     const [loading, setLoading] = useState(true);
-    const [value, setValue] = useState(0);
+    const [value, setValue] = useState<number | null>(null);
     const [revealed, setRevealed] = useState<string | null>(null);
     const [sending, setSending] = useState(false);
     const [count, setCount] = useState(0);
@@ -38,7 +27,7 @@ export default function BlindSurvey() {
     const next = useCallback(async () => {
         setLoading(true);
         setRevealed(null);
-        setValue(0);
+        setValue(null);
         const picked = await getBlindArticle(seen.current);
         if (picked) {
             seen.current.push(picked.id);
@@ -47,11 +36,10 @@ export default function BlindSurvey() {
         setItem(picked);
         setLoading(false);
     }, []);
-
-    useEffect(() => { next(); }, [next]);
+    useEffect(() => { void Promise.resolve().then(next); }, [next]);
 
     const send = async () => {
-        if (!item || sending) return;
+        if (!item || sending || value === null) return;
         setSending(true);
         const source = await placeBlind(item.id, value);
         setSending(false);
@@ -60,124 +48,77 @@ export default function BlindSurvey() {
         track("blind_submitted", { topic: item.topic, value, placed_at: count + 1 });
     };
 
-    const ink = value === 0 ? t.textMuted : value > 0 ? RIGHT : LEFT;
-    const side = value === 0 ? "באמצע" : value > 0 ? item?.poles.right : item?.poles.left;
+    const ink = (v: number) => (v > 0 ? c.right : v < 0 ? c.left : c.ink);
 
     return (
-        <SafeAreaView edges={["top", "left", "right"]} style={[styles.page, { backgroundColor: t.bg }]}>
-            <View style={styles.head}>
-                <TouchableOpacity onPress={() => router.back()} hitSlop={10}
-                    accessibilityRole="button" accessibilityLabel="חזרה">
-                    <Ionicons name="chevron-forward" size={26} color={t.text} />
-                </TouchableOpacity>
-                <View style={styles.headWords}>
-                    <Text style={[styles.title, { color: t.text }]}>סקר עיוור</Text>
-                    <Text style={[styles.hint, { color: t.textMuted }]}>
-                        {count ? `${count} כותרות דורגו` : "בלי לדעת מי כתב"}
+        <Page back title="סקר עיוור">
+            <Wrap>
+                <View style={styles.column}>
+                    <Text style={[type.h1, { color: c.ink }]} accessibilityRole="header">סקר עיוור</Text>
+                    <Text style={[type.dek, { color: c.ink2 }]}>
+                        כותרת אחת, בלי שם הגוף, בלי לוגו ובלי צבע. הציבו אותה על הציר, ושם הגוף יתגלה רק אחרי שתצביעו.
                     </Text>
-                </View>
-            </View>
+                    {count > 0 && <Text style={[type.meta, { color: c.muted }]}>דירגתם {count} כותרות</Text>}
 
-            <ScrollView contentContainerStyle={styles.body}>
-                <Text style={[styles.lede, { color: t.textMuted }]}>
-                    כותרת אחת, בלי שם הגוף. הציבו אותה על הציר, והשם יתגלה רק אחרי שתצביעו.
-                </Text>
-
-                {loading ? (
-                    <ActivityIndicator style={{ marginTop: 40 }} />
-                ) : !item ? (
-                    <Text style={[styles.lede, { color: t.textMuted }]}>
-                        אין כרגע כותרת לדרג. נסו שוב בעוד כמה דקות.
-                    </Text>
-                ) : (
-                    <>
-                        <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.line }]}>
-                            <Text style={[styles.topic, { color: t.textMuted }]}>{item.topic}</Text>
-                            <Text style={[styles.headline, { color: t.text }]}>{item.title}</Text>
+                    {loading ? (
+                        <View style={styles.sheet}><Skeleton lines={3} big /></View>
+                    ) : !item ? (
+                        <Text style={[type.body, { color: c.muted }]}>אין כרגע כותרת לדרג. נסו שוב בעוד כמה דקות.</Text>
+                    ) : (
+                        <View style={[styles.sheet, { borderTopColor: c.ruleStrong, borderBottomColor: c.rule }]}>
+                            <Text style={[type.label, { color: c.muted }]}>{item.topic}</Text>
+                            <Text style={[type.lead, { color: c.ink }]}>{item.title}</Text>
                             {!!item.summary && item.summary !== item.title && (
-                                <Text style={[styles.standfirst, { color: t.textMuted }]}>{item.summary}</Text>
+                                <Text style={[type.body, { color: c.ink2 }]}>{item.summary}</Text>
+                            )}
+
+                            {revealed === null ? (
+                                <View style={styles.vote}>
+                                    <View style={[styles.poles, { flexDirection: ROW }]}>
+                                        <Text style={[type.label, { color: c.right }]}>{item.poles.right}</Text>
+                                        <Text style={[type.label, { color: c.left }]}>{item.poles.left}</Text>
+                                    </View>
+                                    <View style={[styles.scale, { flexDirection: ROW }]}>
+                                        {STEPS.map((v) => {
+                                            const on = value === v;
+                                            return (
+                                                <Pressable key={v} onPress={() => setValue(v)} accessibilityRole="button"
+                                                    accessibilityState={{ selected: on }}
+                                                    accessibilityLabel={v === 0 ? "באמצע" : v > 0 ? `${v} לכיוון ${item.poles.right}` : `${-v} לכיוון ${item.poles.left}`}
+                                                    style={[styles.step, { borderColor: on ? ink(v) : c.rule, backgroundColor: on ? ink(v) : c.paper }]}>
+                                                    <Text style={[styles.stepText, { color: on ? c.paper : ink(v) }]}>{Math.abs(v)}</Text>
+                                                </Pressable>
+                                            );
+                                        })}
+                                    </View>
+                                    <Button label={sending ? "שולח…" : "קבעתי"} onPress={send} disabled={value === null || sending} />
+                                </View>
+                            ) : (
+                                <View style={[styles.reveal, { backgroundColor: c.paperAlt }]}>
+                                    <Text style={[type.label, { color: c.muted }]}>הכותרת פורסמה ב</Text>
+                                    <Text style={[styles.revealName, { color: c.ink }]}>{revealed}</Text>
+                                    <Button quiet label="לכותרת הבאה" onPress={next} />
+                                </View>
                             )}
                         </View>
-
-                        {revealed === null ? (
-                            <>
-                                <View style={styles.axis}>
-                                    <Text style={[styles.pole, { color: LEFT }]}>{item.poles.left}</Text>
-                                    <Text style={[styles.pole, { color: RIGHT }]}>{item.poles.right}</Text>
-                                </View>
-                                <Slider
-                                    minimumValue={-5} maximumValue={5} step={1}
-                                    value={value} onValueChange={setValue}
-                                    minimumTrackTintColor={LEFT} maximumTrackTintColor={RIGHT}
-                                    thumbTintColor={ink}
-                                />
-                                <Text style={[styles.reading, { color: ink }]}>{side}</Text>
-
-                                <TouchableOpacity style={[styles.send, { backgroundColor: t.text }]}
-                                    onPress={send} disabled={sending} accessibilityRole="button">
-                                    <Text style={[styles.sendText, { color: t.surface }]}>
-                                        {sending ? "שולח…" : "קבעתי"}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => { track("blind_skipped", { topic: item.topic }); next(); }}
-                                    accessibilityRole="button">
-                                    <Text style={[styles.skip, { color: t.textMuted }]}>דלגו על זו</Text>
-                                </TouchableOpacity>
-                            </>
-                        ) : (
-                            <Animated.View entering={still ? undefined : FadeIn.duration(240)}
-                                style={styles.reveal}>
-                                <Text style={[styles.revealLabel, { color: t.textMuted }]}>הכתבה היא של</Text>
-                                <Text style={[styles.revealName, { color: t.text }]}>{revealed}</Text>
-                                <Text style={[styles.revealNote, { color: t.textMuted }]}>
-                                    הדירוג שלכם נרשם כדירוג עיוור, והוא נחשב יותר מדירוג שניתן אחרי שראיתם את השם.
-                                </Text>
-                                <TouchableOpacity style={[styles.send, { backgroundColor: t.text }]}
-                                    onPress={next} accessibilityRole="button">
-                                    <Text style={[styles.sendText, { color: t.surface }]}>כותרת הבאה</Text>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        )}
-                    </>
-                )}
-
-                <TouchableOpacity onPress={() => router.push("/methodology")} accessibilityRole="link">
-                    <Text style={[styles.skip, { color: t.textMuted }]}>איך הדירוגים האלה נספרים</Text>
-                </TouchableOpacity>
-            </ScrollView>
-        </SafeAreaView>
+                    )}
+                    <Text style={[type.meta, { color: c.muted }]}>
+                        הדירוגים העיוורים נרשמים ככאלה, והם המקור האמין ביותר שיש לנו על נטיית הסיקור.
+                    </Text>
+                </View>
+            </Wrap>
+        </Page>
     );
 }
 
 const styles = StyleSheet.create({
-    page: { flex: 1 },
-    head: {
-        flexDirection: "row-reverse", alignItems: "center", gap: 10,
-        paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-    },
-    headWords: { alignItems: "flex-end" },
-    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 20, textAlign: "right" },
-    hint: { fontFamily: "Heebo_400Regular", fontSize: 11.5, textAlign: "right" },
-    body: { paddingHorizontal: 18, paddingBottom: 48, gap: 14 },
-    lede: { fontFamily: "Heebo_500Medium", fontSize: 13, lineHeight: 20, textAlign: "right" },
-    // deliberately plain: no colour, no logo, nothing that hints at a masthead
-    card: { borderRadius: 10, borderWidth: 1, padding: 14, gap: 8 },
-    topic: { fontFamily: "Heebo_700Bold", fontSize: 11, textAlign: "right" },
-    headline: { fontFamily: "Heebo_700Bold", fontSize: 17, lineHeight: 24, textAlign: "right" },
-    standfirst: { fontFamily: "Heebo_400Regular", fontSize: 13, lineHeight: 20, textAlign: "right" },
-    // the left pole at the left end of the track, the right pole at the right end
-    axis: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
-    pole: { fontFamily: "Heebo_700Bold", fontSize: 12 },
-    reading: { fontFamily: "Heebo_800ExtraBold", fontSize: 15, textAlign: "center" },
-    send: { borderRadius: 999, paddingVertical: 13, alignItems: "center", marginTop: 6 },
-    sendText: { fontFamily: "Heebo_800ExtraBold", fontSize: 14 },
-    skip: { fontFamily: "Heebo_500Medium", fontSize: 12, textAlign: "center", marginTop: 8 },
-    reveal: { gap: 6, alignItems: "center" },
-    revealLabel: { fontFamily: "Heebo_400Regular", fontSize: 12 },
-    revealName: { fontFamily: "Heebo_800ExtraBold", fontSize: 24 },
-    revealNote: {
-        fontFamily: "Heebo_400Regular", fontSize: 12, lineHeight: 18,
-        textAlign: "center", marginTop: 4,
-    },
+    column: { maxWidth: 720, width: "100%", alignSelf: "center", paddingTop: 26, gap: 14 },
+    sheet: { borderTopWidth: 3, borderBottomWidth: 1, paddingTop: 18, paddingBottom: 22, gap: 12, marginTop: 8 },
+    vote: { gap: 12, marginTop: 10 },
+    poles: { justifyContent: "space-between" },
+    scale: { gap: 4 },
+    step: { flex: 1, height: 46, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+    stepText: { fontFamily: FACE.sansHeavy, fontSize: 16, fontVariant: ["tabular-nums"] },
+    reveal: { padding: 18, gap: 10, alignItems: "flex-end", marginTop: 8 },
+    revealName: { fontFamily: FACE.serifBlack, fontSize: 34, lineHeight: 42, textAlign: "right" },
 });

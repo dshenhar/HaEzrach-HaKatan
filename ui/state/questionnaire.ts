@@ -15,10 +15,12 @@ type Ctx = {
 	/** true once the reader has answered */
 	filled: boolean;
 	open: () => void;
+	/** the questionnaire was answered (or its answers cleared): the profile to hold now */
+	answered: (profile: ReaderProfile | null) => void;
 };
 
 export const QuestionnaireContext = createContext<Ctx>({
-	profile: null, filled: false, open: () => {},
+	profile: null, filled: false, open: () => {}, answered: () => {},
 });
 
 export const useQuestionnaire = () => useContext(QuestionnaireContext);

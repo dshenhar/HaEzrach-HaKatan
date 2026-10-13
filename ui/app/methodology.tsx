@@ -1,7 +1,7 @@
-import LegalPage from '@/components/legalPage';
+import ArticlePage from '@/site/article';
 import { METHODOLOGY } from '@/content/methodology';
 import React from 'react';
 
 export default function Page() {
-    return <LegalPage doc={METHODOLOGY} />;
+    return <ArticlePage doc={METHODOLOGY} />;
 }
