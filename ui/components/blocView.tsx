@@ -50,7 +50,7 @@ export const AllView = ({ data, onOpenArticle }: Props) => {
         <View style={[styles.wrap, styles.page]}>
             {line ? (
                 <View style={[styles.summary, styles.summaryPlain, { backgroundColor: t.surface }]}>
-                    <Text style={[styles.summaryLabel, { color: t.textMuted }]}>סיכום AI</Text>
+                    <Text style={[styles.summaryLabel, { color: t.textMuted }]}>נקודת מבט</Text>
                     <Text style={[styles.summaryText, { color: t.text }]}>{line}</Text>
                 </View>
             ) : line === undefined ? (

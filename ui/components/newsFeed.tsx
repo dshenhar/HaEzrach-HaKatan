@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, Animated, Ea
 import { I18nManager } from "react-native";
 import FeedControls, { BlocFilter, SortKey } from "./feedControls";
 import ModeGuide from "./modeGuide";
+import { KindsDemo, SwipeDemo } from "./tourDemo";
 import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
@@ -40,9 +41,9 @@ const TAIL = 120;
 const ANCHOR = 0.32;
 /** a reader this close to the top is at the top: an update lands without moving them */
 const NEAR_TOP = 120;
-/** the tour the i runs: the anchor's welcome, the man on reading a story by bloc,
- *  and the woman on the questionnaire */
-const TOUR = ["welcome", "bloc", "questionnaire"] as const;
+/** the tour the i runs: the anchor's welcome, the man showing the swipe to each
+ *  side and then the two kinds of story, and the woman on the questionnaire */
+const TOUR = ["welcome", "swipe", "kinds", "questionnaire"] as const;
 
 
 
@@ -114,8 +115,9 @@ export default function NewsFeed() {
 			return;
 		}
 		track("tour_finished", { reached: "end", steps: TOUR.length });
-		// on a first visit the app is explained, and then the reader is asked
-		const arriving = tourHow.current === "arrival" && !filled;
+		// on a first visit the app is explained, and then the reader is asked; on the
+		// visits after it the tour ends on the offer, and leaves it there
+		const arriving = tourHow.current === "arrival" && arrivalFirst && !filled;
 		endTour(arriving ? () => {
 			track("questionnaire_opened", { from: "arrival" });
 			askQuestionnaire();
@@ -132,7 +134,7 @@ export default function NewsFeed() {
 	const tourStepName = tourStep !== null ? TOUR[tourStep] : null;
 
 	// A first visit: once the feed has stories on it, the tour starts by itself.
-	const { due: arrivalDue, done: arrivalDone } = useArrivalTour();
+	const { due: arrivalDue, done: arrivalDone, first: arrivalFirst } = useArrivalTour();
 	const arrived = useRef(false);
 	useEffect(() => {
 		if (!arrivalDue || arrived.current || articles.length === 0) return;
@@ -658,12 +660,21 @@ export default function NewsFeed() {
 									endTour(askQuestionnaire);
 								} }}
 							onDone={() => advanceTour(tourStep)} />
-					) : tourStepName === "bloc" ? (
-						<ModeGuide key="bloc" mode="bloc"
-							title="ימין ושמאל"
-							body={"החליקו כתבה שמאלה, והימין נכנס מצד ימין, באדום; החליקו ימינה, והשמאל נכנס "
-								+ "מצד שמאל, בכחול. שנייה אחרי שעוצרים על צד, נפתחות הכותרות עצמן. "
-								+ "חדשות כלליות, בלי צדדים, נפתחות בלחיצה כרשימה אחת."}
+					) : tourStepName === "swipe" ? (
+						<ModeGuide key="swipe" mode="bloc"
+							title="ימין ושמאל, בהחלקה"
+							body={"החליקו כתבה שמאלה: הימין נכנס מצד ימין, באדום - נקודת המבט שלו והגופים "
+								+ "שסיקרו. החליקו ימינה: השמאל נכנס מצד שמאל, בכחול. שנייה אחרי שעוצרים על צד "
+								+ "נפתחות הכותרות עצמן, ולחיצה על כותרת פותחת את הכתבה."}
+							demo={<SwipeDemo />}
+							onDone={() => advanceTour(tourStep)} />
+					) : tourStepName === "kinds" ? (
+						<ModeGuide key="kinds" mode="bloc"
+							title="שני סוגים של חדשות"
+							body={"חדשות כלליות - תאונה, מזג אוויר, ספורט - הן בלי צדדים: כל הגופים ברשימה "
+								+ "אחת. כתבה על אחת המחלוקות בין ימין לשמאל מסומנת בטבעת אדומה וכחולה, "
+								+ "ואותה מחליקים לצדדים."}
+							demo={<KindsDemo />}
 							onDone={() => advanceTour(tourStep)} />
 					) : null}
 				</View>

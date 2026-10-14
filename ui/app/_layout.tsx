@@ -12,7 +12,7 @@ import IntroSplash from '@/components/introSplash';
 import Onboarding from '@/components/onboarding';
 import QuestionnaireInvite from '@/components/questionnaireInvite';
 import { QuestionnaireContext } from '@/state/questionnaire';
-import { ArrivalTour } from '@/state/tour';
+import { ArrivalTour, TOUR_EVERY_OPEN } from '@/state/tour';
 import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@/state/access';
 import { getProfile, isNudgeOff, markOutletsAsked, markWelcomed, ReaderProfile, stopNudging, wereOutletsAsked,
 	wasWelcomed } from '@/state/profile';
@@ -53,8 +53,10 @@ export default function RootLayout() {
 	// whole of it, or only the outlets for a reader of the old one
 	const [asking, setAsking] = useState<"all" | "outlets" | null>(null);
 	const [invite, setInvite] = useState<"welcome" | "reminder" | "outlets" | null>(null);
-	// a first visit: the feed opens on the tour, which ends with the questionnaire
+	// the feed opens on the tour: on a first visit it ends with the questionnaire, and
+	// for now it runs on every visit (state/tour.ts), ending on the offer
 	const [arrival, setArrival] = useState(false);
+	const [firstVisit, setFirstVisit] = useState(false);
 
 	useEffect(() => {
 		Promise.all([getProfile(), wasWelcomed(), isNudgeOff(), wereOutletsAsked()])
@@ -62,16 +64,23 @@ export default function RootLayout() {
 			setProfile(p);
 			setProfileChecked(true);
 			if (p) {
-				// answered the old questionnaire, which had no outlets in it: asked once
+				// answered the old questionnaire, which had no outlets in it: asked once,
+				// and the tour waits for another visit
 				if (p.outlets === undefined && !outletsAsked) {
 					setInvite("outlets");
 					markOutletsAsked();
+				} else if (TOUR_EVERY_OPEN) {
+					setArrival(true);
 				}
 				return;
 			}
 			if (!welcomed) {
 				setArrival(true);
+				setFirstVisit(true);
 				markWelcomed();
+			} else if (TOUR_EVERY_OPEN) {
+				// the tour ends on the questionnaire's offer, so no reminder besides it
+				setArrival(true);
 			} else if (!quiet) {
 				setInvite("reminder");
 			}
@@ -132,7 +141,7 @@ export default function RootLayout() {
 	const shell = (
 		<>
 			<ArrivalTour.Provider
-				value={{ due: arrival && !introOn && !asking, done: () => setArrival(false) }}>
+				value={{ due: arrival && !introOn && !asking, done: () => setArrival(false), first: firstVisit }}>
 				{app}
 			</ArrivalTour.Provider>
 			{questionnaire}

@@ -318,7 +318,7 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
                         <>
                             {line ? (
                                 <Text style={styles.summary} numberOfLines={full ? undefined : lines}>
-                                    <Text style={styles.ai}>סיכום AI · </Text>{line}
+                                    <Text style={styles.ai}>נקודת מבט · </Text>{line}
                                 </Text>
                             ) : line === undefined && looked ? (
                                 <Text style={styles.waiting}>מכין סיכום…</Text>
