@@ -26,7 +26,7 @@ from scraping import article_key, fetch_entries, has_arabic, parse_entry, transl
 from store import db
 from store.positions import overall, positions_for_topic
 from store.taxonomy import GENERAL_SECTION, SECTION_HINTS, SECTIONS
-from store.summaries import (BLOCS, GEMINI_API_KEY, SUMMARY_MAX_PER_CYCLE,
+from store.summaries import (ALL, BLOCS, GEMINI_API_KEY, SUMMARY_MAX_PER_CYCLE,
                             SUMMARY_MIN_GAP, SUMMARY_WINDOW, QuotaExhausted,
                             articles_for, prompt as summary_prompt, summarise)
 
@@ -591,7 +591,9 @@ def write_summaries(stories: list[dict] | None = None) -> None:
             continue
         have = story.get("summaries") or {}
         changed = False
-        for bloc in BLOCS:
+        # general news is not split into sides: one line from every outlet at once
+        general = (story.get("topic") or story_topic(story)) == GENERAL_TOPIC
+        for bloc in (ALL if general else BLOCS):
             articles = articles_for(rows, blocs, bloc)
             if not articles or not summary_due((have.get(bloc) or {}).get("count"), len(articles)):
                 continue

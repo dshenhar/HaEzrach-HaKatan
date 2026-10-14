@@ -1,18 +1,39 @@
 import { NewsItem, Bloc, SitePosition, getBlocSummary, storySummaries } from '@/state/engagement';
 import { track } from '@/state/analytics';
-import { ELEVATION, TYPE } from '@/state/craft';
+import { TYPE } from '@/state/craft';
+import { useTheme } from '@/state/theme';
+import BlocSwipe, { firstSide } from './blocSwipe';
 import Press from './press';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
-// Data encoding for the bloc mode only. These two are deliberately absent from
-// every other screen: the point of "האזרח הקטן" is that the colours go away.
-const RIGHT = "#C0392F";
-const LEFT = "#2B5EA7";
-const RIGHT_SOFT = "#FBEDEB";
-const LEFT_SOFT = "#EDF1F9";
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 type Side = "right" | "left";
+type Which = Side | "all";
+
+/**
+ * A story's summaries. The feed carries them; a story that changed after the last
+ * pass can arrive without one, and then it is fetched at once, as the story opens -
+ * the server writes it and keeps it for the next reader.
+ *
+ * undefined: on its way. null: none came back.
+ */
+function useSummaries(data: NewsItem[], wanted: Which[]) {
+    const storyId = data[0]?.groupId;
+    const carried = useMemo(() => storySummaries(data), [data]);
+    const [fetched, setFetched] = useState<Partial<Record<Which, string | null>>>({});
+    const missing = wanted.filter((which) => !carried[which]).join(",");
+    useEffect(() => {
+        if (storyId === undefined || !missing) return;
+        let live = true;
+        (missing.split(",") as Which[]).forEach((which) => {
+            getBlocSummary(storyId, which).then((text) => {
+                if (live) setFetched((current) => ({ ...current, [which]: text }));
+            });
+        });
+        return () => { live = false; };
+    }, [storyId, missing]);
+    return (which: Which) => carried[which] ?? fetched[which];
+}
 
 type Props = {
     data: NewsItem[];
@@ -21,15 +42,16 @@ type Props = {
 }
 
 /**
- * The story as two blocs, side by side: who told it on the right, who on the left.
+ * A story on one of the issues the country argues over, as its two sides: the
+ * right's telling and the left's, each a page of its own colour, swiped between.
+ * It opens on the side more outlets told it from, and on a coin when they are level.
  *
- * Each side leads with a line on how that side told it - written by the server
- * before anyone asked, and there for every reader without a touch. Under it, closed,
- * a side is a list of names: enough to see the shape of the coverage, and short
- * enough that nine outlets no longer run the card off the screen. Touch a side and
- * every outlet's own headline opens under the summary, which stays where it was.
+ * Each page leads with a line on how that side told it - written by the server
+ * before anyone asked - and under it every outlet of that side with its own
+ * headline, which opens the article.
  */
 const BlocView = ({ data, positions, onOpenArticle }: Props) => {
+    const t = useTheme();
     const { right, left, unaligned } = useMemo(() => {
         const buckets: Record<string, NewsItem[]> = { right: [], left: [], unaligned: [] };
         data.forEach((item) => {
@@ -38,163 +60,121 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
         });
         return { right: buckets.right, left: buckets.left, unaligned: buckets.unaligned };
     }, [data, positions]);
+    const wanted = useMemo(() => (["right", "left"] as Side[])
+        .filter((side) => (side === "right" ? right : left).length > 0), [right, left]);
+    const summary = useSummaries(data, wanted);
+    const [start] = useState(() => firstSide(right.length, left.length));
 
-    const storyId = data[0]?.groupId;
-    const [openSide, setOpenSide] = useState<Side | null>(null);
-    // The feed carries the summaries. A story that changed after the last pass can
-    // arrive without one, and then it is fetched here at once, as the side shows -
-    // the server writes it and keeps it for the next reader.
-    const carried = useMemo(() => storySummaries(data), [data]);
-    // undefined: on its way. null: none came back.
-    const [fetched, setFetched] = useState<Partial<Record<Side, string | null>>>({});
-    const needs = (side: Side) => (side === "right" ? right : left).length > 0 && !carried[side];
-    const wantRight = needs("right");
-    const wantLeft = needs("left");
-    useEffect(() => {
-        if (storyId === undefined) return;
-        let live = true;
-        (["right", "left"] as Side[]).forEach((side) => {
-            if (side === "right" ? !wantRight : !wantLeft) return;
-            getBlocSummary(storyId, side).then((text) => {
-                if (live) setFetched((current) => ({ ...current, [side]: text }));
-            });
-        });
-        return () => { live = false; };
-    }, [storyId, wantRight, wantLeft]);
-
-    const column = (items: NewsItem[], side: Side, label: string, ink: string, soft: string) => {
-        const open = openSide === side;
-        const summary = carried[side] ?? fetched[side];
+    const page = (items: NewsItem[], side: Side) => {
+        if (items.length === 0) {
+            return <Text style={styles.empty}>אף גוף מהצד הזה לא סיקר את הסיפור</Text>;
+        }
+        const line = summary(side);
         return (
-            <Pressable
-                style={[styles.col, { backgroundColor: soft }, open && styles.colOpen]}
-                onPress={() => {
-                    if (!open) track("bloc_side_opened", { side, outlets: items.length });
-                    setOpenSide(open ? null : side);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`${label}, ${items.length} גופים`}
-            >
-                <View style={styles.colHead}>
-                    <Text style={[styles.colLabel, { color: ink }]}>{label}</Text>
-                    <Text style={styles.colCount}>{items.length}</Text>
-                </View>
-
-                {items.length === 0 ? (
-                    <Text style={styles.empty}>אף גוף מהצד הזה לא סיקר</Text>
-                ) : (
-                    <>
-                        {summary ? (
-                            <View style={styles.aiBox}>
-                                <Text style={styles.aiLabel}>סיכום AI</Text>
-                                <Text style={styles.aiText}>{summary}</Text>
-                            </View>
-                        ) : summary === undefined ? (
-                            <Text style={styles.aiWaiting}>מכין סיכום…</Text>
-                        ) : null}
-
-                        {items.map((item) => (
-                            <Press
-                                key={item.id}
-                                onPress={() => (open ? onOpenArticle(item) : setOpenSide(side))}
-                                style={styles.outletBlock}
-                            >
-                                <View style={styles.outletRow}>
-                                    <View style={[styles.dot, { backgroundColor: ink }]} />
-                                    <Text style={[styles.outlet, { color: ink }]} numberOfLines={1}>
-                                        {item.source}
-                                    </Text>
-                                </View>
-                                {open && (
-                                    <Text style={styles.headline} numberOfLines={3}>{item.title}</Text>
-                                )}
-                            </Press>
-                        ))}
-                    </>
-                )}
-            </Pressable>
+            <View style={styles.page}>
+                {line ? (
+                    <View style={styles.summary}>
+                        <Text style={styles.summaryLabel}>סיכום AI</Text>
+                        <Text style={styles.summaryText}>{line}</Text>
+                    </View>
+                ) : line === undefined ? (
+                    <Text style={styles.waiting}>מכין סיכום…</Text>
+                ) : null}
+                {items.map((item) => (
+                    <Press key={item.id} onPress={() => onOpenArticle(item)} scale={0.98}
+                        style={styles.outlet} accessibilityRole="link"
+                        accessibilityLabel={`${item.source}: ${item.title}`}>
+                        <Text style={styles.outletName} numberOfLines={1}>{item.source}</Text>
+                        <Text style={styles.outletTitle} numberOfLines={3}>{item.title}</Text>
+                    </Press>
+                ))}
+            </View>
         );
     };
 
     return (
-        <View>
-            <View style={styles.split}>
-                {column(right, "right", "ימין", RIGHT, RIGHT_SOFT)}
-                {column(left, "left", "שמאל", LEFT, LEFT_SOFT)}
-            </View>
+        <View style={styles.wrap}>
+            <BlocSwipe
+                start={start}
+                right={page(right, "right")}
+                left={page(left, "left")}
+                rightNote={String(right.length)}
+                leftNote={String(left.length)}
+                onSide={(side) => track("bloc_side_opened", {
+                    side, outlets: (side === "right" ? right : left).length,
+                })}
+            />
 
             {unaligned.length > 0 && (
-                <View style={styles.unaligned}>
-                    <Text style={styles.unalignedTitle}>
-                        {unaligned.length} גופי חדשות לא נכנסו לאף גוש
+                <View style={[styles.unaligned, { backgroundColor: t.surface }]}>
+                    <Text style={[styles.unalignedTitle, { color: t.text }]}>
+                        {unaligned.length === 1 ? "גוף אחד שלא נכנס לאף צד"
+                            : `${unaligned.length} גופים שלא נכנסו לאף צד`}
                     </Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         {unaligned.map((item) => (
-                            <Press key={item.id} style={styles.pill} onPress={() => onOpenArticle(item)}>
-                                <Text style={styles.pillText}>{item.source}</Text>
+                            <Press key={item.id} style={[styles.pill, { backgroundColor: t.surfaceAlt }]}
+                                onPress={() => onOpenArticle(item)}>
+                                <Text style={[styles.pillText, { color: t.text }]}>{item.source}</Text>
                             </Press>
                         ))}
                     </ScrollView>
-                    <Text style={styles.unalignedNote}>
-                        בתצוגה הגושית הם לא מופיעים. זו הנקודה.
-                    </Text>
                 </View>
             )}
         </View>
     );
 };
 
+/**
+ * General news - a storm, a road accident, a rescued dog - has no two sides to be
+ * told from, so it is not split into any: one line on the story as every outlet
+ * told it, and under it each outlet with its own headline.
+ */
+export const AllView = ({ data, onOpenArticle }: Omit<Props, "positions">) => {
+    const t = useTheme();
+    const summary = useSummaries(data, ["all"]);
+    const line = summary("all");
+    return (
+        <View style={[styles.wrap, styles.page]}>
+            {line ? (
+                <View style={[styles.summary, styles.summaryPlain, { backgroundColor: t.surface }]}>
+                    <Text style={[styles.summaryLabel, { color: t.textMuted }]}>סיכום AI</Text>
+                    <Text style={[styles.summaryText, { color: t.text }]}>{line}</Text>
+                </View>
+            ) : line === undefined ? (
+                <Text style={[styles.waiting, { color: t.textMuted }]}>מכין סיכום…</Text>
+            ) : null}
+            {data.map((item) => (
+                <Press key={item.id} onPress={() => onOpenArticle(item)} scale={0.98}
+                    style={[styles.outlet, { backgroundColor: t.surface }]} accessibilityRole="link"
+                    accessibilityLabel={`${item.source}: ${item.title}`}>
+                    <Text style={[styles.outletName, { color: t.text }]} numberOfLines={1}>{item.source}</Text>
+                    <Text style={[styles.outletTitle, { color: t.text }]} numberOfLines={3}>{item.title}</Text>
+                </Press>
+            ))}
+        </View>
+    );
+};
+
 export default BlocView;
 
+// on a side's page the words are white on its colour; general news is set on the
+// card's own ground, its slips white
 const styles = StyleSheet.create({
-    // row-reverse puts the first column - the right bloc - on the right
-    split: { flexDirection: "row-reverse", gap: 8, alignItems: "flex-start" },
-    col: { flex: 1, borderRadius: 10, padding: 11, gap: 7 },
-    colOpen: {},
-    colHead: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "baseline" },
-    colLabel: { fontFamily: "Rubik_800ExtraBold", fontSize: 13.5, letterSpacing: -0.1 },
-    colCount: {
-        fontFamily: "Rubik_700Bold", fontSize: 11, letterSpacing: 0.1, color: "#6B7280",
-        fontVariant: ["tabular-nums"],
-    },
+    wrap: { marginTop: 10, gap: 8 },
+    page: { gap: 8 },
+    summary: { gap: 3, paddingBottom: 4 },
+    summaryPlain: { borderRadius: 10, padding: 11, paddingBottom: 11 },
+    summaryLabel: { ...TYPE.micro, color: "rgba(255,255,255,0.78)", textAlign: "right" },
+    summaryText: { ...TYPE.body, fontSize: 14, lineHeight: 21, color: "#FFFFFF", textAlign: "right" },
+    waiting: { ...TYPE.caption, color: "rgba(255,255,255,0.8)", textAlign: "right" },
+    outlet: { backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 10, padding: 10, gap: 2 },
+    outletName: { ...TYPE.label, color: "#FFFFFF", textAlign: "right" },
+    outletTitle: { ...TYPE.body, color: "#FFFFFF", textAlign: "right" },
+    empty: { ...TYPE.body, color: "#FFFFFF", textAlign: "right" },
 
-    // the summary sits on the side's own colour as a white slip, the first thing in
-    // the box: it is how that side told the story, before who told it
-    aiBox: {
-        backgroundColor: "#FFFFFF", borderRadius: 8, padding: 9, gap: 3,
-        boxShadow: ELEVATION.rest,
-    },
-    aiLabel: {
-        fontFamily: "Rubik_700Bold", fontSize: 9.5, letterSpacing: 0.3,
-        color: "#9A9A95", textAlign: "right",
-    },
-    aiText: {
-        fontFamily: "Rubik_400Regular", fontSize: 11.5, lineHeight: 17,
-        color: "#111827", textAlign: "right",
-    },
-    aiWaiting: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#9A9A95", textAlign: "right" },
-
-    outletBlock: { gap: 2 },
-    outletRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
-    dot: { width: 7, height: 7, borderRadius: 4 },
-    outlet: {
-        fontFamily: "Rubik_700Bold", fontSize: 11.5, letterSpacing: 0.05,
-        flex: 1, textAlign: "right",
-    },
-    headline: {
-        fontFamily: "Rubik_400Regular", fontSize: 11.5, lineHeight: 17,
-        letterSpacing: 0.05, color: "#111827", textAlign: "right", paddingRight: 13,
-    },
-    empty: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#6B7280", lineHeight: 16 },
-
-    unaligned: { backgroundColor: "#F4F4F3", borderRadius: 10, padding: 11, marginTop: 8, gap: 7 },
-    unalignedTitle: {
-        fontFamily: "Rubik_700Bold", fontSize: 12, color: "#111827", textAlign: "right",
-    },
-    unalignedNote: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#6B7280", textAlign: "right" },
-    pill: {
-        backgroundColor: "#fff", borderRadius: 999,
-        paddingHorizontal: 11, paddingVertical: 5, marginLeft: 6,
-    },
-    pillText: { fontFamily: "Rubik_700Bold", fontSize: 11, color: "#111827" },
+    unaligned: { borderRadius: 10, padding: 11, gap: 7 },
+    unalignedTitle: { ...TYPE.label, textAlign: "right" },
+    pill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, marginLeft: 6 },
+    pillText: { fontFamily: "Rubik_700Bold", fontSize: 11 },
 });

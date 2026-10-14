@@ -1,5 +1,5 @@
 """The AI summaries the app shows over a story: one for each bloc that covered it,
-and one across all of them for the citizen view.
+or, for general news, one across all of them.
 
 Gemini writes them, Claude only if a Claude key is set and Gemini is out of quota.
 They are written during the ingest, before any reader asks, and rewritten only when
@@ -19,12 +19,14 @@ CLAUDE_MODEL = "claude-sonnet-5"
 SIDES = {
     "right": "מהצד הימני של המפה הפוליטית",
     "left": "מהצד השמאלי של המפה הפוליטית",
-    # the citizen view: every outlet that covered the story, no blocs
-    "all": "מכל צדי המפה הפוליטית",
+    # a story with no two sides to it - general news - told by every outlet at once
+    "all": "שונים",
 }
-# What the ingest writes ahead of time. "all" was the citizen view's, which the app
-# no longer has; the api still writes one if it is ever asked for.
+# What the ingest writes ahead of time: a line for each side of a story on one of
+# the issues the country argues over, and one line across every outlet for general
+# news, which has no sides to split it into.
 BLOCS = ("right", "left")
+ALL = ("all",)
 
 SUMMARY_WINDOW = timedelta(hours=26)     # a little over the feed's day
 SUMMARY_MAX_PER_CYCLE = 90

@@ -11,7 +11,7 @@ import { useDevMode, useTheme } from '@/state/theme';
 import { track } from '@/state/analytics';
 import TopicPicker from './topicPicker';
 import { ArticleViewer } from './articleViewer';
-import BlocView from './blocView';
+import BlocView, { AllView } from './blocView';
 import Animated, { Easing, FadeIn, FadeOut, LinearTransition, useAnimatedStyle,
     useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -128,13 +128,16 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     const sources = data.map((d) => d.source);
     const shownTopic = topic || lead.topic || "";
     const section = lead.section || "";
+    // A story on one of the issues the country argues over is told as its two
+    // sides; general news has none, and is told as one.
+    const polar = !!shownTopic && shownTopic !== GENERAL_TOPIC;
     // how the coverage split, which is what the ring draws
     const rightCount = data.filter((d) => positions[d.source]?.bloc === "right").length;
     const leftCount = data.filter((d) => positions[d.source]?.bloc === "left").length;
     // Who did not tell this story. It is a count rather than a judgement, which is
     // why it can sit on a closed card in plain words: four outlets on one side ran
     // it and nobody on the other did, and a reader can check that in a minute.
-    const missing = blindTo({ right: rightCount, left: leftCount });
+    const missing = polar ? blindTo({ right: rightCount, left: leftCount }) : null;
     const mine = !!missing && missing === readerBloc;
     const dark = t.name === "negative";
     const tint = sectionTint(section, dark);
@@ -155,7 +158,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
         track("article_opened", {
             outlet_bloc: positions[item.source]?.bloc ?? "unknown",
             topic: item.topic, section: item.section,
-            outlets: data.length, mode: "bloc",
+            outlets: data.length, mode: polar ? "bloc" : "general",
         });
 
         // react-native-webview has no web build - on web the in-app viewer renders
@@ -257,8 +260,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                     )}
 
                     <View style={styles.titleRow}>
-                        {/* who told it, as a ring: right and left, and how many in all */}
-                        <CoverageRing right={rightCount} left={leftCount}
+                        {/* who told it, as a ring: right and left, and how many in all -
+                            or, on general news, only how many */}
+                        <CoverageRing right={rightCount} left={leftCount} plain={!polar}
                             rightInk={t.right} leftInk={t.left} text={String(data.length)} />
                         <Text style={[styles.title, { color: t.text }]}
                             numberOfLines={open ? undefined : 3}>{lead.title}</Text>
@@ -285,9 +289,11 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
             {open && (
                 <Animated.View entering={still ? undefined : FADE_IN}
                     exiting={still ? undefined : FADE_OUT}>
-                    {/* the story's own headline above, the blocs' telling of it below */}
-                    <View style={[styles.rule, { backgroundColor: t.line }]} />
-                    <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
+                    {/* the story's own headline above, its telling below: by its two
+                        sides, or, on general news, by every outlet at once */}
+                    {polar
+                        ? <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
+                        : <AllView data={data} onOpenArticle={handleOpenArticle} />}
                 </Animated.View>
             )}
 
@@ -346,7 +352,6 @@ const styles = StyleSheet.create({
     },
     tabText: { ...TYPE.micro },
     card: { width: "100%", backgroundColor: "#F4F4F3", borderRadius: 11, padding: 12, gap: 8 },
-    rule: { height: 1, backgroundColor: "#E3E3E1", marginBottom: 9, marginTop: 1 },
     head: { gap: 6 },
     // row-reverse: the time at the right edge, the issue to its left
     metaLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
