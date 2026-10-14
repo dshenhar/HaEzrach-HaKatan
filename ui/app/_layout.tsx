@@ -17,6 +17,7 @@ import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@
 import { getProfile, isNudgeOff, markOutletsAsked, markWelcomed, ReaderProfile, stopNudging, wereOutletsAsked,
 	wasWelcomed } from '@/state/profile';
 import { listenForInstall } from '@/state/install';
+import { reloadWhenStale } from '@/state/freshness';
 import { ThemeProvider, useTheme } from '@/state/theme';
 import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -76,6 +77,9 @@ export default function RootLayout() {
 			}
 		});
 	}, []);
+
+	// a tab left open across a deploy picks up the new version when it comes back
+	useEffect(() => reloadWhenStale(), []);
 
 	// a font that fails to load falls back to the system font instead of leaving
 	// the app on a blank screen
