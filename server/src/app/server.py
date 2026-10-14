@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import firestore
 from pydantic import BaseModel
 
-from store import db
+from store import db, weather
 from store.positions import overall, positions_for_topic
 from store.stance import confidence, headlines, score, side
 from store.summaries import (GEMINI_API_KEY, GEMINI_MODEL, SIDES, articles_for,
@@ -82,6 +82,14 @@ def get_hot():
     hot = db.read_hot()
     return {"today": hot.get("today") or [], "topics": hot.get("topics") or [],
             "built_at": hot["built_at"].isoformat() if hot.get("built_at") else None}
+
+
+@app.get("/weather")
+def get_weather(response: Response):
+    """Beside the logo: the city, its temperature and MET Norway's symbol for the
+    hour, or nothing when there is none (store/weather.py)."""
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return weather.current() or {}
 
 
 @app.get("/sites")
