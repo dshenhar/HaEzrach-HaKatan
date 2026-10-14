@@ -3,7 +3,6 @@ import { AppState } from "react-native";
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { I18nManager } from "react-native";
 import FeedControls, { BlocFilter, SortKey } from "./feedControls";
-import SearchOverlay from "./searchOverlay";
 import ModeGuide from "./modeGuide";
 import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
@@ -16,19 +15,16 @@ import { ELEVATION, glass, SWELL, TYPE } from "@/state/craft";
 import { blindTo } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { useArrivalTour } from "@/state/tour";
-import { FocusRequest, onStoryRequest, requestStory, requestTopic, takeStoryRequest } from "@/state/feedFocus";
+import { FocusRequest, onStoryRequest, takeStoryRequest } from "@/state/feedFocus";
 import { ScrollLock } from "@/state/scrollLock";
 import { useStable } from "@/state/useStable";
 import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
 import { Alert } from "react-native";
 import { InstallBanner } from "./installOffer";
-import PersonalArea from "./personalArea";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { MIN_QUERY, normalise, queryWords } from "@/state/search";
 
 // The logo is navy ink, so negative mode swaps in a pale copy of it.
 // the navy the logo is drawn in, sampled off the file itself, so the words and the
@@ -37,9 +33,6 @@ const BRAND_INK = "#192F50";
 const BRAND_INK_DARK = "#C7D4E8";
 const MARK_INK = require("../assets/images/mark-ink.png");
 const MARK_LIGHT = require("../assets/images/mark-light.png");
-/** the doodled paper the stories are printed on - light theme only, where it is
- *  paper. The tile is mirrored into its own quarters, so it repeats without a seam. */
-const PAPER = require("../assets/images/paper.webp");
 const MARK_RATIO = 426 / 372;
 /** room under the last story, so the tab bar never sits on a headline */
 const TAIL = 120;
@@ -70,15 +63,10 @@ export default function NewsFeed() {
 	const [scrollLocked, setScrollLocked] = useState(false);
 	const scrollRef = useRef<ScrollView>(null);
 	const [positions, setPositions] = useState<Record<string, SitePosition>>({});
-	const [personalOpen, setPersonalOpen] = useState(false);
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);
 	const [allTopics, setAllTopics] = useState<string[]>([]);
 	const [mergeSource, setMergeSource] = useState<{ id: string | number; title: string } | null>(null);
 	const [sort, setSort] = useState<SortKey>("newest");
-	// the search: what is typed, and whether its results are open over the app
-	const [query, setQuery] = useState("");
-	const [searching, setSearching] = useState(false);
-	const router = useRouter();
 	const t = useTheme();
 	const dev = useDevMode();
 
@@ -442,24 +430,6 @@ export default function NewsFeed() {
 
 	const brandInk = t.name === "negative" ? BRAND_INK_DARK : BRAND_INK;
 
-	// what was searched is not sent anywhere, only how long it was
-	const runSearch = () => {
-		if (normalise(query).length < MIN_QUERY) return;
-		track("search", { words: queryWords(query).length });
-		setSearching(true);
-	};
-	const searchedStory = (story: NewsItem[], rank: number) => {
-		track("search_result_opened", { kind: "story", rank });
-		setSearching(false);
-		requestStory(String(story[0].groupId), "search");
-	};
-	const searchedTopic = (topicId: string, rank: number) => {
-		track("search_result_opened", { kind: "hot_topic", rank });
-		setSearching(false);
-		requestTopic(topicId, "search");
-		router.navigate("/mapPage");
-	};
-
 	const handleSectionToggle = (category: string) => {
 	track("section_filter_changed", { section: category });
 	if (category === "הכל") {
@@ -520,7 +490,7 @@ export default function NewsFeed() {
 			<View style={styles.feedArea}>
 			<ScrollLock.Provider value={setScrollLocked}>
 			<ScrollView 
-				style={[styles.scrollView, { backgroundColor: t.name === "light" ? "transparent" : t.bg }]}
+				style={[styles.scrollView, { backgroundColor: t.bg }]}
 				scrollEnabled={!scrollLocked}
 				contentContainerStyle={{ paddingBottom: TAIL }}
 				onScroll={onFeedScroll}
@@ -535,11 +505,10 @@ export default function NewsFeed() {
 				<View onLayout={(e) => { topH.current = e.nativeEvent.layout.height; }}>
 				<View style={styles.header}>
 					<View style={styles.headerTop}>
-						<TouchableOpacity onPress={() => startTour()} hitSlop={10} accessibilityLabel="על האפליקציה">
-							<Ionicons name="information-circle-outline" size={30} color={t.text} />
-						</TouchableOpacity>
 						{/* the name set rather than drawn: "חדשות" leads, "האזרח הקטן" sits
-						    under it, and the book with the dove stands to their right */}
+						    under it, and the book with the dove stands to their right. The
+						    tour that explains the app runs on a first visit; the personal
+						    area has moved to the analytics page */}
 						<View style={styles.brand} accessibilityLabel="חדשות האזרח הקטן">
 							<Image
 								source={t.name === "negative" ? MARK_LIGHT : MARK_INK}
@@ -551,9 +520,6 @@ export default function NewsFeed() {
 								<Text style={[styles.brandBottom, { color: brandInk }]}>האזרח הקטן</Text>
 							</View>
 						</View>
-						<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}>
-							<Ionicons name="person-circle-outline" size={30} color={t.text} />
-						</TouchableOpacity>
 					</View>
 				</View>
 
@@ -569,18 +535,10 @@ export default function NewsFeed() {
 					blocFilter={blocFilter}
 					onBlocFilter={(next) => { track("bloc_filter_changed", { filter: next }); setBlocFilter(next); }}
 					knowsBloc={profile !== null}
-					query={query}
-					onQuery={setQuery}
-					onSearch={runSearch}
 				/>
 				</View>
 
 				<View style={styles.cardsArea}>
-				{/* only under the stories, and only just there: the header and the
-				    controls keep the plain ground they had */}
-				{t.name === "light" && (
-					<Image source={PAPER} style={styles.paper} resizeMode="repeat" />
-				)}
 				<View style={styles.cards}>
 				{sortedArticles.map((cluster, index) => {
 					const key = storyKey(cluster, index);
@@ -669,22 +627,6 @@ export default function NewsFeed() {
 				ratingTarget={ratingTarget}
 			/>
 
-			<PersonalArea
-				open={personalOpen}
-				onClose={() => setPersonalOpen(false)}
-				profile={profile}
-				onRetakeQuestionnaire={() => setProfile(null)}
-			/>
-
-			<SearchOverlay
-				open={searching}
-				query={query}
-				onQuery={setQuery}
-				onClose={() => setSearching(false)}
-				stories={articles}
-				onStory={searchedStory}
-				onTopic={(topic, rank) => searchedTopic(topic.id, rank)}
-			/>
 		</SafeAreaView>
 	);
 }
@@ -725,15 +667,8 @@ const styles = StyleSheet.create({
 	},
 	devBar: { width: "100%", paddingVertical: 5, alignItems: "center" },
 	devBarText: { fontFamily: "Rubik_700Bold", fontSize: 11, color: "#04310F" },
-	headerTop: {
-		// right to left: the i, the logo, the personal area - the two icons are the
-		// same size, so space-between centres the logo; the direction keeps that order
-		// on the physical screen whether or not RTL layout is on
-		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
-		alignItems: "center",
-		justifyContent: "space-between",
-		gap: 10,
-	},
+	// the logo alone, in the middle
+	headerTop: { alignItems: "center", paddingVertical: 2 },
 	// row-reverse puts the mark on the right of the words, as the logo has it
 	brand: {
 		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
@@ -752,18 +687,9 @@ const styles = StyleSheet.create({
 		// borderWidth: 2,
 		flex: 1,
 	},
-	// the stories keep the narrow side margin the header does not want; the paper
-	// sits in the box around them, so it runs edge to edge under the list alone
+	// the stories keep the narrow side margin the header does not want
 	cardsArea: { position: "relative" },
 	cards: { paddingHorizontal: 6 },
 	feedArea: { flex: 1, width: "100%" },
-	// it sits still while the feed moves over it, so it reads as the page rather
-	// than as something in the list
-	// width and height spelled out: react-native-web otherwise stamps the asset's
-	// own 760 square on it inline, which beats anything a stylesheet says
-	paper: {
-		position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-		opacity: 0.22, pointerEvents: "none",
-	},
 	tour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 });

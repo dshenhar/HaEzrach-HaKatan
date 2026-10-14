@@ -27,7 +27,7 @@ type FieldProps = {
 export function SearchField({ value, onChange, onSubmit, autoFocus }: FieldProps) {
     const t = useTheme();
     return (
-        <View style={[styles.field, { flexDirection: FROM_RIGHT, borderColor: t.line, backgroundColor: t.surface }]}>
+        <View style={[styles.field, { flexDirection: FROM_RIGHT, backgroundColor: t.surfaceAlt }]}>
             <Ionicons name="search" size={16} color={t.textMuted} />
             <TextInput
                 value={value}
@@ -102,7 +102,7 @@ export default function SearchOverlay({ open, query, onQuery, onClose, stories, 
 
     const affair = (topic: HotTopic, rank: number) => (
         <Press key={topic.id} scale={0.985}
-            style={[styles.row, { flexDirection: FROM_RIGHT, backgroundColor: t.surface, borderColor: t.line }]}
+            style={[styles.row, { flexDirection: FROM_RIGHT, backgroundColor: t.surfaceAlt }]}
             onPress={() => onTopic(topic, rank)}
             accessibilityRole="button" accessibilityLabel={`נושא חם: ${topic.title}`}>
             <View style={styles.rowText}>
@@ -123,13 +123,13 @@ export default function SearchOverlay({ open, query, onQuery, onClose, stories, 
                     <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? "rgba(0,0,0,0.35)" : "rgba(17,24,39,0.16)" }]} />
                 </Pressable>
 
-                <View style={[styles.window, { backgroundColor: t.bg, borderColor: t.line }]}
+                <View style={[styles.window, { backgroundColor: t.bg }]}
                     accessibilityViewIsModal>
                     <View style={[styles.head, { flexDirection: FROM_RIGHT }]}>
                         <View style={styles.headField}>
                             <SearchField value={query} onChange={onQuery} />
                         </View>
-                        <Press style={[styles.close, { backgroundColor: t.surface, borderColor: t.line }]}
+                        <Press style={[styles.close, { backgroundColor: t.surfaceAlt }]}
                             onPress={onClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="סגירה">
                             <Ionicons name="close" size={18} color={t.text} />
                         </Press>
@@ -149,7 +149,7 @@ export default function SearchOverlay({ open, query, onQuery, onClose, stories, 
                             const first = story[0];
                             return (
                                 <Press key={String(first.groupId ?? first.id)} scale={0.985}
-                                    style={[styles.row, styles.storyRow, { backgroundColor: t.surface, borderColor: t.line }]}
+                                    style={[styles.row, styles.storyRow, { backgroundColor: t.surfaceAlt }]}
                                     onPress={() => onStory(story, i)}
                                     accessibilityRole="button" accessibilityLabel={`בפיד: ${first.title}`}>
                                     <View style={[styles.meta, { flexDirection: FROM_RIGHT }]}>
@@ -187,17 +187,17 @@ const styles = StyleSheet.create({
     screen: { flex: 1, alignItems: "center", justifyContent: "center" },
     // most of the screen, and the blurred app around it says it is still there
     window: {
-        width: "92%", maxWidth: 640, height: "80%", borderRadius: 22, borderWidth: 1,
+        width: "92%", maxWidth: 640, height: "80%", borderRadius: 22,
         overflow: "hidden", boxShadow: ELEVATION.raised,
     },
     head: { alignItems: "center", gap: 8, paddingHorizontal: 14, paddingTop: 14 },
     headField: { flex: 1 },
     close: {
-        width: 38, height: 38, borderRadius: 19, borderWidth: 1,
+        width: 38, height: 38, borderRadius: 19,
         alignItems: "center", justifyContent: "center",
     },
     field: {
-        alignItems: "center", gap: 8, height: 40, borderRadius: 999, borderWidth: 1,
+        alignItems: "center", gap: 8, height: 40, borderRadius: 999,
         paddingHorizontal: 14,
     },
     // 16 and not less: iPhone's Safari zooms into a field set smaller, and stays
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     list: { paddingHorizontal: 14, paddingBottom: 18, gap: 8 },
     label: { fontFamily: "Rubik_700Bold", fontSize: 11, textAlign: "right", marginTop: 8, marginBottom: -2 },
-    row: { alignItems: "center", gap: 12, padding: 12, borderRadius: 14, borderWidth: 1 },
+    row: { alignItems: "center", gap: 12, padding: 12, borderRadius: 14 },
     storyRow: { alignItems: "stretch", gap: 4 },
     rowText: { flex: 1, gap: 3 },
     title: { ...TYPE.label, fontSize: 15, lineHeight: 21, textAlign: "right" },
