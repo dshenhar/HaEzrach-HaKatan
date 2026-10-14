@@ -5,8 +5,8 @@ the average. Now every article that is about one of the issues is placed on that
 issue's own axis, from its headline and standfirst alone:
 
     the model   the tagging pass reads each one and gives it a stance, -5..5, where
-                +5 is the right's pole of the issue and -5 the left's, and 0 a plain
-                report that leans to neither
+                +5 is the right's pole of the issue and -5 the left's. There is no
+                middle: it is asked for a side even when the lean is slight (1 or -1)
     readers     at the end of an article a reader says how right or left it felt,
                 -5..5 on the same axis
 
@@ -16,12 +16,14 @@ MODEL_WEIGHT readers of its own. Enough readers can move a headline to the other
 side, a few cannot. These three numbers are the first guess, to be tuned once
 there are votes to tune them against.
 
-The side follows from the score, with a narrow band around zero for the headlines
-that lean to neither.
+The side follows from the score's sign. There is no middle: a score of exactly
+zero - a headline read before the model was asked always to choose, or readers who
+cancel out - goes to the side of the outlet that published it.
 
 An outlet's place on an issue is where its headlines on it fell: when an article
 leaves the database, a day after it came, its final side is counted on the outlet's
-entry for its issue - right, left or neither - in counters that halve every
+entry for its issue - right or left, never by its outlet's bloc, which would only
+count the outlet back to itself - in counters that halve every
 HALF_LIFE, so the place follows what the outlet publishes now. The share of right
 less the share of left, on the -5..5 scale, is the measured place. Until an outlet
 has enough headlines on an issue the old benchmark carries it, fading as they come:
@@ -36,13 +38,14 @@ SCALE = 5.0
 # an article's score
 MODEL_WEIGHT = 5.0      # the model counts as this many readers
 MIN_VOTERS = 3          # fewer readers than this leave the model's reading alone
-NEUTRAL = 0.5           # a score within this of zero leans to neither side
 
 # an outlet's place
 HALF_LIFE = timedelta(days=90)
 PRIOR_WEIGHT = 10.0     # the benchmark is worth this many headlines
 
-COUNTER = {"right": "r", "left": "l", "neutral": "c"}
+# "c" counted the headlines that leaned to neither while there was a middle; none
+# are counted now, and those already counted fade with the rest
+COUNTER = {"right": "r", "left": "l"}
 
 
 def score(stance: float | None, feel: dict | None) -> float | None:
@@ -59,14 +62,10 @@ def score(stance: float | None, feel: dict | None) -> float | None:
 
 
 def side(value: float | None) -> str | None:
-    """right, left or neutral - or None for an article nothing has placed."""
-    if value is None:
+    """right or left - or None for an article nothing has placed, or placed at zero."""
+    if value is None or value == 0:
         return None
-    if value > NEUTRAL:
-        return "right"
-    if value < -NEUTRAL:
-        return "left"
-    return "neutral"
+    return "right" if value > 0 else "left"
 
 
 def article_side(article: dict) -> str | None:
@@ -74,8 +73,8 @@ def article_side(article: dict) -> str | None:
 
 
 def placed(article: dict, blocs: dict[str, str]) -> str | None:
-    """The side an article is shown on: its own, or - for one nothing has placed
-    yet, tagged before articles were read for their stance - its outlet's."""
+    """The side an article is shown on: its own, or - for one nothing has placed,
+    or placed at zero - its outlet's. Right or left, never in between."""
     own = article_side(article)
     if own is not None:
         return own

@@ -43,10 +43,9 @@ const DEEP: Record<Side, string> = { right: "#C0392F", left: "#2B5EA7" };
 type Props = {
     /** the story, every outlet's headline */
     data: NewsItem[];
-    /** its headlines by the side each fell on, and those that lean to neither */
+    /** its headlines by the side each fell on - every one on one or the other */
     right: NewsItem[];
     left: NewsItem[];
-    neutral: NewsItem[];
     /** the side whose outlets did not cover it at all, when the other side's did */
     missing: Side | null;
     readerBloc?: string | null;
@@ -71,7 +70,7 @@ type Props = {
  * A touch on the card goes to the side more of its headlines fell on, and a coin
  * when they are level - so neither side is the one always met first.
  */
-export default function StorySwipe({ data, right, left, neutral, missing, readerBloc, open,
+export default function StorySwipe({ data, right, left, missing, readerBloc, open,
     onOpened, onClosed, onOpenArticle, children }: Props) {
     const t = useTheme();
     const still = useStillness();
@@ -242,19 +241,6 @@ export default function StorySwipe({ data, right, left, neutral, missing, reader
                                         <Text style={styles.text} numberOfLines={3}>{item.title}</Text>
                                     </Press>
                                 ))}
-                                {neutral.length > 0 && (
-                                    <>
-                                        <Text style={styles.summaryLabel}>וגם, בלי לנטות לאף צד</Text>
-                                        {neutral.map((item) => (
-                                            <Press key={item.id} onPress={() => onOpenArticle(item)} scale={0.98}
-                                                style={[styles.headline, styles.level]} accessibilityRole="link"
-                                                accessibilityLabel={`${item.source}: ${item.title}`}>
-                                                <Text style={styles.outlet} numberOfLines={1}>{item.source}</Text>
-                                                <Text style={styles.text} numberOfLines={3}>{item.title}</Text>
-                                            </Press>
-                                        ))}
-                                    </>
-                                )}
                             </View>
                         </>
                     )}
@@ -308,12 +294,10 @@ const styles = StyleSheet.create({
     moveText: { ...TYPE.micro, color: "#FFFFFF" },
     summary: { ...TYPE.body, fontSize: 13, lineHeight: SUMMARY_LINE, color: "#FFFFFF", textAlign: "right" },
     ai: { ...TYPE.micro, color: "rgba(255,255,255,0.78)" },
-    summaryLabel: { ...TYPE.micro, color: "rgba(255,255,255,0.78)", textAlign: "right" },
     text: { ...TYPE.body, fontSize: 13.5, lineHeight: 20, color: "#FFFFFF", textAlign: "right" },
     waiting: { ...TYPE.caption, color: "rgba(255,255,255,0.8)", textAlign: "right" },
     names: { ...TYPE.label, fontSize: 12, color: "rgba(255,255,255,0.92)", textAlign: "right" },
     headlines: { gap: 7, marginTop: 4 },
     headline: { backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 10, padding: 10, gap: 2 },
-    level: { backgroundColor: "rgba(255,255,255,0.08)" },
     outlet: { ...TYPE.label, color: "#FFFFFF", textAlign: "right" },
 });
