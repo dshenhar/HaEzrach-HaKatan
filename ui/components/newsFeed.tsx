@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, Image, Animated, Ea
 import { I18nManager } from "react-native";
 import FeedControls, { BlocFilter, SortKey } from "./feedControls";
 import ModeGuide from "./modeGuide";
+import { TodayDate, WeatherNow } from "./headerSides";
 import { KindsDemo, SwipeDemo } from "./tourDemo";
 import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
@@ -546,6 +547,7 @@ export default function NewsFeed() {
 				<View onLayout={(e) => { topH.current = e.nativeEvent.layout.height; }}>
 				<View style={styles.header}>
 					<View style={styles.headerTop}>
+						<WeatherNow ink={brandInk} />
 						{/* the name set rather than drawn: "חדשות" leads, "האזרח הקטן" sits
 						    under it, and the book with the dove stands to their right. The
 						    tour that explains the app runs on a first visit; the personal
@@ -561,6 +563,7 @@ export default function NewsFeed() {
 								<Text style={[styles.brandBottom, { color: brandInk }]}>האזרח הקטן</Text>
 							</View>
 						</View>
+						<TodayDate ink={brandInk} />
 					</View>
 				</View>
 
@@ -726,8 +729,9 @@ const styles = StyleSheet.create({
 	},
 	devBar: { width: "100%", paddingVertical: 5, alignItems: "center" },
 	devBarText: { fontFamily: "Rubik_700Bold", fontSize: 11, color: "#04310F" },
-	// the logo alone, in the middle
-	headerTop: { alignItems: "center", paddingVertical: 2 },
+	// the logo in the middle, the weather to its left and the day to its right - set
+	// left to right, so each stays on its own side whatever direction the app runs in
+	headerTop: { flexDirection: "row", direction: "ltr", alignItems: "center", gap: 10, paddingVertical: 2 },
 	// row-reverse puts the mark on the right of the words, as the logo has it
 	brand: {
 		flexDirection: I18nManager.isRTL ? "row" : "row-reverse",
