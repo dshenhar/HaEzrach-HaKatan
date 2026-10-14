@@ -1,10 +1,10 @@
-"""The app's API: the feed, the map, the ratings, and the dev-mode fixes.
+"""The app's API: the feed, the map, the readers' answers, and the dev-mode fixes.
 
 Everything it serves is already computed. The feed is one document written by the
-ingest; the map is one document per topic holding every outlet's position; a rating
-changes a handful of numbers in place (store/learning.py). Nothing here scans the
-articles or averages the ratings, which is what the Postgres version did on every
-request.
+ingest; the map is one document per topic holding every outlet's position; a
+reader's answer changes a handful of numbers on its article in place
+(store/stance.py). Nothing here scans the articles or averages the answers, which
+is what the Postgres version did on every request.
 """
 import hashlib
 import hmac
@@ -13,7 +13,7 @@ import random
 import re
 import secrets
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -24,8 +24,8 @@ from google.cloud import firestore
 from pydantic import BaseModel
 
 from store import db
-from store.learning import State, apply_rating, rater_weight, revise_rating
 from store.positions import overall, positions_for_topic
+from store.stance import confidence, headlines, score, side
 from store.summaries import (GEMINI_API_KEY, GEMINI_MODEL, SIDES, articles_for,
                              prompt as summary_prompt)
 from store.taxonomy import SECTIONS
@@ -141,13 +141,14 @@ def get_ranks(topic: str):
     results = []
     for site_id, site in sites.items():
         entry = entries.get(site_id, {})
-        raters = int(entry.get("raters", 0))
         results.append({
             "source": site["name"],
             "bias": positions.get(site_id, round(float(entry.get("prior", 0.0)), 3)),
-            "article_count": int(entry.get("articles", 0)),
-            "rated_count": raters,
-            "confidence": round(min(1.0, raters / 20), 2),
+            # how many headlines, faded, its place stands on, and how much of the
+            # place they make up rather than the benchmark
+            "article_count": round(headlines(entry)),
+            "rated_count": round(headlines(entry)),
+            "confidence": confidence(entry),
             "latest_article_header": (entry.get("latest") or {}).get("header", ""),
         })
     return results
@@ -163,15 +164,14 @@ def get_ranks_by_site(site: str):
     results = []
     for topic_id, state in db.all_topic_states().items():
         entry = (state.get("sites") or {}).get(match["id"])
-        if entry is None or topic_id not in names:
+        if entry is None or topic_id not in names or names[topic_id] == GENERAL_TOPIC:
             continue
-        raters = int(entry.get("raters", 0))
         results.append({
             "topic": names[topic_id],
             "bias": positions_for_topic(state).get(match["id"], 0.0),
-            "article_count": int(entry.get("articles", 0)),
-            "rated_count": raters,
-            "confidence": round(min(1.0, raters / 20), 2),
+            "article_count": round(headlines(entry)),
+            "rated_count": round(headlines(entry)),
+            "confidence": confidence(entry),
         })
     return results
 
@@ -206,12 +206,18 @@ def blind_pick(seen: str = ""):
     }
 
 
-# ---- ratings -----------------------------------------------------------------
+# ---- readers' answers ---------------------------------------------------------
 
-class VoteRequest(BaseModel):
+class FeelRequest(BaseModel):
+    # how right (+) or left (-) the article felt, -5..5
     value: int
     # whether the reader placed it without being told whose article it was
     blind: bool = False
+
+
+def _article_id(given: str) -> str:
+    """The feed names an item story-article; the article is the part after the dash."""
+    return given.rsplit("-", 1)[-1]
 
 
 def _salt() -> str:
@@ -252,22 +258,22 @@ def voter_id(request: Request) -> str:
     return f"ip-{digest.hexdigest()[:20]}"
 
 
-@app.post("/articles/{article_id}/vote")
-def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Response):
-    """One reader's verdict on one article, folded into the outlet's position.
+@app.post("/articles/{article_id}/feel")
+def add_feel(article_id: str, feel: FeelRequest, request: Request):
+    """How right or left one reader found one article, folded into the article's
+    own score (store/stance.py). One answer per reader and article: a second one
+    replaces the first.
 
-    Everything happens in a single transaction: the article's own score, the
-    reader's record for the day, and the state the outlet's position on this topic
-    is learned from. No history is kept - the rating itself is dropped after a
-    month, and what it taught stays in the state.
+    Nothing about the outlet changes here. An outlet learns where its headlines
+    fell when they leave the database, a day on, with their sides final - so a
+    reader moves a headline, and only enough of them move an outlet.
     """
     voter = voter_id(request)
+    article_id = _article_id(article_id)
     client = db.client()
-    article_ref = client.collection("articles").document(str(article_id))
-    vote_ref = db.vote_ref(article_id, voter)
-    voter_ref = db.voter_ref(voter)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    value = max(-5, min(5, int(vote.value)))
+    article_ref = client.collection("articles").document(article_id)
+    answer_ref = db.feel_ref(article_id, voter)
+    value = max(-5, min(5, int(feel.value)))
 
     @firestore.transactional
     def apply(tx):
@@ -275,82 +281,49 @@ def add_vote(article_id: str, vote: VoteRequest, request: Request, response: Res
         if not article_snap.exists:
             raise HTTPException(status_code=404, detail="article not found")
         article = article_snap.to_dict()
-        topic_id = str(article.get("topic_id"))
-        site_id = str(article.get("site_id"))
-        state_ref = db.topic_state_ref(topic_id)
-
-        vote_snap = vote_ref.get(transaction=tx)
-        voter_snap = voter_ref.get(transaction=tx)
-        state_snap = state_ref.get(transaction=tx)
+        answer_snap = answer_ref.get(transaction=tx)
         story_ref = (client.collection("stories").document(str(article["story_id"]))
                      if article.get("story_id") else None)
         story_snap = story_ref.get(transaction=tx) if story_ref else None
 
         source = article.get("site", "")
-        previous = vote_snap.to_dict() if vote_snap.exists else None
-        if previous and previous.get("value") == value:
-            return {"status": "no_change", "source": source}
-
-        record = voter_snap.to_dict() if voter_snap.exists else {}
-        if record.get("day") != today:
-            record = {"day": today, "sites": {}, "pairs": record.get("pairs", {})}
-        done_today = int((record.get("sites") or {}).get(site_id, 0))
-        weight = rater_weight(done_today)
-        pair = f"{site_id}:{topic_id}"
-        first_time = pair not in (record.get("pairs") or {})
-
-        state = State.from_doc(((state_snap.to_dict() or {}).get("sites") or {}).get(site_id))
+        previous = answer_snap.to_dict() if answer_snap.exists else None
+        tally = dict(article.get("feel") or {"n": 0, "s": 0})
         if previous:
-            state = revise_rating(state, previous["value"], value, previous.get("weight", 1.0))
+            if previous.get("value") == value:
+                own = score(article.get("stance"), tally)
+                return {"status": "no_change", "source": source, "side": side(own)}
+            tally["s"] = int(tally.get("s", 0)) + value - int(previous.get("value", 0))
         else:
-            state = apply_rating(state, value, weight, first_time_rater=first_time)
+            tally = {"n": int(tally.get("n", 0)) + 1, "s": int(tally.get("s", 0)) + value}
 
-        rating = article.get("rating") or {"w": 0.0, "s": 0.0, "n": 0}
-        if previous:
-            rating["s"] = rating.get("s", 0.0) + previous.get("weight", 1.0) * (value - previous["value"])
-        else:
-            rating = {"w": rating.get("w", 0.0) + weight,
-                      "s": rating.get("s", 0.0) + weight * value,
-                      "n": rating.get("n", 0) + 1}
-
-        tx.set(vote_ref, {"article_id": str(article_id), "value": value, "weight": weight,
-                          "site_id": site_id, "topic_id": topic_id, "voter": voter,
-                          "blind": bool(vote.blind),
-                          "created_at": db.now(), "expires_at": db.vote_expiry()})
-        record.setdefault("sites", {})[site_id] = done_today + 1
-        record.setdefault("pairs", {})[pair] = True
-        record["expires_at"] = db.vote_expiry()   # kept no longer than the ratings
-        tx.set(voter_ref, record)
-        tx.set(article_ref, {"rating": rating}, merge=True)
-        entry = state.to_doc()
-        stored = ((state_snap.to_dict() or {}).get("sites") or {}).get(site_id, {})
-        # how many of this outlet's articles on this topic anyone has rated
-        entry["rated"] = int(stored.get("rated", 0)) + (1 if not previous and rating["n"] == 1 else 0)
-        tx.set(state_ref, {"sites": {site_id: entry}}, merge=True)
-        # the feed carries a copy of the score, so the story keeps it in step until
-        # the next ingest rebuilds the feed document
+        tx.set(answer_ref, {"kind": "feel", "article_id": article_id, "value": value,
+                            "site_id": str(article.get("site_id")), "voter": voter,
+                            "blind": bool(feel.blind),
+                            "created_at": db.now(), "expires_at": db.vote_expiry()})
+        tx.set(article_ref, {"feel": tally}, merge=True)
+        # the feed is built from the story's copy of its articles
         if story_snap is not None and story_snap.exists:
-            story = story_snap.to_dict()
-            articles = story.get("articles", [])
+            articles = story_snap.to_dict().get("articles", [])
             for entry in articles:
-                if str(entry.get("id")) == str(article_id):
-                    entry["rating"] = rating
+                if str(entry.get("id")) == article_id:
+                    entry["feel"] = tally
             tx.set(story_ref, {"articles": articles}, merge=True)
+        own = score(article.get("stance"), tally)
         # the name comes back with the answer, which is the whole of the blind
         # survey: you learn whose article it was only once you have committed
-        return {"mean_score": round(rating["s"] / rating["w"], 2) if rating["w"] else 0,
-                "source": source}
+        return {"source": source, "score": own, "side": side(own), "readers": tally["n"]}
 
     return apply(client.transaction())
 
 
 @app.delete("/me")
 def forget_me(request: Request):
-    """Delete what this reader left behind: their ratings and their day's tally.
+    """Delete what this reader left behind: their answers and their day's tally.
 
-    What a rating taught is not deleted with it, and the page that offers this says
+    What an answer taught is not deleted with it, and the page that offers this says
     so: an outlet's position is a running number that cannot be traced back to
-    anyone. It halves every 30 days on its own.
+    anyone, and it fades on its own.
     """
     voter = request.headers.get("x-voter", "")
     if not VOTER_ID.match(voter):
@@ -419,7 +392,8 @@ async def get_bloc_summary(story_id: str, bloc: str):
 
     blocs = {site_id: info["bloc"] for site_id, info in overall(db.all_topic_states()).items()}
     rows = [{"header": a["header"], "subheader": a.get("subheader"),
-             "site_id": str(a["site_id"])} for a in story.get("articles", [])]
+             "site_id": str(a["site_id"]), "stance": a.get("stance"), "feel": a.get("feel")}
+            for a in story.get("articles", [])]
     articles = articles_for(rows, blocs, bloc)
     if not articles:
         return {"summary": None, "reason": "bloc did not cover this story"}
@@ -470,8 +444,11 @@ def set_story_topic(story_id: str, fix: TopicFix):
         article["topic"] = topic["name"]
         article["topic_id"] = topic["id"]
         article["topic_model"] = "human"
+        # its stance was read on the old issue's axis, which is not this one's
+        article["stance"] = None
         writer.set(db.client().collection("articles").document(str(article["id"])),
-                   {"topic": topic["name"], "topic_id": topic["id"], "topic_model": "human"},
+                   {"topic": topic["name"], "topic_id": topic["id"], "topic_model": "human",
+                    "stance": None},
                    merge=True)
     writer.set(db.client().collection("stories").document(str(story_id)),
                {"topic": topic["name"], "articles": story["articles"]}, merge=True)

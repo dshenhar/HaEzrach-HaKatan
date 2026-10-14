@@ -10,9 +10,11 @@
     topicStates/{id}    every outlet's position on that topic, and the state the
                         position is learned from (see learning.py). One read draws
                         the whole map.
-    votes/{id}          one person's rating of one article. Deleted after a month by
-                        a TTL policy - it exists to stop a second rating, and what it
-                        taught is already in the topic's state.
+    votes/{id}          one person's answer on one article - how right or left it
+                        felt (feel_{article}_{voter}). Deleted after a month by a
+                        TTL policy: it exists to stop a second answer, and what it
+                        taught is already on the article. The older ratings, on a
+                        scale that read some issues backwards, are no longer read.
     voters/{id}         how much rating one person has done today, so twenty ratings
                         from one reader are not twenty readers
     corrections/{id}    a dev-mode fix: this story is about X, not what the model said
@@ -293,6 +295,10 @@ def topic_state_ref(topic_id):
 
 def vote_ref(article_id, voter: str):
     return client().collection("votes").document(f"{article_id}_{voter}")
+
+
+def feel_ref(article_id, voter: str):
+    return client().collection("votes").document(f"feel_{article_id}_{voter}")
 
 
 def voter_ref(voter: str):

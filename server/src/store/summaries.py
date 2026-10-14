@@ -105,10 +105,12 @@ def summarise(text_prompt: str) -> str | None:
 
 
 def articles_for(rows: list[dict], blocs: dict[str, str], bloc: str) -> list[tuple[str, str]]:
-    """The (headline, standfirst) pairs one summary is written from."""
+    """The (headline, standfirst) pairs one summary is written from: a side's are
+    the headlines that fell on it (stance.placed)."""
+    from store.stance import placed
     return [
         (a["header"], a.get("subheader") or "") for a in rows
-        if bloc == "all" or blocs.get(a["site_id"]) == bloc
+        if bloc == "all" or placed(a, blocs) == bloc
     ]
 
 

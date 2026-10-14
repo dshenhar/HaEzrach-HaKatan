@@ -91,7 +91,7 @@ export default function BlindSurvey() {
                     </Text>
                 ) : (
                     <>
-                        <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.line }]}>
+                        <View style={[styles.card, { backgroundColor: t.surfaceAlt }]}>
                             <Text style={[styles.topic, { color: t.textMuted }]}>{item.topic}</Text>
                             <Text style={[styles.headline, { color: t.text }]}>{item.title}</Text>
                             {!!item.summary && item.summary !== item.title && (
@@ -105,12 +105,17 @@ export default function BlindSurvey() {
                                     <Text style={[styles.pole, { color: LEFT }]}>{item.poles.left}</Text>
                                     <Text style={[styles.pole, { color: RIGHT }]}>{item.poles.right}</Text>
                                 </View>
-                                <Slider
-                                    minimumValue={-5} maximumValue={5} step={1}
-                                    value={value} onValueChange={setValue}
-                                    minimumTrackTintColor={LEFT} maximumTrackTintColor={RIGHT}
-                                    thumbTintColor={ink}
-                                />
+                                <View style={styles.map}>
+                                    {/* 0..10 with 5 in the middle: the slider takes a
+                                        starting 0 for none and jumps to its minimum */}
+                                    <Slider
+                                        style={styles.slider}
+                                        minimumValue={0} maximumValue={10} step={1}
+                                        value={value + 5} onValueChange={(v) => setValue(Math.round(v) - 5)}
+                                        minimumTrackTintColor={LEFT} maximumTrackTintColor={RIGHT}
+                                        thumbTintColor={ink}
+                                    />
+                                </View>
                                 <Text style={[styles.reading, { color: ink }]}>{side}</Text>
 
                                 <TouchableOpacity style={[styles.send, { backgroundColor: t.text }]}
@@ -131,7 +136,7 @@ export default function BlindSurvey() {
                                 <Text style={[styles.revealLabel, { color: t.textMuted }]}>הכתבה היא של</Text>
                                 <Text style={[styles.revealName, { color: t.text }]}>{revealed}</Text>
                                 <Text style={[styles.revealNote, { color: t.textMuted }]}>
-                                    הדירוג שלכם נרשם כדירוג עיוור, והוא נחשב יותר מדירוג שניתן אחרי שראיתם את השם.
+                                    התשובה שלכם נספרה עם שאר הקוראים על הכותרת הזו, בלי שידעתם של מי היא.
                                 </Text>
                                 <TouchableOpacity style={[styles.send, { backgroundColor: t.text }]}
                                     onPress={next} accessibilityRole="button">
@@ -143,7 +148,7 @@ export default function BlindSurvey() {
                 )}
 
                 <TouchableOpacity onPress={() => router.push("/methodology")} accessibilityRole="link">
-                    <Text style={[styles.skip, { color: t.textMuted }]}>איך הדירוגים האלה נספרים</Text>
+                    <Text style={[styles.skip, { color: t.textMuted }]}>איך התשובות האלה נספרות</Text>
                 </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
@@ -162,12 +167,15 @@ const styles = StyleSheet.create({
     body: { paddingHorizontal: 18, paddingBottom: 48, gap: 14 },
     lede: { fontFamily: "Rubik_500Medium", fontSize: 13, lineHeight: 20, textAlign: "right" },
     // deliberately plain: no colour, no logo, nothing that hints at a masthead
-    card: { borderRadius: 10, borderWidth: 1, padding: 14, gap: 8 },
+    card: { borderRadius: 14, padding: 14, gap: 8 },
     topic: { fontFamily: "Rubik_700Bold", fontSize: 11, textAlign: "right" },
     headline: { fontFamily: "Rubik_700Bold", fontSize: 17, lineHeight: 24, textAlign: "right" },
     standfirst: { fontFamily: "Rubik_400Regular", fontSize: 13, lineHeight: 20, textAlign: "right" },
-    // the left pole at the left end of the track, the right pole at the right end
-    axis: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
+    // the left pole at the left end of the track, the right pole at the right end,
+    // whatever direction the page runs in
+    axis: { flexDirection: "row", direction: "ltr", justifyContent: "space-between", marginTop: 6 },
+    map: { flexDirection: "row", direction: "ltr" },
+    slider: { flex: 1, height: 36 },
     pole: { fontFamily: "Rubik_700Bold", fontSize: 12 },
     reading: { fontFamily: "Rubik_800ExtraBold", fontSize: 15, textAlign: "center" },
     send: { borderRadius: 999, paddingVertical: 13, alignItems: "center", marginTop: 6 },

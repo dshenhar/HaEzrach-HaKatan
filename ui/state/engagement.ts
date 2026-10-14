@@ -12,6 +12,18 @@ export type CompanyItem =  {
 
 export type Bloc = "right" | "left" | "center" | "unknown";
 
+/**
+ * The side a headline is shown on. The feed says, from the headline itself; a feed
+ * built before headlines had sides does not, and then it is the outlet's bloc.
+ * null: on neither side - a headline that leans to neither, or an outlet with no
+ * known bloc.
+ */
+export const sideOf = (item: NewsItem, positions: Record<string, SitePosition>): "right" | "left" | null => {
+	if (item.side !== undefined) return item.side === "right" || item.side === "left" ? item.side : null;
+	const bloc = positions[item.source]?.bloc;
+	return bloc === "right" || bloc === "left" ? bloc : null;
+};
+
 export type SitePosition = {
 	source: string;
 	bias: number | null;
@@ -52,13 +64,18 @@ export async function getBlindArticle(seen: string[]): Promise<BlindArticle | nu
 	}
 }
 
-/** The vote, and with it the one thing the reader did not know: who wrote it. */
-export async function placeBlind(id: string, value: number): Promise<string | null> {
+/**
+ * How right (+) or left (-) an article felt to the reader, -5..5. It goes into the
+ * headline's own score, which the model's reading leads until enough readers have
+ * answered. The item's id is the feed's story-article pair; the server takes the
+ * article from it. Answers with whose article it was.
+ */
+export async function sendFeel(id: string, value: number, blind = false): Promise<string | null> {
 	try {
-		const res = await fetch(`${URL_BASE}/articles/${id}/vote`, {
+		const res = await fetch(`${URL_BASE}/articles/${id}/feel`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", "X-Voter": await getDeviceId() },
-			body: JSON.stringify({ value, blind: true }),
+			body: JSON.stringify({ value, blind }),
 		});
 		if (!res.ok) return null;
 		const body = await res.json();
@@ -67,6 +84,9 @@ export async function placeBlind(id: string, value: number): Promise<string | nu
 		return null;
 	}
 }
+
+/** The answer, and with it the one thing the reader did not know: who wrote it. */
+export const placeBlind = (id: string, value: number) => sendFeel(id, value, true);
 
 export type NewsItem = {
 	id: string;
@@ -82,6 +102,12 @@ export type NewsItem = {
 	topic: string;
 	link: string;
 	groupId?: string;
+	/** where the headline falls on its issue's axis, -5..5 (+5 the right's pole):
+	 *  the model's reading of it, and the readers' once enough have answered */
+	stance?: number | null;
+	/** the side it is shown on - its own, or its outlet's for a headline nothing has
+	 *  placed. Absent from a feed built before headlines had sides. */
+	side?: "right" | "left" | "neutral" | null;
 	/** the story's AI summaries, one per bloc and one across them ("all"). The
 	 *  server writes them before the feed is built and puts them on a story's first
 	 *  item only - read them with storySummaries(), not off an item directly. */
@@ -229,14 +255,8 @@ export async function saveRating(e: RatingEvent) {
 		// AsyncStorage.setItem(AGG_KEY, JSON.stringify(agg))
 		// console.log("aggs:", agg)
 		// // localStorage.clear()
-		const id = e.id.split("-")[1];
-		console.log("id:", id)
-		const res = fetch(`${URL_BASE}/articles/${id}/vote`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json", "X-Voter": await getDeviceId() },
-			body: JSON.stringify({ value: e.value, blind: !!e.blind })
-		})
-		console.log(res)
+		// how right or left the article felt, on its headline's own score
+		await sendFeel(e.id, e.value, !!e.blind);
 	} catch(err) {
 		console.log(err)
 	}

@@ -5,8 +5,9 @@ import { ActivityIndicator, ScrollView, StyleProp, StyleSheet, Text, TouchableOp
 
 const RIGHT = "#C0392F";
 const LEFT = "#2B5EA7";
-/** the server stands the estimate on its own under this many raters */
-const MIN_RATERS = 5;
+// from this many headlines on a topic its place is called measured: the editorial
+// estimate is worth ten (server/src/store/stance.py), and is outweighed from here
+const MIN_HEADLINES = 10;
 
 type Props = {
     source: string;
@@ -58,11 +59,13 @@ const OutletDetail = ({ source, poles, style }: Props) => {
                         // -5..5 -> 0..1 measured from the left edge
                         const pct = ((rank.bias + 5) / 10) * 100;
                         const leaning = rank.bias >= 0 ? RIGHT : LEFT;
-                        // A bar drawn at full strength says "this is measured". Most of
-                        // them are not: they are an editorial estimate waiting for
-                        // readers, and the bar says so by being faint until it is.
-                        const raters = rank.rated_count ?? 0;
-                        const measured = raters >= MIN_RATERS;
+                        // A bar drawn at full strength says "this is measured". Until an
+                        // outlet has headlines enough on a topic it is mostly the
+                        // editorial estimate, and the bar says so by being faint, firming
+                        // up as the headlines come in.
+                        const counted = rank.rated_count ?? 0;
+                        const sure = rank.confidence ?? 0;
+                        const measured = counted >= MIN_HEADLINES;
                         return (
                             <View key={rank.topic} style={styles.row}>
                                 <View style={styles.rowHead}>
@@ -73,12 +76,14 @@ const OutletDetail = ({ source, poles, style }: Props) => {
                                 </View>
                                 <View style={styles.track}>
                                     <View style={styles.midline} />
-                                    <View style={[styles.fill, { opacity: measured ? 1 : 0.4 }, rank.bias >= 0
+                                    <View style={[styles.fill, { opacity: 0.4 + 0.6 * sure }, rank.bias >= 0
                                         ? { left: "50%", width: `${pct - 50}%`, backgroundColor: RIGHT }
                                         : { left: `${pct}%`, width: `${50 - pct}%`, backgroundColor: LEFT }]} />
                                 </View>
                                 <Text style={styles.basis}>
-                                    {measured ? `לפי ${raters} דירוגי קוראים` : "הערכה עריכתית, טרם נמדדה"}
+                                    {measured ? `לפי ${counted} כותרות`
+                                        : counted > 0 ? `הערכה עריכתית ו-${counted === 1 ? "כותרת אחת" : `${counted} כותרות`}`
+                                        : "הערכה עריכתית, טרם נמדדה"}
                                 </Text>
                             </View>
                         );

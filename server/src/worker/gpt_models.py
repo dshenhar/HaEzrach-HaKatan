@@ -3,7 +3,9 @@
   embeddings  text-embedding-3-large, cut to 768 dimensions so every Vector(768)
               column stays as it is. Stories are grouped by these.
   topics      gpt-5.6-luna, answering in a JSON schema whose only allowed values
-              are the topic names, so it cannot invent a topic or misspell one.
+              are the topic names, so it cannot invent a topic or misspell one -
+              and, in the same answer, where the headline falls on its issue's
+              axis (store/stance.py).
   light work  gpt-6-luna, at about half the price: whether two stories the
               embeddings put close together are one event (same_event), the
               translation of Arabic items, and the one-line summaries. Tried side
@@ -40,6 +42,9 @@ TAG_BATCH = 20
 
 # what the model answers for an article that is about none of the topics - most news
 OTHER = "אחר"
+# where a headline falls on its issue's axis: +5 the pole the right holds, -5 the
+# left's, 0 a report that leans to neither
+STANCES = list(range(-5, 6))
 
 
 class OpenAIUnavailable(Exception):
@@ -87,9 +92,10 @@ def embed(texts: list[str]) -> list[np.ndarray]:
 
 
 def _instructions(topics: dict[str, str], sections: dict[str, str],
-                  examples: list[tuple[str, str]]) -> str:
+                  examples: list[tuple[str, str]],
+                  poles: dict[str, tuple[str, str]]) -> str:
     lines = [
-        "אתה מתייג כתבות מאתרי חדשות ישראליים בשני שדות.",
+        "אתה מתייג כתבות מאתרי חדשות ישראליים בשלושה שדות.",
         "",
         "1. מדור - לכל כתבה בדיוק אחד, גם אם אין בה שום פוליטיקה:",
     ]
@@ -98,12 +104,22 @@ def _instructions(topics: dict[str, str], sections: dict[str, str],
         "",
         "2. סוגיה - רק אם הכתבה עוסקת באופן ישיר ומהותי באחת מהמחלוקות הציבוריות האלה:",
     ]
-    lines += [f"   - {name}: {desc}" for name, desc in topics.items()]
+    lines += [f"   - {name}: {desc}" + (f" (+5: {poles[name][0]}; -5: {poles[name][1]})"
+                                           if poles.get(name) and all(poles[name]) else "")
+              for name, desc in topics.items()]
     lines += [
         "",
         f"אם הכתבה אינה עוסקת באף אחת מהמחלוקות, בחר סוגיה \"{OTHER}\". "
         "זה המצב ברוב החדשות: פלילים, תאונות, מזג אוויר, ספורט, בריאות ורוב חדשות העולם.",
         "אזכור אגבי אינו מספיק - הסוגיה צריכה להיות מה שהכתבה עוסקת בו.",
+        "",
+        "3. נטייה - מספר שלם מ-5- עד 5: היכן הכותרת והתקציר, כפי שהם כתובים, נופלים על "
+        "הציר של הסוגיה שבחרת. 5 הוא הקוטב שאחרי \"+5\" בסוגיה, 5- הקוטב שאחרי \"-5\", "
+        "ו-0 דיווח שאינו נוטה לאף אחד מהם.",
+        "   שפוט לפי הטקסט בלבד: בחירת המילים, המסגור, מי מצוטט ובאיזה אור, ומה מודגש. "
+        "דיווח עובדתי יבש מקבל 0 או קרוב לו, גם כשהנושא טעון. "
+        "אל תנחש לפי האתר או לפי מה שנהוג לחשוב עליו, ואל תביע עמדה משלך.",
+        f"   לכתבה שסוגייתה \"{OTHER}\" החזר 0.",
     ]
     if examples:
         lines += ["", "תיקונים שעשה עורך אנושי. תייג כתבות דומות באותו אופן:"]
@@ -113,14 +129,17 @@ def _instructions(topics: dict[str, str], sections: dict[str, str],
 
 def classify(items: list[tuple[int, str]], topics: dict[str, str],
              sections: dict[str, str],
-             examples: list[tuple[str, str]] | None = None) -> dict[int, dict]:
-    """Section and issue per item id: {"section": name, "topic": name or None}.
+             examples: list[tuple[str, str]] | None = None,
+             poles: dict[str, tuple[str, str]] | None = None) -> dict[int, dict]:
+    """Section, issue and stance per item id:
+    {"section": name, "topic": name or None, "stance": -5..5 or None}.
 
-    topics and sections each map a name to a line saying what belongs in it. The
+    topics and sections each map a name to a line saying what belongs in it, and
+    poles an issue's name to the right's and the left's ends of its axis. The
     instructions come first and stay identical from call to call, so OpenAI serves
     them from its prompt cache at a tenth of the price.
     """
-    instructions = _instructions(topics, sections, examples or [])
+    instructions = _instructions(topics, sections, examples or [], poles or {})
     schema = {
         "type": "object",
         "additionalProperties": False,
@@ -128,10 +147,11 @@ def classify(items: list[tuple[int, str]], topics: dict[str, str],
         "properties": {"items": {"type": "array", "items": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["id", "section", "topic"],
+            "required": ["id", "section", "topic", "stance"],
             "properties": {"id": {"type": "integer"},
                            "section": {"type": "string", "enum": list(sections)},
-                           "topic": {"type": "string", "enum": list(topics) + [OTHER]}},
+                           "topic": {"type": "string", "enum": list(topics) + [OTHER]},
+                           "stance": {"type": "integer", "enum": STANCES}},
         }}},
     }
     out: dict[int, dict] = {}
@@ -152,8 +172,11 @@ def classify(items: list[tuple[int, str]], topics: dict[str, str],
         for row in json.loads(content).get("items", []):
             if row.get("id") in wanted:
                 topic = row.get("topic")
+                stance = row.get("stance")
                 out[row["id"]] = {"section": row.get("section"),
-                                  "topic": None if topic == OTHER else topic}
+                                  "topic": None if topic == OTHER else topic,
+                                  "stance": (max(-5, min(5, int(stance)))
+                                             if topic != OTHER and isinstance(stance, int) else None)}
     return out
 
 
