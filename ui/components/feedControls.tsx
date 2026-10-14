@@ -2,10 +2,9 @@ import { sectionColour, sectionTint } from '@/state/sections';
 import { useTheme } from '@/state/theme';
 import { TYPE } from '@/state/craft';
 import Press from './press';
-import { SearchField } from './searchOverlay';
-import { keptHot } from '@/state/hotTopics';
 import React, { useRef, useState } from 'react';
 import { I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Modal from 'react-native-modal';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 export type SortKey = "newest" | "oldest" | "covered" | "outside";
@@ -54,10 +53,8 @@ const Strip = ({ children, style }: { children: React.ReactNode; style?: any }) 
     );
 };
 
-type Panel = "filter" | "sort" | "search";
-
 type Props = {
-    /** the day's headline, which shares its line with the two controls */
+    /** the day's headline, which shares its line with the filter button */
     title: string;
     sections: string[];
     selectedSections: string[];
@@ -68,24 +65,20 @@ type Props = {
     onBlocFilter: (filter: BlocFilter) => void;
     /** whether the reader has told us their side, which makes a blindspot theirs */
     knowsBloc?: boolean;
-    query: string;
-    onQuery: (text: string) => void;
-    /** the query is sent: its results open over the app */
-    onSearch: () => void;
 }
 
 /**
- * The day's title, and on the same line three small icons: the filter, the sort and
- * the search. Each opens its own panel, and only when it is touched - the rail with a toggle,
- * a "סינון" button and a strip of bloc filters under it was three rows of
- * housekeeping between the reader and the first story.
+ * The day's title, and on the same line one button: the filter. It opens a drawer
+ * from the foot of the screen holding everything that narrows or orders the feed -
+ * who told a story, its section, and the order - so the head of the feed is the
+ * title and the news, and not three rows of housekeeping.
  *
- * A filter that is on is never on unnoticed: its icon wears a gold dot, and while
- * the panel is shut what it is narrowing to sits under the title, each with its ✕.
+ * A filter that is on is never on unnoticed: the button wears a gold dot, and what
+ * the feed is narrowed to sits under the title, each with its ✕.
  */
 const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort, onSort,
-                       blocFilter, onBlocFilter, knowsBloc, query, onQuery, onSearch }: Props) => {
-    const [panel, setPanel] = useState<Panel | null>(null);
+                       blocFilter, onBlocFilter, knowsBloc }: Props) => {
+    const [drawer, setDrawer] = useState(false);
     const t = useTheme();
     const dark = t.name === "negative";
 
@@ -93,35 +86,14 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
     const filtering = active.length > 0 || blocFilter !== "all";
     const sorting = sort !== "newest";
     const bloc = BLOC_FILTERS.find((option) => option.key === blocFilter);
-
-    const icon = (which: Panel, name: keyof typeof Ionicons.glyphMap, label: string, on: boolean) => {
-        const open = panel === which;
-        return (
-            <Press
-                style={[styles.icon, { borderColor: t.line, backgroundColor: t.surface },
-                    on && !open && { borderColor: t.brand },
-                    open && { backgroundColor: t.text, borderColor: t.text }]}
-                onPress={() => {
-                    // the hot topics are fetched as the search row opens, not when it is sent
-                    if (which === "search" && !open) void keptHot();
-                    setPanel(open ? null : which);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                accessibilityState={{ expanded: open }}
-                hitSlop={6}
-            >
-                <Ionicons name={name} size={15} color={open ? t.surface : t.text} />
-                {on && !open && <View style={[styles.badge, { backgroundColor: t.brand, borderColor: t.bg }]} />}
-            </Press>
-        );
-    };
+    const order = SORT_OPTIONS.find((option) => option.key === sort);
 
     const chip = (key: string, label: string, on: boolean, onPress: () => void, dot?: string) => (
         <Press key={key}
-            style={[styles.chip, styles.edged,
-                { borderColor: on ? t.text : t.line, backgroundColor: on ? t.text : t.surface }]}
-            onPress={onPress}>
+            style={[styles.chip, styles.row, { backgroundColor: on ? t.text : t.surfaceAlt }]}
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}>
             {!!dot && <View style={[styles.dot, { backgroundColor: dot }]} />}
             <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>{label}</Text>
         </Press>
@@ -131,17 +103,24 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
         <View style={[styles.wrap, { backgroundColor: t.bg }]}>
             <View style={styles.titleRow}>
                 <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>{title}</Text>
-                <View style={styles.icons}>
-                    {icon("filter", "funnel-outline", "סינון", filtering)}
-                    {icon("sort", "swap-vertical", "מיון", sorting)}
-                    {icon("search", "search", "חיפוש", false)}
-                </View>
+                <Press
+                    style={[styles.button, { backgroundColor: t.surfaceAlt }]}
+                    onPress={() => setDrawer(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="סינון ומיון"
+                    hitSlop={6}
+                >
+                    <Ionicons name="options-outline" size={17} color={t.text} />
+                    {(filtering || sorting) && (
+                        <View style={[styles.badge, { backgroundColor: t.brand, borderColor: t.bg }]} />
+                    )}
+                </Press>
             </View>
 
-            {filtering && panel !== "filter" && (
+            {(filtering || sorting) && (
                 <Strip style={styles.strip}>
                     {blocFilter !== "all" && bloc && (
-                        <Press style={[styles.chip, styles.edged, { borderColor: t.text, backgroundColor: t.surface }]}
+                        <Press style={[styles.chip, { backgroundColor: t.surfaceAlt }]}
                             onPress={() => onBlocFilter("all")}>
                             <Text style={[styles.chipText, { color: t.text }]}>{bloc.label}  ✕</Text>
                         </Press>
@@ -153,16 +132,40 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                             <Text style={[styles.chipText, styles.chipOn]}>{section}  ✕</Text>
                         </Press>
                     ))}
+                    {sorting && order && (
+                        <Press style={[styles.chip, { backgroundColor: t.surfaceAlt }]}
+                            onPress={() => onSort("newest")}>
+                            <Text style={[styles.chipText, { color: t.text }]}>{order.label}  ✕</Text>
+                        </Press>
+                    )}
                 </Strip>
             )}
 
-            {panel === "filter" && (
-                <>
+            <Modal
+                isVisible={drawer}
+                onBackdropPress={() => setDrawer(false)}
+                onBackButtonPress={() => setDrawer(false)}
+                onSwipeComplete={() => setDrawer(false)}
+                swipeDirection="down"
+                style={styles.modal}
+                backdropOpacity={0.35}
+                propagateSwipe
+            >
+                <View style={[styles.sheet, { backgroundColor: t.surface }]}>
+                    <View style={[styles.grabber, { backgroundColor: t.line }]} />
+                    <View style={styles.sheetHead}>
+                        <Text style={[styles.sheetTitle, { color: t.text }]}>סינון ומיון</Text>
+                        <Press onPress={() => setDrawer(false)} hitSlop={10}
+                            accessibilityRole="button" accessibilityLabel="סגירה">
+                            <Ionicons name="close" size={22} color={t.text} />
+                        </Press>
+                    </View>
+
                     <Text style={[styles.panelLabel, { color: t.textMuted }]}>מי סיקר</Text>
-                    <Strip style={styles.strip}>
+                    <View style={styles.wrapRow}>
                         {BLOC_FILTERS.map((option) => chip(option.key, option.label,
                             option.key === blocFilter, () => onBlocFilter(option.key), option.dot))}
-                    </Strip>
+                    </View>
                     {/* the one filter whose name does not explain itself */}
                     {blocFilter === "blind" && (
                         <Text style={[styles.note, { color: t.textMuted }]}>
@@ -171,50 +174,41 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                                 : "סיפורים שצד אחד סיקר והשני לא. מלאו את שאלון העמדות כדי לראות דווקא את אלה שהצד שלכם פספס."}
                         </Text>
                     )}
+
                     <Text style={[styles.panelLabel, { color: t.textMuted }]}>מדורים</Text>
-                    <Strip style={styles.strip}>
+                    <View style={styles.wrapRow}>
                         {sections.map((section) => {
                             // off, the chip is a tint of its own colour with the name in
                             // that colour at full strength - the same surface the card's
-                            // tab wears, so the strip and the feed are plainly one palette.
+                            // tab wears, so the drawer and the feed are plainly one palette.
                             // On, it fills in: the chosen one is the only solid thing here.
                             const tint = sectionTint(section, dark);
                             const on = active.includes(section);
                             return (
                                 <Press key={section}
-                                    style={[styles.chip, styles.edged,
-                                        on ? { borderColor: tint.ink, backgroundColor: tint.ink }
-                                           : { borderColor: tint.edge, backgroundColor: tint.fill }]}
-                                    onPress={() => onToggleSection(section)}>
+                                    style={[styles.chip, { backgroundColor: on ? tint.ink : tint.fill }]}
+                                    onPress={() => onToggleSection(section)}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: on }}>
                                     <Text style={[styles.chipText,
                                         on ? styles.chipOn : { color: tint.label }]}>{section}</Text>
                                 </Press>
                             );
                         })}
-                    </Strip>
-                </>
-            )}
-
-            {/* the search row opens where the other two panels do; what it finds
-                opens over the whole app, the feed and the hot topics both */}
-            {panel === "search" && (
-                <View style={styles.searchRow}>
-                    <View style={styles.searchField}>
-                        <SearchField value={query} onChange={onQuery} onSubmit={onSearch} autoFocus />
                     </View>
-                    <Press style={[styles.go, { backgroundColor: t.text }]} onPress={onSearch}
-                        accessibilityRole="button" accessibilityLabel="הצגת התוצאות">
-                        <Text style={[styles.goText, { color: t.surface }]}>חיפוש</Text>
+
+                    <Text style={[styles.panelLabel, { color: t.textMuted }]}>מיון</Text>
+                    <View style={styles.wrapRow}>
+                        {SORT_OPTIONS.map((option) => chip(option.key, option.label,
+                            option.key === sort, () => onSort(option.key)))}
+                    </View>
+
+                    <Press style={[styles.done, { backgroundColor: t.text }]} onPress={() => setDrawer(false)}
+                        accessibilityRole="button">
+                        <Text style={[styles.doneText, { color: t.surface }]}>הצגת הסיפורים</Text>
                     </Press>
                 </View>
-            )}
-
-            {panel === "sort" && (
-                <Strip style={styles.strip}>
-                    {SORT_OPTIONS.map((option) => chip(option.key, option.label,
-                        option.key === sort, () => onSort(option.key)))}
-                </Strip>
-            )}
+            </Modal>
         </View>
     );
 };
@@ -223,40 +217,40 @@ export default FeedControls;
 
 const styles = StyleSheet.create({
     wrap: { width: "100%", paddingTop: 2, paddingBottom: 10, gap: 8 },
-    // row-reverse: the title from the right edge, the two icons at the left
+    // row-reverse: the title from the right edge, the button at the left
     titleRow: {
         flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 16,
     },
     title: { ...TYPE.display, flex: 1, textAlign: "right" },
-    icons: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
-    icon: {
-        width: 32, height: 32, borderRadius: 16, borderWidth: 1,
-        alignItems: "center", justifyContent: "center",
+    button: {
+        width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center",
     },
-    // a filter or an order left on: a gold dot on the icon's shoulder
+    // a filter or an order left on: a gold dot on the button's shoulder
     badge: {
-        position: "absolute", top: -1, right: -1, width: 9, height: 9, borderRadius: 5,
+        position: "absolute", top: -1, right: -1, width: 10, height: 10, borderRadius: 5,
         borderWidth: 1.5,
     },
-    // the panel's two halves, each said once and quietly
-    panelLabel: {
-        fontFamily: "Rubik_700Bold", fontSize: 10.5, textAlign: "right",
-        paddingHorizontal: 16, marginBottom: -3,
-    },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
-    chip: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 11 },
-    // a hairline rather than a 1.5px outline: the chip is a surface with an edge,
-    // not a shape drawn in outline
-    edged: { flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1 },
+    chip: { borderRadius: 999, paddingVertical: 7, paddingHorizontal: 12 },
+    row: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
     dot: { width: 7, height: 7, borderRadius: 4 },
-    chipText: { fontFamily: "Rubik_500Medium", fontSize: 12, letterSpacing: 0.05 },
+    chipText: { fontFamily: "Rubik_500Medium", fontSize: 13, letterSpacing: 0.05 },
     chipOn: { color: "#FFFFFF", fontFamily: "Rubik_700Bold" },
-    searchRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingHorizontal: 16 },
-    searchField: { flex: 1 },
-    go: { height: 40, borderRadius: 999, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
-    goText: { fontFamily: "Rubik_700Bold", fontSize: 14 },
-    note: {
-        fontFamily: "Rubik_500Medium", fontSize: 11, lineHeight: 16,
-        textAlign: "right", paddingHorizontal: 16, marginTop: -2,
+    modal: { justifyContent: "flex-end", margin: 0 },
+    sheet: {
+        borderTopLeftRadius: 22, borderTopRightRadius: 22,
+        paddingHorizontal: 18, paddingTop: 8, paddingBottom: 30, gap: 10,
+        width: "100%", maxWidth: 520, alignSelf: "center",
     },
+    grabber: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, marginBottom: 4 },
+    sheetHead: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+    sheetTitle: { ...TYPE.title, fontSize: 19, textAlign: "right" },
+    // the drawer's parts, each said once and quietly
+    panelLabel: { fontFamily: "Rubik_700Bold", fontSize: 12, textAlign: "right", marginTop: 6 },
+    wrapRow: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
+    note: {
+        fontFamily: "Rubik_500Medium", fontSize: 12, lineHeight: 17, textAlign: "right",
+    },
+    done: { marginTop: 12, borderRadius: 999, paddingVertical: 13, alignItems: "center" },
+    doneText: { fontFamily: "Rubik_700Bold", fontSize: 15 },
 });

@@ -1,7 +1,7 @@
 import { useStillness } from '@/state/access';
 import { PRESS_MS, PRESS_SCALE } from '@/state/craft';
 import React from 'react';
-import { Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
+import { Pressable, PressableProps, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 type Props = PressableProps & {
@@ -22,6 +22,10 @@ type Props = PressableProps & {
  * It is a timing curve rather than a spring on purpose: this is not a gesture
  * anyone can grab mid-flight, it is a light that comes on. 110ms is below the
  * threshold where a press feels acknowledged late.
+ *
+ * The look is on the inner view, which is the one that gives; how it shares its
+ * row with what stands beside it - flex, alignSelf - is on the outer one as well,
+ * which is the one its row lays out.
  */
 export default function Press({ style, scale = PRESS_SCALE, children, ...rest }: Props) {
     const still = useStillness();
@@ -35,9 +39,13 @@ export default function Press({ style, scale = PRESS_SCALE, children, ...rest }:
         });
     };
 
+    const { flex, flexGrow, flexShrink, flexBasis, alignSelf }: ViewStyle =
+        StyleSheet.flatten(style as StyleProp<ViewStyle>) ?? {};
+
     return (
         <Pressable
             {...rest}
+            style={{ flex, flexGrow, flexShrink, flexBasis, alignSelf }}
             onPressIn={(e) => { to(scale); rest.onPressIn?.(e); }}
             onPressOut={(e) => { to(1); rest.onPressOut?.(e); }}
         >

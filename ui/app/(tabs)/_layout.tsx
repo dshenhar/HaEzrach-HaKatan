@@ -63,7 +63,7 @@ export default function TabLayout() {
 			options={{
 				title: 'נושאים חמים',
 				tabBarIcon: ({ color, focused }) => (
-				<Ionicons name={focused ? 'flame' : 'flame-outline'} color={color} size={tabIconSize}/>
+				<Ionicons name={focused ? 'compass' : 'compass-outline'} color={color} size={tabIconSize}/>
 				),
 			}}
 			/>

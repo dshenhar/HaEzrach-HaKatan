@@ -1,5 +1,6 @@
 import SwipeTabs from '@/components/swipeTabs';
 import OutletPositions from '@/components/outletPositions';
+import PersonalArea from '@/components/personalArea';
 import { fetchArticles, getSitePositions, NewsItem, SitePosition } from "@/state/engagement";
 import { buildInsights, Insights } from "@/state/insights";
 import { getProfile, ReaderProfile } from "@/state/profile";
@@ -32,6 +33,24 @@ export default function AnalyticsPage() {
 	const [positionsOpen, setPositionsOpen] = useState(false);
 	const [hint, setHint] = useState(false);
 	const { open: askQuestionnaire } = useQuestionnaire();
+	// the personal area lives here now, opened from the head of the page
+	const [personalOpen, setPersonalOpen] = useState(false);
+	const personal = (
+		<>
+			<View style={styles.topBar}>
+				<TouchableOpacity onPress={() => setPersonalOpen(true)} hitSlop={10}
+					accessibilityRole="button" accessibilityLabel="האזור האישי">
+					<Ionicons name="person-circle-outline" size={30} color="#111827" />
+				</TouchableOpacity>
+			</View>
+			<PersonalArea
+				open={personalOpen}
+				onClose={() => setPersonalOpen(false)}
+				profile={profile}
+				onRetakeQuestionnaire={askQuestionnaire}
+			/>
+		</>
+	);
 
 	const load = useCallback(async () => {
 		let feed: NewsItem[][] = [];
@@ -59,6 +78,7 @@ export default function AnalyticsPage() {
 		return (
 			<SafeAreaView style={styles.container}>
 				<ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+				{personal}
 				<View style={styles.invite}>
 					<Text style={styles.inviteTitle}>כאן יופיעו הנתונים שלכם</Text>
 					<Text style={styles.inviteBody}>
@@ -117,6 +137,7 @@ export default function AnalyticsPage() {
 					showsVerticalScrollIndicator={false}
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
 				>
+					{personal}
 					<Text style={styles.title}>מה קורא פה</Text>
 					<Text style={styles.subtitle}>ניתוח נתוני הצפיות שלך</Text>
 
@@ -296,7 +317,9 @@ export default function AnalyticsPage() {
 
 const styles = StyleSheet.create({
 	// inside the page's own padding, which adds the other 16 at the sides
-	invite: { paddingHorizontal: 8, paddingTop: 32, paddingBottom: 12, gap: 12 },
+	invite: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 12, gap: 12 },
+	// the personal area's button, at the page's left
+	topBar: { flexDirection: RTL_ROW, justifyContent: "flex-end", marginBottom: -6 },
 	inviteTitle: { fontFamily: "Rubik_800ExtraBold", fontSize: 22, color: "#111827", textAlign: "right" },
 	inviteBody: {
 		fontFamily: "Rubik_400Regular", fontSize: 14, lineHeight: 21,
@@ -310,14 +333,15 @@ const styles = StyleSheet.create({
 		textAlign: "right", backgroundColor: "#F4F4F3", borderRadius: 10, padding: 11,
 	},
 
-	container: { flex: 1, backgroundColor: "#f8f8f8ff" },
+	container: { flex: 1, backgroundColor: "#FFFFFF" },
 	// room for the bar to float over without covering the last card
 	scroll: { padding: 16, gap: 12, paddingBottom: 96 },
 	title: { fontFamily: "Rubik_800ExtraBold", fontSize: 26, color: "#111827", textAlign: "right" },
 	subtitle: { fontFamily: "Rubik_400Regular", fontSize: 14, color: "#6B7280", textAlign: "right", marginBottom: 4 },
 	sectionTitle: { fontFamily: "Rubik_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right", marginTop: 8 },
 
-	card: { backgroundColor: "#fff", borderRadius: 12, padding: 14, gap: 9 },
+	// no border: a card is told from the white page by a ground a shade greyer
+	card: { backgroundColor: "#F4F4F3", borderRadius: 12, padding: 14, gap: 9 },
 	cardTitle: { fontFamily: "Rubik_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
 	bigRow: { flexDirection: RTL_ROW, alignItems: "baseline", gap: 10 },
 	big: { fontFamily: "Rubik_800ExtraBold", fontSize: 34, color: "#111827" },
@@ -325,7 +349,7 @@ const styles = StyleSheet.create({
 	footnote: { fontFamily: "Rubik_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
 
 	// the bars fill from the right
-	track: { flexDirection: RTL_ROW, height: 10, borderRadius: 999, backgroundColor: "#EEEDEA", overflow: "hidden" },
+	track: { flexDirection: RTL_ROW, height: 10, borderRadius: 999, backgroundColor: "#E4E3DF", overflow: "hidden" },
 	fill: { height: 10, borderRadius: 999 },
 
 	// centred like the circles below, so each label sits over its own circle
@@ -336,7 +360,7 @@ const styles = StyleSheet.create({
 	row: {
 		// without the gap the score sat flush against the end of the topic name
 		flexDirection: RTL_ROW, justifyContent: "space-between", alignItems: "center", gap: 14,
-		borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEEDEA", paddingVertical: 6,
+		borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E4E3DF", paddingVertical: 6,
 	},
 	rowLabel: { fontFamily: "Rubik_400Regular", fontSize: 13, color: "#111827", textAlign: "right", flex: 1 },
 	rowValue: { fontFamily: "Rubik_800ExtraBold", fontSize: 12 },
@@ -354,12 +378,12 @@ const styles = StyleSheet.create({
 	avatarText: { fontFamily: "Rubik_700Bold", fontSize: 8, color: "#fff", textAlign: "center", lineHeight: 10 },
 
 	missed: {
-		backgroundColor: "#F4F4F3", borderRadius: 10, padding: 10, gap: 6, marginTop: 2,
+		backgroundColor: "#FFFFFF", borderRadius: 10, padding: 10, gap: 6, marginTop: 2,
 	},
 	missedHead: { flexDirection: RTL_ROW, alignItems: "center", gap: 8 },
 	missedTitle: { fontFamily: "Rubik_700Bold", fontSize: 13, lineHeight: 18, color: "#111827", textAlign: "right" },
 
 	chips: { flexDirection: RTL_ROW, flexWrap: "wrap", gap: 6 },
-	chip: { borderWidth: 1, borderColor: "#E3E3E1", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+	chip: { backgroundColor: "#FFFFFF", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
 	chipText: { fontFamily: "Rubik_500Medium", fontSize: 11, color: "#111827" },
 });

@@ -127,7 +127,7 @@ export default function OutletPositions() {
                                     const chosen = source === outlet;
                                     return (
                                         <Press key={source}
-                                            style={[styles.outlet, { borderColor: ink },
+                                            style={[styles.outlet,
                                                 chosen ? { backgroundColor: ink } : { backgroundColor: soft }]}
                                             onPress={() => pick(source, side)}
                                             accessibilityRole="button">
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     circleText: { fontFamily: "Rubik_800ExtraBold", fontSize: 12.5, color: "#FFFFFF" },
     middle: { flex: 1, minHeight: 40, justifyContent: "center", overflow: "hidden" },
     strip: { alignItems: "center", gap: 6, paddingVertical: 4 },
-    outlet: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
+    outlet: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
     outletText: { fontFamily: "Rubik_700Bold", fontSize: 12 },
     hint: { fontFamily: "Rubik_400Regular", fontSize: 12, color: "#9CA3AF", textAlign: "center" },
     // the embedded window: a fixed height, scrolled from inside

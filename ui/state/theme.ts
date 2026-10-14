@@ -30,7 +30,7 @@ export type Theme = {
 
 export const LIGHT: Theme = {
 	name: "light",
-	bg: "#f8f8f8", surface: "#ffffff", surfaceAlt: "#F4F4F3", track: "#E4E3DF",
+	bg: "#FFFFFF", surface: "#ffffff", surfaceAlt: "#F4F4F3", track: "#E4E3DF",
 	text: "#111827", textMuted: "#6B7280", line: "#E3E3E1",
 	brand: "#22C55E", brandInk: "#04310F",
 	select: "#DDA01E", selectInk: "#FFFFFF",

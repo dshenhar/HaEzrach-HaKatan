@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     // row-reverse puts the first column - the right bloc - on the right
     split: { flexDirection: "row-reverse", gap: 8, alignItems: "flex-start" },
     col: { flex: 1, borderRadius: 10, padding: 11, gap: 7 },
-    colOpen: { borderWidth: 1, borderColor: "rgba(17,24,39,0.10)" },
+    colOpen: {},
     colHead: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "baseline" },
     colLabel: { fontFamily: "Rubik_800ExtraBold", fontSize: 13.5, letterSpacing: -0.1 },
     colCount: {
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     },
     unalignedNote: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#6B7280", textAlign: "right" },
     pill: {
-        backgroundColor: "#fff", borderRadius: 999, borderWidth: 1, borderColor: "#E3E3E1",
+        backgroundColor: "#fff", borderRadius: 999,
         paddingHorizontal: 11, paddingVertical: 5, marginLeft: 6,
     },
     pillText: { fontFamily: "Rubik_700Bold", fontSize: 11, color: "#111827" },

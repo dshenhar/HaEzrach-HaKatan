@@ -116,7 +116,7 @@ function InstallGuide({ open, kind, onClose }: {
 	return (
 		<Modal isVisible={open && steps !== null} onBackdropPress={onClose} onBackButtonPress={onClose}
 			backdropOpacity={0.45} style={styles.modal} useNativeDriver>
-			<View style={[styles.card, { backgroundColor: t.surface, borderColor: t.line }]}>
+			<View style={[styles.card, { backgroundColor: t.surface }]}>
 				<Text style={[styles.title, { color: t.text }]}>{ACTION}</Text>
 				{steps && <InstallSteps kind={steps} />}
 				<TouchableOpacity onPress={onClose} accessibilityRole="button">
@@ -143,7 +143,7 @@ export function InstallBanner() {
 	return (
 		<>
 			<View
-				style={[styles.banner, { backgroundColor: t.surfaceAlt, borderColor: t.line }]}
+				style={[styles.banner, { backgroundColor: t.surfaceAlt }]}
 				accessibilityLabel="הצעה להוספה למסך הבית"
 			>
 				<TouchableOpacity
@@ -191,7 +191,7 @@ export function InstallRow() {
 				<Ionicons name={steps ? "chevron-up" : "chevron-back"} size={18} color={t.textMuted} />
 			</TouchableOpacity>
 			{steps && (
-				<View style={[styles.inline, { backgroundColor: t.surfaceAlt, borderColor: t.line }]}>
+				<View style={[styles.inline, { backgroundColor: t.surfaceAlt }]}>
 					<InstallSteps kind={steps} />
 				</View>
 			)}
@@ -205,8 +205,6 @@ const styles = StyleSheet.create({
 		width: "100%",
 		marginTop: 6,
 		marginBottom: 2,
-		borderTopWidth: 1,
-		borderBottomWidth: 1,
 		paddingVertical: 11,
 		paddingHorizontal: 44,
 		position: "relative",
@@ -231,10 +229,10 @@ const styles = StyleSheet.create({
 	},
 	row: { alignItems: "center", gap: 12, borderRadius: 12, padding: 13 },
 	rowTitle: { fontFamily: "Rubik_700Bold", fontSize: 14, textAlign: "right" },
-	inline: { borderWidth: 1, borderRadius: 12, padding: 13 },
+	inline: { borderRadius: 12, padding: 13 },
 
 	modal: { justifyContent: "center", alignItems: "center", margin: 20 },
-	card: { width: "100%", maxWidth: 360, borderRadius: 18, borderWidth: 1, padding: 20, gap: 14 },
+	card: { width: "100%", maxWidth: 360, borderRadius: 18, padding: 20, gap: 14 },
 	title: { fontFamily: "Rubik_800ExtraBold", fontSize: 21, textAlign: "right" },
 	steps: { gap: 10 },
 	step: { alignItems: "center", gap: 8 },

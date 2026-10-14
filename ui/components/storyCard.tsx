@@ -1,6 +1,6 @@
 import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
 import { BLIND_INK, blindLabel, blindTo } from '@/state/blindspot';
-import { elevation, SETTLE, SWELL, TYPE } from '@/state/craft';
+import { SETTLE, SWELL, TYPE } from '@/state/craft';
 import Press from './press';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -138,10 +138,6 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     const mine = !!missing && missing === readerBloc;
     const dark = t.name === "negative";
     const tint = sectionTint(section, dark);
-    // A folded story sits on the feed; an open one is lifted off it, and is the only
-    // card at that height. Two shadows each, because one blurred drop reads as a
-    // sticker and a hard offset reads as a drawing of a shadow.
-    const light = elevation(dark);
 
     const applyTopic = async (next: string) => {
         setPickerOpen(false);
@@ -209,20 +205,18 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                 edge, so it reads as the one label following the story it belongs to. */}
             {!open && !!section && (
                 <View style={styles.tabRow}>
-                    <View style={[styles.tab, { backgroundColor: tint.fill, borderColor: tint.edge }]}>
+                    <View style={[styles.tab, { backgroundColor: tint.fill }]}>
                         <Text style={[styles.tabText, { color: tint.label }]} numberOfLines={1}>{section}</Text>
                     </View>
                 </View>
             )}
-            <View style={[styles.card,
-                { backgroundColor: t.surfaceAlt, boxShadow: light.rest, borderColor: t.line },
-                open && [styles.cardOpen,
-                    { backgroundColor: t.surface, borderColor: t.line, boxShadow: light.raised }]]}>
+            {/* no border and no shadow: a story is told from the white page by its
+                ground alone, a shade greyer, open or folded */}
+            <View style={[styles.card, { backgroundColor: t.surfaceAlt }]}>
             {open && !!section && (
                 <Animated.View style={styles.tabRowIn}
                     entering={still ? undefined : FADE_IN} exiting={still ? undefined : FADE_OUT}>
-                    <View style={[styles.tab, styles.tabDown,
-                        { backgroundColor: tint.fill, borderColor: tint.edge }]}>
+                    <View style={[styles.tab, styles.tabDown, { backgroundColor: tint.fill }]}>
                         <Text style={[styles.tabText, { color: tint.label }]} numberOfLines={1}>{section}</Text>
                     </View>
                 </Animated.View>
@@ -239,8 +233,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                             <TouchableOpacity
                                 disabled={!dev}
                                 onPress={() => setPickerOpen(true)}
-                                style={[styles.topicPill, { borderColor: t.line, backgroundColor: t.surface },
-                                    dev && { borderColor: t.brand, borderStyle: "dashed" }]}
+                                style={[styles.topicPill, { backgroundColor: t.surface },
+                                    dev && { borderWidth: 1, borderColor: t.brand, borderStyle: "dashed" }]}
                             >
                                 <Text style={[styles.topicText, { color: dev ? t.brand : t.textMuted }]}
                                     numberOfLines={1}>
@@ -334,14 +328,12 @@ const styles = StyleSheet.create({
     tab: {
         paddingHorizontal: 10, paddingTop: 3, paddingBottom: 7, marginBottom: -4,
         borderTopLeftRadius: 7, borderTopRightRadius: 7,
-        borderWidth: 1, borderBottomWidth: 0,
     },
     // open, the same tab hangs from the inside of the card's top edge: the card's own
-    // padding is cancelled so it starts exactly where the closed one ended, and the
-    // half pixel makes up the difference between the card's border and the tab row's
+    // padding is cancelled so it starts exactly where the closed one ended
     tabRowIn: {
         flexDirection: I18nManager.isRTL ? "row-reverse" : "row",
-        marginTop: -11, marginHorizontal: -0.5, zIndex: 2,
+        marginTop: -12, zIndex: 2,
     },
     // The tab hangs into the line below it rather than standing on top of it: it
     // costs the open story 8 points of room instead of 23, and the headline starts
@@ -351,17 +343,9 @@ const styles = StyleSheet.create({
         paddingTop: 6, paddingBottom: 3, marginBottom: -15,
         borderTopLeftRadius: 0, borderTopRightRadius: 0,
         borderBottomLeftRadius: 7, borderBottomRightRadius: 7,
-        borderWidth: 1, borderTopWidth: 0,
     },
     tabText: { ...TYPE.micro },
-    // The border is a hairline the same colour as the page's rules, not a 1.5px
-    // outline: at this size an outline draws the box, a hairline draws the edge.
-    card: {
-        width: "100%", backgroundColor: "#F4F4F3", borderRadius: 11,
-        padding: 12, gap: 8,
-        borderWidth: 1, borderColor: "#E3E3E1",
-    },
-    cardOpen: { backgroundColor: "#fff" },
+    card: { width: "100%", backgroundColor: "#F4F4F3", borderRadius: 11, padding: 12, gap: 8 },
     rule: { height: 1, backgroundColor: "#E3E3E1", marginBottom: 9, marginTop: 1 },
     head: { gap: 6 },
     // row-reverse: the time at the right edge, the issue to its left
@@ -385,7 +369,7 @@ const styles = StyleSheet.create({
     // the issue sits at the far end of the headline's own row, so the two read as
     // one line even when the headline runs to three
     topicPill: {
-        borderWidth: 1, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3,
+        borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3,
         maxWidth: 132, flexShrink: 0, marginTop: 1,
     },
     topicText: {
