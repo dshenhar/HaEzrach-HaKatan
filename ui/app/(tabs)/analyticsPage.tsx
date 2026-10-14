@@ -3,7 +3,7 @@ import OutletPositions from '@/components/outletPositions';
 import PersonalArea from '@/components/personalArea';
 import { fetchArticles, getSitePositions, NewsItem, SitePosition } from "@/state/engagement";
 import { buildInsights, Insights } from "@/state/insights";
-import { getProfile, ReaderProfile } from "@/state/profile";
+import { placementLabel } from "@/state/profile";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { track } from "@/state/analytics";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -26,13 +26,13 @@ const BRAND = "#22C55E";
 const RTL_ROW = I18nManager.isRTL ? "row" : "row-reverse";
 
 export default function AnalyticsPage() {
-	const [profile, setProfile] = useState<ReaderProfile | null>(null);
 	const [insights, setInsights] = useState<Insights | null>(null);
 	const [refreshing, setRefreshing] = useState(false);
 	// long and static, so it stays out of the way until asked for
 	const [positionsOpen, setPositionsOpen] = useState(false);
 	const [hint, setHint] = useState(false);
-	const { open: askQuestionnaire } = useQuestionnaire();
+	// the reader's answers, kept by the root: answered over this page, they show here at once
+	const { profile, open: askQuestionnaire } = useQuestionnaire();
 	// the personal area lives here now, opened from the head of the page
 	const [personalOpen, setPersonalOpen] = useState(false);
 	const personal = (
@@ -54,14 +54,13 @@ export default function AnalyticsPage() {
 
 	const load = useCallback(async () => {
 		let feed: NewsItem[][] = [];
-		const [p, positions] = await Promise.all([
-			getProfile(),
+		if (!profile) return;
+		const [positions] = await Promise.all([
 			getSitePositions(),
 			fetchArticles((next) => { feed = typeof next === "function" ? next(feed) : next; }),
 		]);
-		setProfile(p);
-		if (p) setInsights(await buildInsights(p, positions as Record<string, SitePosition>, feed));
-	}, []);
+		setInsights(await buildInsights(profile, positions as Record<string, SitePosition>, feed));
+	}, [profile]);
 
 	useEffect(() => { load(); }, [load]);
 
@@ -123,6 +122,8 @@ export default function AnalyticsPage() {
 		);
 	}
 
+	// a reader on neither side has nothing to be compared with, and is told so
+	const sided = profile.bloc !== null;
 	const ownLabel = profile.bloc === "right" ? "ימין" : "שמאל";
 	const otherLabel = profile.bloc === "right" ? "שמאל" : "ימין";
 	const ownColour = profile.bloc === "right" ? RIGHT : LEFT;
@@ -150,6 +151,20 @@ export default function AnalyticsPage() {
 						</View>
 					) : (
 						<>
+							{!sided && (
+								<View style={styles.card}>
+									<Text style={styles.cardTitle}>בלי צד, בלי השוואה</Text>
+									<Text style={styles.note}>
+										לא סיפרת לנו לאיזה צד אתה נוטה, והמקורות שסימנת לא הכריעו - אז אין כאן
+										השוואה לצד שלך. כל השאר כאן בכל זאת.
+									</Text>
+									<TouchableOpacity onPress={() => { track("questionnaire_opened", { from: "analytics_unsided" }); askQuestionnaire(); }}
+										accessibilityRole="button">
+										<Text style={styles.link}>לענות על השאלה</Text>
+									</TouchableOpacity>
+								</View>
+							)}
+							{sided && (
 							<View style={styles.card}>
 								<Text style={styles.cardTitle}>כמה אתה שבוי בקונספציה</Text>
 								<View style={styles.bigRow}>
@@ -165,6 +180,7 @@ export default function AnalyticsPage() {
 									{insights.inOwnBloc} כתבות מ{ownLabel} · {insights.inOtherBloc} מ{otherLabel}
 								</Text>
 							</View>
+							)}
 
 							<View style={styles.card}>
 								<Text style={styles.cardTitle}>פילוח סוגי העמדות אותן קראת</Text>
@@ -199,6 +215,7 @@ export default function AnalyticsPage() {
 								})()}
 							</View>
 
+							{sided && (
 							<View style={styles.card}>
 								<Text style={styles.cardTitle}>מידת גיוון הקריאה ביחס לעמדתך</Text>
 								<View style={styles.track}>
@@ -214,6 +231,7 @@ export default function AnalyticsPage() {
 										: "כמעט כל הקריאה שלך בתוך הגוש שלך."}
 								</Text>
 							</View>
+							)}
 
 							<Text style={styles.sectionTitle}>Blind Spots</Text>
 
@@ -276,20 +294,21 @@ export default function AnalyticsPage() {
 										</View>
 									))}
 									<Text style={styles.footnote}>
-										{insights.missedStories.length} סיפורים שלא פתחת — המוצגים כאן מהגוש שאתה פחות קורא
+										{insights.missedStories.length} סיפורים שלא פתחת{sided ? " — המוצגים כאן מהגוש שאתה פחות קורא" : ""}
 									</Text>
 								</View>
 							)}
 						</>
 					)}
 
+					{/* what the reader told the app, and a way to change it */}
 					<View style={styles.card}>
 						<TouchableOpacity
 							style={styles.cardHead}
 							onPress={() => setPositionsOpen(!positionsOpen)}
 							activeOpacity={0.7}
 						>
-							<Text style={styles.cardTitle}>העמדה שהצהרת עליה</Text>
+							<Text style={styles.cardTitle}>מה סיפרת לנו</Text>
 							<Ionicons
 								name={positionsOpen ? "chevron-up" : "chevron-down"}
 								size={18}
@@ -297,14 +316,47 @@ export default function AnalyticsPage() {
 							/>
 						</TouchableOpacity>
 
-						{positionsOpen && Object.entries(profile.positions).map(([topic, score]) => (
-							<View key={topic} style={styles.row}>
-								<Text style={styles.rowLabel}>{topic}</Text>
-								<Text style={[styles.rowValue, { color: score >= 0 ? RIGHT : LEFT }]}>
-									{score > 0 ? "+" : ""}{score}
-								</Text>
-							</View>
-						))}
+						{positionsOpen && (
+							<>
+								<View style={styles.row}>
+									<Text style={styles.rowLabel}>איפה אתה על המפה</Text>
+									<Text style={[styles.rowValue, {
+										// the colour of what they said, not of the side worked out for them
+										color: profile.placement === undefined
+											? (profile.bloc === "right" ? RIGHT : profile.bloc === "left" ? LEFT : "#6B7280")
+											: profile.placement && profile.placement > 0 ? RIGHT
+											: profile.placement && profile.placement < 0 ? LEFT : "#6B7280",
+									}]}>
+										{placementLabel(profile.placement)
+											?? (profile.bloc === "right" ? "נוטה ימינה" : profile.bloc === "left" ? "נוטה שמאלה" : "לא ענית")}
+									</Text>
+								</View>
+								<Text style={styles.rowLabel}>המקורות שלך</Text>
+								{profile.outlets?.length ? (
+									<View style={styles.chips}>
+										{profile.outlets.map((name) => (
+											<View key={name} style={styles.chip}>
+												<Text style={styles.chipText}>{name}</Text>
+											</View>
+										))}
+									</View>
+								) : (
+									<Text style={styles.note}>עוד לא סימנת מקורות</Text>
+								)}
+								{!!profile.positions && Object.entries(profile.positions).map(([topic, score]) => (
+									<View key={topic} style={styles.row}>
+										<Text style={styles.rowLabel}>{topic}</Text>
+										<Text style={[styles.rowValue, { color: score >= 0 ? RIGHT : LEFT }]}>
+											{score > 0 ? "+" : ""}{score}
+										</Text>
+									</View>
+								))}
+								<TouchableOpacity onPress={() => { track("questionnaire_opened", { from: "analytics_told" }); askQuestionnaire(); }}
+									accessibilityRole="button">
+									<Text style={styles.link}>לשנות</Text>
+								</TouchableOpacity>
+							</>
+						)}
 					</View>
 
 					{/* after everything that is about the reader: where the outlets stand */}
@@ -346,6 +398,7 @@ const styles = StyleSheet.create({
 	bigRow: { flexDirection: RTL_ROW, alignItems: "baseline", gap: 10 },
 	big: { fontFamily: "Rubik_800ExtraBold", fontSize: 34, color: "#111827" },
 	note: { fontFamily: "Rubik_400Regular", fontSize: 12, lineHeight: 18, color: "#6B7280", textAlign: "right", flex: 1 },
+	link: { fontFamily: "Rubik_700Bold", fontSize: 13, color: "#111827", textAlign: "right", textDecorationLine: "underline" },
 	footnote: { fontFamily: "Rubik_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
 
 	// the bars fill from the right

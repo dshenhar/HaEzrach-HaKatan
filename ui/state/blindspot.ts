@@ -43,5 +43,25 @@ export function blindLabel(missing: "right" | "left", readerBloc?: string | null
     return missing === "right" ? "הימין לא סיקר את זה" : "השמאל לא סיקר את זה";
 }
 
+/**
+ * The reader's own blindspot: a story at least MINE_FLOOR outlets told, and none of
+ * the outlets the reader says they read - one they would have missed without the
+ * app. The floor keeps it to stories that were news: a story two outlets ran and
+ * yours did not is most of the feed on most days, and a mark on most of the feed
+ * says nothing. Nothing to say for a reader who has not said what they read.
+ */
+export const MINE_FLOOR = 4;
+
+export function missedByMine(sources: string[], mine?: string[] | null): boolean {
+    if (!mine || mine.length === 0) return false;
+    if (new Set(sources).size < MINE_FLOOR) return false;
+    const read = new Set(mine);
+    return !sources.some((source) => read.has(source));
+}
+
+/** what the reader's own blindspot is called, on the story and in the filter */
+export const MISSED_LABEL = "המקורות שלך לא סיקרו את זה";
+export const MISSED_INK = "#B45309";
+
 /** The ink the badge is drawn in: the colour of the side that is missing. */
 export const BLIND_INK = { right: "#C0392F", left: "#2B5EA7" } as const;

@@ -47,7 +47,8 @@ export async function buildInsights(
 	});
 
 	const totalBlocced = byBloc.right + byBloc.left;
-	const inOwnBloc = byBloc[profile.bloc];
+	// a reader who is on neither side has no "own" one to be captive in
+	const inOwnBloc = profile.bloc ? byBloc[profile.bloc] : 0;
 	const inOtherBloc = totalBlocced - inOwnBloc;
 
 	const cutoff = Date.now() - MONTH;
@@ -71,12 +72,12 @@ export async function buildInsights(
 
 	// a story counts as read if any of its articles was opened
 	const readIds = new Set(watches.map((w) => w.id));
-	const otherBloc = profile.bloc === "right" ? "left" : "right";
+	const otherBloc = profile.bloc === "right" ? "left" : profile.bloc === "left" ? "right" : null;
 	const missedStories = feed
 		.filter((cluster) => cluster.every((a) => !readIds.has(a.id)))
 		.map((cluster) => {
 			// show it through an outlet from the bloc the reader avoids, when one covered it
-			const fromOther = cluster.find((a) => positions[a.source]?.bloc === otherBloc);
+			const fromOther = otherBloc ? cluster.find((a) => positions[a.source]?.bloc === otherBloc) : undefined;
 			const pick = fromOther ?? cluster[0];
 			return {
 				title: pick.title,

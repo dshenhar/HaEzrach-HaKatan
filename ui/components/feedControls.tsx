@@ -65,6 +65,8 @@ type Props = {
     onBlocFilter: (filter: BlocFilter) => void;
     /** whether the reader has told us their side, which makes a blindspot theirs */
     knowsBloc?: boolean;
+    /** the reader said which outlets they read */
+    knowsOutlets?: boolean;
 }
 
 /**
@@ -77,7 +79,7 @@ type Props = {
  * the feed is narrowed to sits under the title, each with its ✕.
  */
 const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort, onSort,
-                       blocFilter, onBlocFilter, knowsBloc }: Props) => {
+                       blocFilter, onBlocFilter, knowsBloc, knowsOutlets }: Props) => {
     const [drawer, setDrawer] = useState(false);
     const t = useTheme();
     const dark = t.name === "negative";
@@ -169,9 +171,11 @@ const FeedControls = ({ title, sections, selectedSections, onToggleSection, sort
                     {/* the one filter whose name does not explain itself */}
                     {blocFilter === "blind" && (
                         <Text style={[styles.note, { color: t.textMuted }]}>
-                            {knowsBloc
-                                ? "סיפורים שהצד שלכם לא סיקר: שני גופים או יותר מהצד השני, ואפס משלכם."
-                                : "סיפורים שצד אחד סיקר והשני לא. מלאו את שאלון העמדות כדי לראות דווקא את אלה שהצד שלכם פספס."}
+                            {knowsOutlets
+                                ? "סיפורים שארבעה גופים או יותר סיקרו, ואף אחד מהמקורות שאתם קוראים - מה שבלי האפליקציה הייתם מפספסים."
+                                : knowsBloc
+                                ? "סיפורים שהצד שלכם לא סיקר: שתי כותרות או יותר מהצד השני, ואפס משלכם. סמנו באזור האישי את המקורות שלכם כדי לראות מה הם פספסו."
+                                : "סיפורים שצד אחד סיקר והשני לא. מלאו את השאלון כדי לראות מה המקורות שלכם פספסו."}
                         </Text>
                     )}
 
