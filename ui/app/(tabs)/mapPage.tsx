@@ -227,7 +227,8 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#FFFFFF" },
     scroll: { flex: 1, width: "100%" },
     // the floating tab bar stands on the foot of every screen
-    body: { paddingTop: 12, paddingBottom: 110, gap: 22 },
+    // the search stands a little way down from the top of the screen, not against it
+    body: { paddingTop: 28, paddingBottom: 110, gap: 22 },
     inset: { paddingHorizontal: 16 },
     searchRow: { alignItems: "center", gap: 8, paddingHorizontal: 16 },
     searchField: { flex: 1 },

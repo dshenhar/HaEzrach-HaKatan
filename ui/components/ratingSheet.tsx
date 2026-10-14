@@ -4,6 +4,7 @@ import Slider from "@react-native-community/slider";
 import { isRatable, saveRating, NewsItem, RatingEvent } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { TYPE } from "@/state/craft";
+import { scaleFor } from "@/state/issueStance";
 import { Toast } from "toastify-react-native";
 
 const RIGHT = "#C0392F";
@@ -22,21 +23,16 @@ interface RatingSheetProps {
 	ratingTarget: NewsItem | null;
 }
 
-/** what a place on the scale says, in words: "נוטה די ימינה" */
-const reading = (value: number) => {
-	if (value === 0) return "באמצע";
-	const much = Math.abs(value) >= 5 ? "מאוד " : Math.abs(value) >= 3 ? "די " : "קצת ";
-	return `נוטה ${much}${value > 0 ? "ימינה" : "שמאלה"}`;
-};
-
 /**
- * Asked as a reader comes back from an article: how right or left did it feel?
+ * Asked as a reader comes back from an article: was it for or against - against
+ * what the issue is about, its "for" at the end of the side that is for it - or, on
+ * political coverage, which has no for and against, how right or left it felt.
  *
  * Every headline on one of the issues is placed by the model on that issue's axis;
  * this is the readers' half. The model's reading stands until enough of them have
  * answered, and then they can move the headline to the other side - and with it,
- * over time, the outlet. One scale for every issue, left to right, so no issue's
- * "for" and "against" can be read backwards.
+ * over time, the outlet. The answer is kept on the same axis either way, the
+ * right's end positive: the words change, the scale does not.
  */
 export default function RatingSheet({ open, onOpenChange, ratingTarget }: RatingSheetProps) {
 	const [val, setVal] = useState(0);
@@ -108,6 +104,7 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 	}
 
 	const ink = val === 0 ? "#6B7280" : val > 0 ? RIGHT : LEFT;
+	const scale = scaleFor(ratingTarget?.topic ?? "");
 
 	return (
 		<Modal
@@ -124,14 +121,14 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 
 			{/* Sliding sheet */}
 			<Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-				<Text style={styles.title}>איך הכתבה הרגישה לך?</Text>
+				<Text style={styles.title}>{scale.question}</Text>
 				<Text style={styles.subtitle} numberOfLines={2}>
-					{ratingTarget ? `${ratingTarget.source} · ${ratingTarget.topic}` : ""}
+					{ratingTarget ? `${ratingTarget.source} · ${scale.about}` : ""}
 				</Text>
 
 				<View style={[styles.ends, MAP]}>
-					<Text style={[styles.end, { color: LEFT }]}>שמאל</Text>
-					<Text style={[styles.end, { color: RIGHT }]}>ימין</Text>
+					<Text style={[styles.end, { color: LEFT }]}>{scale.leftEnd}</Text>
+					<Text style={[styles.end, { color: RIGHT }]}>{scale.rightEnd}</Text>
 				</View>
 				<View style={MAP}>
 					<Slider
@@ -144,11 +141,11 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 						minimumTrackTintColor={LEFT}
 						maximumTrackTintColor={RIGHT}
 						thumbTintColor={ink}
-						accessibilityLabel="משמאל לימין"
+						accessibilityLabel={scale.spoken}
 					/>
 				</View>
 
-				<Text style={[styles.value, { color: ink }]}>{reading(val)}</Text>
+				<Text style={[styles.value, { color: ink }]}>{scale.reading(val)}</Text>
 
 				<View style={styles.buttonsWrapper}>
 					<TouchableOpacity

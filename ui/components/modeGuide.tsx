@@ -4,6 +4,7 @@ import { useTheme } from '@/state/theme';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { EXPLAIN, ViewMode } from './viewModeToggle';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Each guide leans in from its own side of the feed: the man from the right for the
 // bloc view, the woman from the left for the questionnaire. The pictures are cut flat
@@ -25,6 +26,12 @@ const GUIDES = {
 const TUCK = 28;
 const MARGIN = 14;
 const TAIL = 18;
+/** the demo hangs this far under the top of the screen, below the app's own header,
+ *  and no closer to the bubble than DEMO_GAP; on a short screen it rises to DEMO_MIN
+ *  under the top, and if it still does not fit it shrinks */
+const DEMO_TOP = 54;
+const DEMO_MIN = 8;
+const DEMO_GAP = 10;
 /** narrower than this the text gets hard to read, so the bubble may cover the head instead */
 const MIN_BUBBLE = 220;
 
@@ -37,13 +44,19 @@ type Props = {
     body?: string;
     /** a button in the bubble. Disabled, it still shows - as something already done */
     action?: { label: string; onPress: () => void; disabled?: boolean };
+    /** something to watch above the bubble, at the head of the screen - a story
+     *  being swiped, say - shown and sent away with the guide */
+    demo?: React.ReactNode;
 };
 
-export default function ModeGuide({ mode, onDone, title, body, action }: Props) {
+export default function ModeGuide({ mode, onDone, title, body, action, demo }: Props) {
     const t = useTheme();
+    const insets = useSafeAreaInsets();
     const still = useStillness();
     const guide = GUIDES[mode];
     const [area, setArea] = useState<{ w: number; h: number } | null>(null);
+    const [demoH, setDemoH] = useState(0);
+    const [bubbleH, setBubbleH] = useState(0);
     const enter = useRef(new Animated.Value(0)).current;
     const pop = useRef(new Animated.Value(0)).current;
     const leave = useRef(new Animated.Value(0)).current;
@@ -107,6 +120,14 @@ export default function ModeGuide({ mode, onDone, title, body, action }: Props) 
     // the tail is a square turned 45deg, so it reaches TAIL * 0.7 below the bubble
     const bubbleBottom = area.h - tipY + TAIL * 0.7 + 6;
 
+    // the demo above the bubble, clear of it
+    const bubbleTop = area.h - bubbleBottom - bubbleH;
+    const highest = insets.top + DEMO_MIN;
+    const fit = demoH && bubbleH ? Math.min(1, (bubbleTop - DEMO_GAP - highest) / demoH) : 1;
+    const demoTop = demoH && bubbleH
+        ? Math.max(highest, Math.min(insets.top + DEMO_TOP, bubbleTop - DEMO_GAP - demoH * fit))
+        : insets.top + DEMO_TOP;
+
     const offscreen = guide.side === 'right' ? imgW : -imgW;
     const fadeOut = leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
 
@@ -141,6 +162,31 @@ export default function ModeGuide({ mode, onDone, title, body, action }: Props) 
                 <Image source={guide.image} style={styles.fill} resizeMode="contain" />
             </Animated.View>
 
+            {!!demo && (
+                <Animated.View
+                    pointerEvents="none"
+                    style={{
+                        position: 'absolute',
+                        top: demoTop,
+                        left: MARGIN,
+                        right: MARGIN,
+                        opacity: Animated.multiply(
+                            pop.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+                            fadeOut,
+                        ),
+                        // shrunk about its middle and lifted back, so its top stays where it was put
+                        transform: [
+                            { translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) },
+                            { translateY: -demoH * (1 - fit) / 2 },
+                            { scale: fit },
+                        ],
+                    }}
+                    onLayout={(e) => setDemoH(Math.round(e.nativeEvent.layout.height))}
+                >
+                    <View style={[styles.demo, { backgroundColor: t.surface }]}>{demo}</View>
+                </Animated.View>
+            )}
+
             <Animated.View
                 style={{
                     position: 'absolute',
@@ -156,6 +202,7 @@ export default function ModeGuide({ mode, onDone, title, body, action }: Props) 
                         { scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) },
                     ],
                 }}
+                onLayout={(e) => setBubbleH(Math.round(e.nativeEvent.layout.height))}
             >
                 <View style={[styles.bubble, { backgroundColor: t.surface, borderColor: t.line }]}>
                     <Text style={[styles.title, { color: t.text }]}>{title ?? EXPLAIN[mode].title}</Text>
@@ -186,6 +233,8 @@ export default function ModeGuide({ mode, onDone, title, body, action }: Props) 
 
 const styles = StyleSheet.create({
     overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+    // the demo stands on a white sheet of its own, so it reads over the blurred feed
+    demo: { borderRadius: 18, padding: 12, boxShadow: ELEVATION.sheet },
     fill: { width: '100%', height: '100%' },
     bubble: {
         borderRadius: 16,
