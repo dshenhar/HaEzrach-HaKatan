@@ -14,7 +14,8 @@ import QuestionnaireInvite from '@/components/questionnaireInvite';
 import { QuestionnaireContext } from '@/state/questionnaire';
 import { ArrivalTour } from '@/state/tour';
 import { Access, AccessContext, DEFAULT_ACCESS, loadAccess, saveAccess } from '@/state/access';
-import { getProfile, isNudgeOff, markWelcomed, ReaderProfile, stopNudging, wasWelcomed } from '@/state/profile';
+import { getProfile, isNudgeOff, markOutletsAsked, markWelcomed, ReaderProfile, stopNudging, wereOutletsAsked,
+	wasWelcomed } from '@/state/profile';
 import { listenForInstall } from '@/state/install';
 import { ThemeProvider, useTheme } from '@/state/theme';
 import { Stack, usePathname } from 'expo-router';
@@ -47,17 +48,26 @@ export default function RootLayout() {
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);
 	const [profileChecked, setProfileChecked] = useState(false);
 	const [introOn, setIntroOn] = useState(true);
-	// the questionnaire is an overlay now, opened from wherever it is offered
-	const [asking, setAsking] = useState(false);
-	const [invite, setInvite] = useState<"welcome" | "reminder" | null>(null);
+	// the questionnaire is an overlay now, opened from wherever it is offered - the
+	// whole of it, or only the outlets for a reader of the old one
+	const [asking, setAsking] = useState<"all" | "outlets" | null>(null);
+	const [invite, setInvite] = useState<"welcome" | "reminder" | "outlets" | null>(null);
 	// a first visit: the feed opens on the tour, which ends with the questionnaire
 	const [arrival, setArrival] = useState(false);
 
 	useEffect(() => {
-		Promise.all([getProfile(), wasWelcomed(), isNudgeOff()]).then(([p, welcomed, quiet]) => {
+		Promise.all([getProfile(), wasWelcomed(), isNudgeOff(), wereOutletsAsked()])
+			.then(([p, welcomed, quiet, outletsAsked]) => {
 			setProfile(p);
 			setProfileChecked(true);
-			if (p) return;                       // answered already: nothing to offer
+			if (p) {
+				// answered the old questionnaire, which had no outlets in it: asked once
+				if (p.outlets === undefined && !outletsAsked) {
+					setInvite("outlets");
+					markOutletsAsked();
+				}
+				return;
+			}
 			if (!welcomed) {
 				setArrival(true);
 				markWelcomed();
@@ -78,20 +88,31 @@ export default function RootLayout() {
 	// The reader's own side, kept on the device. The measurement never sends it: it
 	// uses it to work out whether a story being opened is from the other side of
 	// the map, and sends that - a fact about a reading rather than about a person.
-	useEffect(() => { rememberBloc(profile?.bloc); }, [profile]);
+	useEffect(() => { rememberBloc(profile?.bloc ?? undefined); }, [profile]);
 
 	if (!fontsReady || !profileChecked) return null;
 
 	// The app opens for everyone. The questionnaire is what gives every personal
 	// statistic something to compare against, but standing it in the doorway asked
-	// a stranger to declare themselves before seeing anything.
-	const app = asking ? (
-		<Onboarding onDone={(p) => {
-			track("questionnaire_completed", { bloc: p?.bloc });
-			setProfile(p);
-			setAsking(false);
+	// a stranger to declare themselves before seeing anything. It lies over the app
+	// rather than in its place, so the reader comes back to the page they left.
+	const questionnaire = asking && (
+		<View style={StyleSheet.absoluteFill}>
+		<Onboarding profile={profile} only={asking === "outlets" ? "outlets" : undefined} onDone={(p) => {
+			if (p) {
+				track("questionnaire_completed", {
+					bloc: p.bloc ?? "none", placement: p.placement ?? "none", outlets: p.outlets?.length ?? 0,
+					only: asking,
+				});
+				setProfile(p);
+			} else {
+				track("questionnaire_closed", { only: asking });
+			}
+			setAsking(null);
 		}} />
-	) : (
+		</View>
+	);
+	const app = (
 		<Stack screenOptions={{ headerShown: false }}>
 			<Stack.Screen name="(tabs)" />
 			<Stack.Screen name="privacy" />
@@ -110,22 +131,27 @@ export default function RootLayout() {
 				value={{ due: arrival && !introOn && !asking, done: () => setArrival(false) }}>
 				{app}
 			</ArrivalTour.Provider>
+			{questionnaire}
 			{introOn && <IntroSplash onDone={() => setIntroOn(false)} />}
 			{/* above everything, on every screen, as the standard expects */}
 			<AccessibilityBar />
 			<Measured />
 			{/* only ever to someone who has not answered - see state/questionnaire.ts */}
 			<QuestionnaireInvite
-				open={invite !== null && !introOn && profile === null && !asking}
+				open={invite !== null && !introOn && !asking && (invite === "outlets" || profile === null)}
 				variant={invite ?? "reminder"}
-				onFill={() => { track("questionnaire_opened", { from: invite ?? "" }); setInvite(null); setAsking(true); }}
+				onFill={() => {
+					track("questionnaire_opened", { from: invite ?? "" });
+					setAsking(invite === "outlets" ? "outlets" : "all");
+					setInvite(null);
+				}}
 				onDismiss={() => { track("questionnaire_skipped", { from: invite ?? "" }); setInvite(null); }}
 				onNeverAgain={() => { track("questionnaire_silenced"); stopNudging(); }}
 			/>
 		</>
 	);
 
-	const ask = { profile, filled: profile !== null, open: () => setAsking(true) };
+	const ask = { profile, filled: profile !== null, open: () => setAsking("all") };
 
 	// gestures anywhere in the tree need this at the root, and swipe-between-tabs
 	// is the first thing in the app that uses one

@@ -12,13 +12,12 @@ import { fetchArticles, getSitePositions, getTopics, isRatable, loadFeed, mergeC
 import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
 import { ELEVATION, glass, SWELL, TYPE } from "@/state/craft";
-import { blindTo } from "@/state/blindspot";
+import { blindTo, missedByMine } from "@/state/blindspot";
 import { useQuestionnaire } from "@/state/questionnaire";
 import { useArrivalTour } from "@/state/tour";
 import { FocusRequest, onStoryRequest, takeStoryRequest } from "@/state/feedFocus";
 import { ScrollLock } from "@/state/scrollLock";
 import { useStable } from "@/state/useStable";
-import { getProfile, ReaderProfile } from "@/state/profile";
 import { useDevMode, useTheme } from "@/state/theme";
 import { Alert } from "react-native";
 import { InstallBanner } from "./installOffer";
@@ -63,7 +62,6 @@ export default function NewsFeed() {
 	const [scrollLocked, setScrollLocked] = useState(false);
 	const scrollRef = useRef<ScrollView>(null);
 	const [positions, setPositions] = useState<Record<string, SitePosition>>({});
-	const [profile, setProfile] = useState<ReaderProfile | null>(null);
 	const [allTopics, setAllTopics] = useState<string[]>([]);
 	const [mergeSource, setMergeSource] = useState<{ id: string | number; title: string } | null>(null);
 	const [sort, setSort] = useState<SortKey>("newest");
@@ -82,14 +80,18 @@ export default function NewsFeed() {
 		scrollRef.current?.scrollTo({ y: 0, animated: true });
 	};
 
-	// The i runs the tour over a blurred feed, one step per touch: the welcome, then
-	// the man who explains reading a story by bloc, then the woman who explains the
-	// questionnaire and offers it - its button live for a reader who has not answered,
-	// and there but spent for one who has. A first visit opens on the same tour.
+	// A first visit opens on the tour, over a blurred feed, one step per touch: the
+	// welcome, then the man who explains the right and the left, then the woman who
+	// explains the questionnaire - and when she leaves, the questionnaire opens.
 	const [tourStep, setTourStep] = useState<number | null>(null);
-	const { filled, open: askQuestionnaire } = useQuestionnaire();
+	// the reader's answers, kept by the root, so a questionnaire answered over the
+	// feed shows in it at once
+	const { profile, filled, open: askQuestionnaire } = useQuestionnaire();
 	const tourBlur = useRef(new Animated.Value(0)).current;
+	// a first visit's tour ends in the questionnaire
+	const tourHow = useRef<"tap" | "arrival">("tap");
 	const startTour = useStable((how: "tap" | "arrival" = "tap") => {
+		tourHow.current = how;
 		track("tour_started", { how });
 		// the guides speak about the feed from its top, so the tour starts there
 		scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -112,7 +114,12 @@ export default function NewsFeed() {
 			return;
 		}
 		track("tour_finished", { reached: "end", steps: TOUR.length });
-		endTour();
+		// on a first visit the app is explained, and then the reader is asked
+		const arriving = tourHow.current === "arrival" && !filled;
+		endTour(arriving ? () => {
+			track("questionnaire_opened", { from: "arrival" });
+			askQuestionnaire();
+		} : undefined);
 	};
 	const endTour = (then?: () => void) => {
 		Animated.timing(tourBlur, {
@@ -137,7 +144,6 @@ export default function NewsFeed() {
 
 	useEffect(() => {
 		getSitePositions().then(setPositions);
-		getProfile().then(setProfile);
 		getTopics(true).then(setAllTopics);   // the picker may say "not political"
 	}, []);
 
@@ -159,20 +165,26 @@ export default function NewsFeed() {
 		left: cluster.filter((a) => sideOf(a, positions) === "left").length,
 	});
 
+	// the outlets the reader says they read, which their own blindspot is measured by
+	const mine = profile?.outlets?.length ? profile.outlets : undefined;
+
 	const sortedArticles = useMemo(() => {
 		let list = [...filteredArticles];
 		// A story only one bloc is telling is the most interesting thing the feed
 		// knows, and this is where a reader goes looking for it.
 		if (blocFilter !== "all") {
 			list = list.filter((cluster) => {
-				// general news has no sides, so it is in none of these
+				// the reader's own blindspot is any story, general news too
+				if (blocFilter === "blind" && mine) return missedByMine(cluster.map((a) => a.source), mine);
+				// general news has no sides, so it is in none of the others
 				if (!isRatable(cluster[0])) return false;
 				const { right, left } = split(cluster);
 				if (blocFilter === "both") return right > 0 && left > 0;
 				if (blocFilter === "blind") {
+					// without the reader's outlets, a story only one side told - their
+					// side's blindspot when their side is known
 					const missing = blindTo({ right, left });
-					// knowing the reader's side turns "a blindspot" into "yours"
-					return profile ? missing === profile.bloc : missing !== null;
+					return profile?.bloc ? missing === profile.bloc : missing !== null;
 				}
 				if (blocFilter === "right") return right > 0 && left === 0;
 				return left > 0 && right === 0;
@@ -190,7 +202,7 @@ export default function NewsFeed() {
 			default:
 				return list.sort((a, b) => clusterTime(b) - clusterTime(a));
 		}
-	}, [filteredArticles, sort, positions, profile, blocFilter]);
+	}, [filteredArticles, sort, positions, profile, blocFilter, mine]);
 
 	// One story open at a time: opening another closes the first. A story opens and
 	// closes under the reader's finger and nothing else. The feed used to open
@@ -536,7 +548,8 @@ export default function NewsFeed() {
 					onSort={(next) => { track("sort_changed", { sort: next }); setSort(next); }}
 					blocFilter={blocFilter}
 					onBlocFilter={(next) => { track("bloc_filter_changed", { filter: next }); setBlocFilter(next); }}
-					knowsBloc={profile !== null}
+					knowsBloc={!!profile?.bloc}
+					knowsOutlets={!!mine}
 				/>
 				</View>
 
@@ -554,6 +567,7 @@ export default function NewsFeed() {
 						open={openStory === key}
 						focused={scrolling && focusKey === key && openStory !== key}
 						readerBloc={profile?.bloc}
+						myOutlets={mine}
 						onMeasure={bind.measure}
 						onToggle={bind.toggle} />
 					);
@@ -607,18 +621,23 @@ export default function NewsFeed() {
 					) : tourStepName === "questionnaire" ? (
 						<ModeGuide key="questionnaire" mode="citizen"
 							title="ומה איתכם?"
-							body={"שאלון עמדות קצר, כדקה, מאפשר לאפליקציה להשוות בין מה שאתם חושבים לבין מה "
-								+ "שאתם קוראים בפועל, ולהראות לכם כמה מהחדשות הגיעו דווקא מהצד השני. "
-								+ "התשובות נשארות במכשיר שלכם."}
+							body={"שאלה אחת - בערך איפה אתם על המפה - ורשימה של המקורות שאתם קוראים. "
+								+ "כך נוכל להראות לכם כמה מהחדשות הגיעו דווקא מהצד השני, ולסמן לכם סיפורים "
+								+ "שהמקורות שלכם לא סיקרו. התשובות נשארות במכשיר שלכם."}
 							action={filled
-								? { label: "כבר מילאתם את השאלון ✓", onPress: () => {}, disabled: true }
-								: { label: "למילוי שאלון העמדות", onPress: () => {
+								? { label: "כבר עניתם ✓", onPress: () => {}, disabled: true }
+								: { label: "לשאלון", onPress: () => {
 									track("questionnaire_opened", { from: "tour" });
 									endTour(askQuestionnaire);
 								} }}
 							onDone={() => advanceTour(tourStep)} />
 					) : tourStepName === "bloc" ? (
-						<ModeGuide key="bloc" mode="bloc" onDone={() => advanceTour(tourStep)} />
+						<ModeGuide key="bloc" mode="bloc"
+							title="ימין ושמאל"
+							body={"בסיפור על אחת המחלוקות, כל כותרת עומדת בצד שהמילים שלה שמות אותה: ימין באדום, "
+								+ "שמאל בכחול. החליקו בין הצדדים כדי לראות איך כל צד סיפר את אותו אירוע. "
+								+ "חדשות כלליות, בלי צדדים, מוצגות כרשימה אחת."}
+							onDone={() => advanceTour(tourStep)} />
 					) : null}
 				</View>
 			)}

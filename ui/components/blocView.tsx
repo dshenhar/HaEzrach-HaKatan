@@ -1,5 +1,6 @@
 import { NewsItem, SitePosition, getBlocSummary, sideOf, storySummaries } from '@/state/engagement';
 import { track } from '@/state/analytics';
+import { BLIND_INK, blindLabel } from '@/state/blindspot';
 import { TYPE } from '@/state/craft';
 import { useTheme } from '@/state/theme';
 import BlocSwipe, { firstSide } from './blocSwipe';
@@ -39,6 +40,10 @@ type Props = {
     data: NewsItem[];
     positions: Record<string, SitePosition>;
     onOpenArticle: (item: NewsItem) => void;
+    /** the side that did not tell the story at all, when one side told it loudly */
+    missing?: Side | null;
+    /** the reader's own side, which turns that into their side's blindspot */
+    readerBloc?: string | null;
 }
 
 /**
@@ -52,7 +57,7 @@ type Props = {
  * before anyone asked - and under it every outlet of that side with its own
  * headline, which opens the article.
  */
-const BlocView = ({ data, positions, onOpenArticle }: Props) => {
+const BlocView = ({ data, positions, onOpenArticle, missing, readerBloc }: Props) => {
     const t = useTheme();
     const { right, left, unaligned } = useMemo(() => {
         const buckets: Record<string, NewsItem[]> = { right: [], left: [], unaligned: [] };
@@ -94,6 +99,15 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
 
     return (
         <View style={styles.wrap}>
+            {/* one side told it and the other did not: a count, said in plain words */}
+            {!!missing && (
+                <View style={styles.blind}>
+                    <View style={[styles.blindDot, { backgroundColor: BLIND_INK[missing] }]} />
+                    <Text style={[styles.blindText, { color: BLIND_INK[missing] }]}>
+                        {blindLabel(missing, readerBloc)}
+                    </Text>
+                </View>
+            )}
             <BlocSwipe
                 start={start}
                 right={page(right, "right")}
@@ -173,6 +187,9 @@ const styles = StyleSheet.create({
     outletTitle: { ...TYPE.body, color: "#FFFFFF", textAlign: "right" },
     empty: { ...TYPE.body, color: "#FFFFFF", textAlign: "right" },
 
+    blind: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
+    blindDot: { width: 7, height: 7, borderRadius: 4 },
+    blindText: { ...TYPE.label },
     unaligned: { borderRadius: 10, padding: 11, gap: 7 },
     unalignedTitle: { ...TYPE.label, textAlign: "right" },
     pill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, marginLeft: 6 },

@@ -1,4 +1,4 @@
-import { clearProfile, ReaderProfile } from '@/state/profile';
+import { placementLabel, ReaderProfile } from '@/state/profile';
 import { forgetMe, getLearningStats, hasValidDevCode, LearningStats, unlockDevMode } from '@/state/engagement';
 import { useTheme, useThemeControl } from '@/state/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -72,8 +72,8 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
         if (open && devMode) getLearningStats().then(setStats);
     }, [open, devMode]);
 
-    const retake = async () => {
-        await clearProfile();
+    // the questionnaire opens on the reader's own answers, and leaving it keeps them
+    const retake = () => {
         onClose();
         onRetakeQuestionnaire();
     };
@@ -98,7 +98,9 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                             <Text style={[styles.title, { color: t.text }]}>האזור האישי</Text>
                             {profile && (
                                 <Text style={[styles.sub, { color: t.textMuted }]}>
-                                    נוטה {profile.bloc === "right" ? "ימינה" : "שמאלה"} · ציון {profile.overall}
+                                    {placementLabel(profile.placement)
+                                        ?? (profile.bloc === "right" ? "נוטה ימינה" : profile.bloc === "left" ? "נוטה שמאלה" : "בלי צד")}
+                                    {profile.outlets?.length ? ` · ${profile.outlets.length} מקורות` : ""}
                                 </Text>
                             )}
                         </View>
@@ -224,15 +226,17 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                     <Text style={[styles.section, { color: t.textMuted }]}>העמדות שלי</Text>
                     <TouchableOpacity style={[styles.row, { backgroundColor: t.surfaceAlt }]} onPress={retake}>
                         <View style={{ flex: 1 }}>
-                            <Text style={[styles.rowTitle, { color: t.text }]}>למלא מחדש את השאלון</Text>
+                            <Text style={[styles.rowTitle, { color: t.text }]}>
+                                {profile ? "לשנות את התשובות שלי" : "למילוי השאלון"}
+                            </Text>
                             <Text style={[styles.rowNote, { color: t.textMuted }]}>
-                                כל הסטטיסטיקות נמדדות מול העמדות שהצהרת עליהן
+                                איפה אתם על המפה ואילו מקורות אתם קוראים
                             </Text>
                         </View>
                         <Ionicons name="chevron-back" size={18} color={t.textMuted} />
                     </TouchableOpacity>
 
-                    {profile && (
+                    {!!profile?.positions && (
                         <View style={[styles.positions, { borderColor: t.line }]}>
                             {Object.entries(profile.positions).map(([topic, score]) => (
                                 <View key={topic} style={[styles.posRow, { borderBottomColor: t.line }]}>

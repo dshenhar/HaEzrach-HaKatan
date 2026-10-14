@@ -1,5 +1,5 @@
 import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, sideOf, SitePosition } from '@/state/engagement';
-import { BLIND_INK, blindLabel, blindTo } from '@/state/blindspot';
+import { blindTo, MISSED_INK, MISSED_LABEL, missedByMine } from '@/state/blindspot';
 import { SETTLE, SWELL, TYPE } from '@/state/craft';
 import Press from './press';
 import React, { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
@@ -54,6 +54,8 @@ type Props = {
     onMeasure?: (height: number) => void;
     /** the reader's own side, which turns a blindspot into their blindspot */
     readerBloc?: string | null;
+    /** the outlets the reader says they read */
+    myOutlets?: string[];
 }
 
 /**
@@ -62,7 +64,7 @@ type Props = {
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                     topics = [], mergeArmed, onArmMerge, open, onToggle,
-                    focused = false, onMeasure, readerBloc }: Props) => {
+                    focused = false, onMeasure, readerBloc, myOutlets }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
@@ -134,11 +136,12 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     // how the coverage split, which is what the ring draws
     const rightCount = data.filter((d) => sideOf(d, positions) === "right").length;
     const leftCount = data.filter((d) => sideOf(d, positions) === "left").length;
-    // Who did not tell this story. It is a count rather than a judgement, which is
-    // why it can sit on a closed card in plain words: four outlets on one side ran
-    // it and nobody on the other did, and a reader can check that in a minute.
+    // Who did not tell this story. On the closed card it is the reader's own
+    // blindspot - none of the outlets they read ran it - which is a count anyone can
+    // check in a minute. Which side did not tell it is said inside the story, beside
+    // the two sides.
+    const missedMine = missedByMine(sources, myOutlets);
     const missing = polar ? blindTo({ right: rightCount, left: leftCount }) : null;
-    const mine = !!missing && missing === readerBloc;
     const dark = t.name === "negative";
     const tint = sectionTint(section, dark);
 
@@ -248,14 +251,11 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                         )}
                     </View>
 
-                    {!!missing && (
-                        // loud when it is the reader's own side that missed it, quiet
-                        // when it is a fact about somebody else's
-                        <View style={[styles.blind, mine && { backgroundColor: BLIND_INK[missing] }]}>
-                            {!mine && <View style={[styles.blindDot, { backgroundColor: BLIND_INK[missing] }]} />}
-                            <Text style={[styles.blindText,
-                                { color: mine ? "#FFFFFF" : BLIND_INK[missing] }]} numberOfLines={1}>
-                                {blindLabel(missing, readerBloc)}
+                    {missedMine && (
+                        <View style={styles.blind}>
+                            <View style={[styles.blindDot, { backgroundColor: MISSED_INK }]} />
+                            <Text style={[styles.blindText, { color: MISSED_INK }]} numberOfLines={1}>
+                                {MISSED_LABEL}
                             </Text>
                         </View>
                     )}
@@ -293,7 +293,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                     {/* the story's own headline above, its telling below: by its two
                         sides, or, on general news, by every outlet at once */}
                     {polar
-                        ? <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle} />
+                        ? <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle}
+                            missing={missing} readerBloc={readerBloc} />
                         : <AllView data={data} onOpenArticle={handleOpenArticle} />}
                 </Animated.View>
             )}

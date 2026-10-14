@@ -6,20 +6,30 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 /**
  * The offer to answer the questionnaire, made twice: once on the first visit, and
- * after that as a reminder that can be switched off for good.
+ * after that as a reminder that can be switched off for good. Neither is shown to
+ * anyone who has already answered.
  *
- * Neither is shown to anyone who has already answered - their positions are saved
- * and nothing here concerns them again.
+ * A reader who answered the old questionnaire, which had no outlets in it, is asked
+ * once for the outlets they read.
  */
 
 const WELCOME = {
     title: "ברוכים הבאים!",
     body: [
         "האפליקציה מביאה את אותו יום חדשות משני צדי המפה, כולל מה שאתם לא רגילים לקרוא.",
-        "כדי שנוכל להראות לכם כמה מזה באמת הגיע מהצד השני, צריך לדעת איפה אתם עומדים. שאלון עמדות קצר, כדקה, והתשובות נשארות במכשיר שלכם.",
+        "כדי שנוכל להראות לכם כמה מזה באמת הגיע מהצד השני, צריך לדעת בערך איפה אתם עומדים ומה אתם קוראים. שאלה אחת ורשימת מקורות, חצי דקה, והתשובות נשארות במכשיר שלכם.",
     ],
-    primary: "למילוי שאלון העמדות",
+    primary: "למילוי השאלון",
     secondary: "אולי אחר כך",
+};
+
+const OUTLETS = {
+    title: "חדש: המקורות שלכם",
+    body: [
+        "סמנו אילו מקורות אתם קוראים, ובפיד יסומנו הסיפורים שהם לא סיקרו - מה שבלי האפליקציה הייתם מפספסים.",
+        "חצי דקה, והרשימה נשארת במכשיר שלכם.",
+    ],
+    primary: "לסמן מקורות",
 };
 
 // a different opening each time, so a reminder does not read like a machine
@@ -30,11 +40,11 @@ const REMINDERS = [
 ];
 
 const REMINDER_BODY =
-    "בלי השאלון אפשר לדעת מה קראתם, אבל לא ביחס למה. דקה אחת, ועמוד הנתונים מתחיל לדבר עליכם.";
+    "בלי השאלון אפשר לדעת מה קראתם, אבל לא ביחס למה. חצי דקה, ועמוד הנתונים מתחיל לדבר עליכם.";
 
 type Props = {
     open: boolean;
-    variant: "welcome" | "reminder";
+    variant: "welcome" | "reminder" | "outlets";
     onFill: () => void;
     onDismiss: () => void;
     /** the reminder only: the reader asked not to be reminded again */
@@ -45,9 +55,11 @@ export default function QuestionnaireInvite({ open, variant, onFill, onDismiss, 
     const t = useTheme();
     const [never, setNever] = React.useState(false);
     const welcome = variant === "welcome";
+    const outlets = variant === "outlets";
     // the opening line is drawn once per mount, not on every render
     const [title] = React.useState(() =>
-        welcome ? WELCOME.title : REMINDERS[Math.floor(Math.random() * REMINDERS.length)]);
+        welcome ? WELCOME.title : outlets ? OUTLETS.title
+            : REMINDERS[Math.floor(Math.random() * REMINDERS.length)]);
 
     const close = () => {
         if (never) onNeverAgain?.();
@@ -57,10 +69,10 @@ export default function QuestionnaireInvite({ open, variant, onFill, onDismiss, 
     return (
         <Modal isVisible={open} onBackdropPress={close} onBackButtonPress={close}
             backdropOpacity={0.45} style={styles.modal} useNativeDriver>
-            <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.line }]}>
+            <View style={[styles.card, { backgroundColor: t.surface }]}>
                 <Text style={[styles.title, { color: t.text }]}>{title}</Text>
 
-                {(welcome ? WELCOME.body : [REMINDER_BODY]).map((line) => (
+                {(welcome ? WELCOME.body : outlets ? OUTLETS.body : [REMINDER_BODY]).map((line) => (
                     <Text key={line} style={[styles.body, { color: t.textMuted }]}>{line}</Text>
                 ))}
 
@@ -70,11 +82,11 @@ export default function QuestionnaireInvite({ open, variant, onFill, onDismiss, 
                     accessibilityRole="button"
                 >
                     <Text style={[styles.primaryText, { color: t.selectInk }]}>
-                        {welcome ? WELCOME.primary : "למילוי השאלון"}
+                        {welcome ? WELCOME.primary : outlets ? OUTLETS.primary : "למילוי השאלון"}
                     </Text>
                 </TouchableOpacity>
 
-                {!welcome && (
+                {variant === "reminder" && (
                     <TouchableOpacity style={styles.check} onPress={() => setNever((v) => !v)}
                         accessibilityRole="checkbox" accessibilityState={{ checked: never }}>
                         <View style={[styles.box, { borderColor: t.line },
@@ -87,7 +99,7 @@ export default function QuestionnaireInvite({ open, variant, onFill, onDismiss, 
 
                 <TouchableOpacity onPress={close} accessibilityRole="button">
                     <Text style={[styles.secondary, { color: t.textMuted }]}>
-                        {welcome ? WELCOME.secondary : "לא עכשיו"}
+                        {welcome || outlets ? WELCOME.secondary : "לא עכשיו"}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -97,7 +109,7 @@ export default function QuestionnaireInvite({ open, variant, onFill, onDismiss, 
 
 const styles = StyleSheet.create({
     modal: { justifyContent: "center", alignItems: "center", margin: 20 },
-    card: { width: "100%", maxWidth: 360, borderRadius: 18, borderWidth: 1, padding: 20, gap: 10 },
+    card: { width: "100%", maxWidth: 360, borderRadius: 18, padding: 20, gap: 10 },
     title: { fontFamily: "Rubik_800ExtraBold", fontSize: 21, textAlign: "right" },
     body: { fontFamily: "Rubik_400Regular", fontSize: 13.5, lineHeight: 20, textAlign: "right" },
     primary: { borderRadius: 12, paddingVertical: 13, alignItems: "center", marginTop: 6 },

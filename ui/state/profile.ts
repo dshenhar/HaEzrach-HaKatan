@@ -2,69 +2,55 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const PROFILE_KEY = "reader_profile";
 
+/** where readers put themselves: -2 the left .. 2 the right, 0 the middle */
+export type Placement = -2 | -1 | 0 | 1 | 2;
+
 export type ReaderProfile = {
-	/** declared score per topic, -5 (left) .. +5 (right) */
-	positions: Record<string, number>;
-	/** mean of the above */
-	overall: number;
-	bloc: "right" | "left";
+	/** where the reader put themselves; null when they would rather not say.
+	 *  Absent from a profile made by the old questionnaire. */
+	placement?: Placement | null;
+	/** the outlets the reader says they read - what "your outlets did not cover
+	 *  this" is measured against. Absent until they were asked. */
+	outlets?: string[];
+	/** right or left - from where they put themselves, or else from the outlets
+	 *  they read; null when neither says */
+	bloc: "right" | "left" | null;
+	/** the old questionnaire's answers, per topic, -5 (left) .. +5 (right), kept for
+	 *  a reader who filled that one */
+	positions?: Record<string, number>;
+	overall?: number;
 	completedAt: number;
 };
 
-export type Question = {
-	topic: string;        // must match a topic name in the database
-	statement: string;
-	/** +1 when agreeing is the right-bloc position, -1 when it is the left one */
-	direction: 1 | -1;
-};
+/**
+ * One question, five answers and a way out. The point is only to put the reader
+ * on one side or the other, however roughly: every number on the analytics page is
+ * "compared with your side", and a long questionnaire is one most people leave
+ * half way. In the order it is drawn, the right first, as the app reads.
+ */
+export const PLACEMENTS: { value: Placement; label: string }[] = [
+	{ value: 2, label: "ימין" },
+	{ value: 1, label: "נוטה ימינה" },
+	{ value: 0, label: "באמצע" },
+	{ value: -1, label: "נוטה שמאלה" },
+	{ value: -2, label: "שמאל" },
+];
+
+export const placementLabel = (placement?: Placement | null) =>
+	PLACEMENTS.find((p) => p.value === placement)?.label ?? null;
 
 /**
- * Eight statements, one per topic family, rather than all 22 topics. The point is
- * to place the reader on the same axes the outlets sit on - and a family profile
- * is what makes "you never read the other side on גיוס חרדים" possible to say.
+ * The reader's side: where they put themselves, and for one in the middle or who
+ * would rather not say, where the outlets they read stand on average - what a
+ * person reads says something about where they are. null when neither says.
  */
-export const QUESTIONS: Question[] = [
-	{ topic: "בנייה בהתנחלויות", direction: 1,
-	  statement: "יש להרחיב את הבנייה בהתנחלויות ביהודה ושומרון" },
-	{ topic: "שתי מדינות", direction: -1,
-	  statement: "על ישראל להסכים להקמת מדינה פלסטינית לצדה" },
-	{ topic: "כלכלה", direction: 1,
-	  statement: "המדינה צריכה לצמצם את מעורבותה בכלכלה ולהפריט שירותים" },
-	{ topic: "קצבאות לחלשים", direction: -1,
-	  statement: "יש להרחיב משמעותית את קצבאות הרווחה" },
-	{ topic: "לימודי ליבה", direction: -1,
-	  statement: "יש לחייב לימודי ליבה בכל מוסדות החינוך, כולל החרדיים" },
-	{ topic: "נישואים אזרחיים", direction: -1,
-	  statement: "יש לאפשר נישואים אזרחיים בישראל" },
-	{ topic: "עצמאות שיפוטית", direction: 1,
-	  statement: "יש לצמצם את סמכות בית המשפט העליון לבטל חוקים" },
-	{ topic: "נישואים חד מיניים", direction: -1,
-	  statement: "המדינה צריכה להכיר בנישואים חד-מיניים" },
-];
-
-/** 5-point scale, in the order it is drawn on screen */
-export const SCALE = [
-	{ label: "מתנגד\nבתוקף", value: -5 },
-	{ label: "נוטה\nלהתנגד", value: -2.5 },
-	{ label: "אין לי\nעמדה", value: 0 },
-	{ label: "נוטה\nלתמוך", value: 2.5 },
-	{ label: "תומך\nבתוקף", value: 5 },
-];
-
-export function buildProfile(answers: Record<string, number>): ReaderProfile {
-	const positions: Record<string, number> = {};
-	QUESTIONS.forEach((q) => {
-		const raw = answers[q.topic];
-		if (raw !== undefined) positions[q.topic] = raw * q.direction;
-	});
-	const values = Object.values(positions);
-	const overall = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-	return {
-		positions,
-		overall: Math.round(overall * 100) / 100,
-		bloc: overall >= 0 ? "right" : "left",   // same zero breaking point as the server
-		completedAt: Date.now(),
-	};
+export function blocOf(placement: Placement | null | undefined, outlets: string[],
+	positions: Record<string, { bias: number | null }>): "right" | "left" | null {
+	if (placement) return placement > 0 ? "right" : "left";
+	const biases = outlets.map((o) => positions[o]?.bias).filter((b): b is number => typeof b === "number");
+	if (biases.length === 0) return null;
+	const mean = biases.reduce((a, b) => a + b, 0) / biases.length;
+	return mean > 0 ? "right" : mean < 0 ? "left" : null;
 }
 
 export async function saveProfile(profile: ReaderProfile) {
@@ -89,11 +75,13 @@ export async function clearProfile() {
 }
 
 
-// The questionnaire is an offer, not a gate: the app opens without it. These two
-// remember whether the offer was already made once, and whether the reader asked
-// not to be asked again.
+// The questionnaire is an offer, not a gate: the app opens without it. These
+// remember whether the offer was already made once, whether the reader asked not
+// to be asked again, and - for a reader who answered the old questionnaire, which
+// had no outlets in it - whether they were asked once for the outlets they read.
 const WELCOMED_KEY = "questionnaire_welcomed";
 const NUDGE_OFF_KEY = "questionnaire_nudge_off";
+const OUTLETS_ASKED_KEY = "outlets_asked";
 
 const flag = async (key: string) => (await AsyncStorage.getItem(key).catch(() => null)) === "1";
 const raise = (key: string) => { AsyncStorage.setItem(key, "1").catch(() => {}); };
@@ -102,3 +90,5 @@ export const wasWelcomed = () => flag(WELCOMED_KEY);
 export const markWelcomed = () => raise(WELCOMED_KEY);
 export const isNudgeOff = () => flag(NUDGE_OFF_KEY);
 export const stopNudging = () => raise(NUDGE_OFF_KEY);
+export const wereOutletsAsked = () => flag(OUTLETS_ASKED_KEY);
+export const markOutletsAsked = () => raise(OUTLETS_ASKED_KEY);

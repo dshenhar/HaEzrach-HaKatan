@@ -1,93 +1,197 @@
-import { QUESTIONS, ReaderProfile, SCALE, buildProfile, saveProfile } from '@/state/profile';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getSitePositions, SitePosition } from '@/state/engagement';
+import { TYPE } from '@/state/craft';
+import { blocOf, Placement, PLACEMENTS, ReaderProfile, saveProfile } from '@/state/profile';
+import { useTheme } from '@/state/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, I18nManager, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const RIGHT = "#C0392F";
 const LEFT = "#2B5EA7";
+// the phone lays the app out right to left and the web build does not
+const FROM_RIGHT = I18nManager.isRTL ? "row" : "row-reverse";
 
-type Props = { onDone: (profile: ReaderProfile) => void }
+type Step = "place" | "outlets" | "result";
 
-const Onboarding = ({ onDone }: Props) => {
-    const [step, setStep] = useState(0);
-    const [answers, setAnswers] = useState<Record<string, number>>({});
+type Props = {
+    /** what the reader answered before, which the questionnaire opens on */
+    profile: ReaderProfile | null;
+    /** a reader who answered the old questionnaire is asked only for their outlets */
+    only?: "outlets";
+    /** the new profile, saved - or null when the reader left without finishing */
+    onDone: (profile: ReaderProfile | null) => void;
+};
 
-    const question = QUESTIONS[step];
-    const done = step >= QUESTIONS.length;
+/**
+ * The questionnaire: where the reader puts themselves, and which outlets they read.
+ *
+ * Two screens and a result, because every question more is readers lost. The first
+ * places the reader on one side or the other, roughly - that is all the analytics
+ * page needs to say "from the other side". The second is what "your outlets did not
+ * cover this" is measured against. Either can be skipped: a reader in the middle, or
+ * who would rather not say, is placed by the outlets they read.
+ */
+const Onboarding = ({ profile, only, onDone }: Props) => {
+    const t = useTheme();
+    const [step, setStep] = useState<Step>(only === "outlets" ? "outlets" : "place");
+    const [placement, setPlacement] = useState<Placement | null>(profile?.placement ?? null);
+    const [chosen, setChosen] = useState<Set<string>>(() => new Set(profile?.outlets ?? []));
+    const [positions, setPositions] = useState<Record<string, SitePosition> | null>(null);
 
-    const answer = (value: number) => {
-        const next = { ...answers, [question.topic]: value };
-        setAnswers(next);
-        setStep(step + 1);
-    };
+    useEffect(() => {
+        let live = true;
+        getSitePositions().then((next) => { if (live) setPositions(next); });
+        return () => { live = false; };
+    }, []);
+    // every outlet the app reads, in Hebrew order
+    const outlets = useMemo(() => Object.keys(positions ?? {})
+        .sort((a, b) => a.localeCompare(b, "he")), [positions]);
+
+    const outletsList = [...chosen];
+    // a reader of the old questionnaire keeps the side it gave them
+    const bloc = only === "outlets" && profile
+        ? profile.bloc
+        : blocOf(placement, outletsList, positions ?? {});
 
     const finish = async () => {
-        const profile = buildProfile(answers);
-        await saveProfile(profile);
-        onDone(profile);
+        const next: ReaderProfile = {
+            ...(only === "outlets" && profile ? profile : {}),
+            ...(only === "outlets" ? {} : { placement }),
+            outlets: outletsList,
+            bloc,
+            completedAt: Date.now(),
+        };
+        await saveProfile(next);
+        onDone(next);
     };
 
-    if (done) {
-        const profile = buildProfile(answers);
-        const pct = ((profile.overall + 5) / 10) * 100;
+    const toggle = (name: string) => setChosen((current) => {
+        const next = new Set(current);
+        if (next.has(name)) next.delete(name); else next.add(name);
+        return next;
+    });
+
+    const head = (index: number, of: number) => (
+        <View style={[styles.head, { flexDirection: FROM_RIGHT }]}>
+            <Text style={[styles.counter, { color: t.textMuted }]}>{index} מתוך {of}</Text>
+            <TouchableOpacity onPress={() => onDone(null)} hitSlop={10}
+                accessibilityRole="button" accessibilityLabel="סגירה">
+                <Ionicons name="close" size={24} color={t.textMuted} />
+            </TouchableOpacity>
+        </View>
+    );
+
+    if (step === "place") {
         return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.result}>
-                    <Text style={styles.resultKicker}>לפי מה שהצהרת</Text>
-                    <Text style={styles.resultTitle}>
-                        אתה נוטה {profile.bloc === "right" ? "ימינה" : "שמאלה"}
+            <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    {head(1, 2)}
+                    <Text style={[styles.title, { color: t.text }]}>איפה אתם על המפה?</Text>
+                    <Text style={[styles.lede, { color: t.textMuted }]}>
+                        בערך, בלי להתחייב. זה מה שמאפשר לאפליקציה להראות לכם כמה ממה שקראתם הגיע
+                        מהצד השני. התשובה נשארת במכשיר שלכם.
                     </Text>
-
-                    <View style={styles.scaleBar}>
-                        <View style={[styles.scaleMarker, { left: `${pct}%` }]} />
+                    <View style={styles.options}>
+                        {PLACEMENTS.map((option) => {
+                            const on = placement === option.value;
+                            const ink = option.value > 0 ? RIGHT : option.value < 0 ? LEFT : t.text;
+                            return (
+                                <TouchableOpacity key={option.value}
+                                    style={[styles.option, { backgroundColor: on ? ink : t.surfaceAlt }]}
+                                    onPress={() => { setPlacement(option.value); setStep("outlets"); }}
+                                    accessibilityRole="button" accessibilityState={{ selected: on }}>
+                                    <Text style={[styles.optionText, { color: on ? "#FFFFFF" : ink }]}>
+                                        {option.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
-                    <View style={styles.scaleEnds}>
-                        <Text style={[styles.scaleEnd, { color: LEFT }]}>שמאל</Text>
-                        <Text style={[styles.scaleEnd, { color: RIGHT }]}>ימין</Text>
-                    </View>
-
-                    <Text style={styles.resultBody}>
-                        לא נשתמש בזה כדי להראות לך יותר ממה שאתה כבר מסכים איתו — ההפך.
-                        מכאן נוכל להראות לך כמה מהקריאה שלך נשארת בתוך הגוש שלך, ובאילו
-                        נושאים בכלל לא שמעת את הצד השני.
-                    </Text>
-
-                    <TouchableOpacity style={styles.primary} onPress={finish}>
-                        <Text style={styles.primaryText}>בואו נתחיל</Text>
+                    <TouchableOpacity onPress={() => { setPlacement(null); setStep("outlets"); }}
+                        accessibilityRole="button">
+                        <Text style={[styles.secondary, { color: t.textMuted }]}>מעדיפים לא לענות</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { setStep(0); setAnswers({}); }}>
-                        <Text style={styles.secondaryText}>למלא מחדש</Text>
-                    </TouchableOpacity>
-                </View>
+                </ScrollView>
             </SafeAreaView>
         );
     }
 
-    return (
-        <SafeAreaView style={styles.container}>
-            <ScrollView contentContainerStyle={styles.scroll}>
-                <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${(step / QUESTIONS.length) * 100}%` }]} />
-                </View>
-                <Text style={styles.counter}>{step + 1} מתוך {QUESTIONS.length}</Text>
-
-                <Text style={styles.intro}>עד כמה אתה מסכים?</Text>
-                <Text style={styles.statement}>{question.statement}</Text>
-
-                <View style={styles.options}>
-                    {SCALE.map((opt) => (
-                        <TouchableOpacity key={opt.value} style={styles.option} onPress={() => answer(opt.value)}>
-                            <Text style={styles.optionText}>{opt.label}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                {step > 0 && (
-                    <TouchableOpacity onPress={() => setStep(step - 1)}>
-                        <Text style={styles.secondaryText}>חזרה</Text>
+    if (step === "outlets") {
+        return (
+            <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    {only === "outlets" ? head(1, 1) : head(2, 2)}
+                    <Text style={[styles.title, { color: t.text }]}>מה אתם קוראים?</Text>
+                    <Text style={[styles.lede, { color: t.textMuted }]}>
+                        סמנו את המקורות שאתם קוראים בדרך כלל. כך נוכל לסמן לכם סיפורים שהם לא
+                        סיקרו - מה שבלי האפליקציה הייתם מפספסים.
+                    </Text>
+                    {positions === null ? (
+                        <ActivityIndicator style={{ marginTop: 24 }} />
+                    ) : (
+                        <View style={[styles.chips, { flexDirection: FROM_RIGHT }]}>
+                            {outlets.map((name) => {
+                                const on = chosen.has(name);
+                                return (
+                                    <TouchableOpacity key={name}
+                                        style={[styles.chip, { backgroundColor: on ? t.text : t.surfaceAlt }]}
+                                        onPress={() => toggle(name)}
+                                        accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+                                        <Text style={[styles.chipText, { color: on ? t.surface : t.text }]}>
+                                            {on ? "✓ " : ""}{name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    )}
+                    <TouchableOpacity style={[styles.primary, { backgroundColor: t.text }]}
+                        onPress={() => (only === "outlets" ? finish() : setStep("result"))}
+                        accessibilityRole="button">
+                        <Text style={[styles.primaryText, { color: t.surface }]}>
+                            {chosen.size ? `המשך · ${chosen.size} מקורות` : "המשך"}
+                        </Text>
                     </TouchableOpacity>
+                    {only !== "outlets" && (
+                        <TouchableOpacity onPress={() => setStep("place")} accessibilityRole="button">
+                            <Text style={[styles.secondary, { color: t.textMuted }]}>חזרה</Text>
+                        </TouchableOpacity>
+                    )}
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    const ink = bloc === "right" ? RIGHT : bloc === "left" ? LEFT : t.text;
+    return (
+        <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
+            <View style={styles.result}>
+                <Text style={[styles.kicker, { color: t.textMuted }]}>
+                    {placement ? "לפי מה שבחרתם" : "לפי המקורות שאתם קוראים"}
+                </Text>
+                <Text style={[styles.resultTitle, { color: ink }]}>
+                    {bloc === "right" ? "אתם נוטים ימינה" : bloc === "left" ? "אתם נוטים שמאלה" : "לא שמנו אתכם באף צד"}
+                </Text>
+                <Text style={[styles.body, { color: t.textMuted }]}>
+                    {bloc
+                        ? "לא נשתמש בזה כדי להראות לכם יותר ממה שאתם כבר מסכימים איתו - ההפך. מכאן נוכל להראות לכם כמה מהקריאה שלכם נשארת בצד שלכם, ובאילו נושאים לא שמעתם את הצד השני."
+                        : "זה בסדר גמור. האפליקציה עדיין תראה לכם הכל משני הצדדים, ואת מה שהמקורות שלכם לא סיקרו. אפשר לענות בכל עת מהאזור האישי."}
+                </Text>
+                {chosen.size > 0 && (
+                    <Text style={[styles.body, { color: t.textMuted }]}>
+                        {chosen.size === 1 ? "סימנתם מקור אחד" : `סימנתם ${chosen.size} מקורות`}: בפיד יסומנו
+                        הסיפורים שהם לא סיקרו.
+                    </Text>
                 )}
-            </ScrollView>
+                <TouchableOpacity style={[styles.primary, { backgroundColor: t.text }]} onPress={finish}
+                    accessibilityRole="button">
+                    <Text style={[styles.primaryText, { color: t.surface }]}>בואו נתחיל</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setStep("place")} accessibilityRole="button">
+                    <Text style={[styles.secondary, { color: t.textMuted }]}>לענות מחדש</Text>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 };
@@ -95,50 +199,23 @@ const Onboarding = ({ onDone }: Props) => {
 export default Onboarding;
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#fff" },
-    scroll: { padding: 22, gap: 14, flexGrow: 1, justifyContent: "center" },
-
-    progressTrack: { height: 4, backgroundColor: "#EEEDEA", borderRadius: 999, overflow: "hidden" },
-    progressFill: { height: 4, backgroundColor: "#22C55E" },
-    counter: { fontFamily: "Rubik_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
-
-    intro: { fontFamily: "Rubik_500Medium", fontSize: 13, color: "#6B7280", textAlign: "right" },
-    statement: {
-        fontFamily: "Rubik_800ExtraBold", fontSize: 23, lineHeight: 32,
-        color: "#111827", textAlign: "right", marginBottom: 8,
-    },
-
-    options: { gap: 8 },
-    option: {
-        borderWidth: 1, borderColor: "#E3E3E1", borderRadius: 12,
-        paddingVertical: 13, paddingHorizontal: 16, backgroundColor: "#FAFAF9",
-    },
-    optionText: { fontFamily: "Rubik_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
-
+    container: { flex: 1 },
+    scroll: { padding: 22, gap: 14, flexGrow: 1 },
+    head: { justifyContent: "space-between", alignItems: "center" },
+    counter: { ...TYPE.caption },
+    title: { ...TYPE.display, fontSize: 28, lineHeight: 34, textAlign: "right", marginTop: 8 },
+    lede: { ...TYPE.body, fontSize: 14, lineHeight: 22, textAlign: "right" },
+    options: { gap: 8, marginTop: 6 },
+    option: { borderRadius: 14, paddingVertical: 15, paddingHorizontal: 18 },
+    optionText: { ...TYPE.label, fontSize: 16, lineHeight: 20, textAlign: "right" },
+    chips: { flexWrap: "wrap", gap: 8, marginTop: 4 },
+    chip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
+    chipText: { ...TYPE.label, fontSize: 13.5 },
+    primary: { borderRadius: 999, paddingVertical: 15, alignItems: "center", marginTop: 10 },
+    primaryText: { ...TYPE.label, fontSize: 15 },
+    secondary: { ...TYPE.label, textAlign: "center", paddingVertical: 10 },
     result: { flex: 1, padding: 22, gap: 12, justifyContent: "center" },
-    resultKicker: { fontFamily: "Rubik_500Medium", fontSize: 12, color: "#9CA3AF", textAlign: "right" },
-    resultTitle: { fontFamily: "Rubik_800ExtraBold", fontSize: 28, color: "#111827", textAlign: "right" },
-    scaleBar: {
-        height: 8, borderRadius: 999, marginTop: 10,
-        backgroundColor: "#E3E3E1", justifyContent: "center",
-    },
-    scaleMarker: {
-        position: "absolute", width: 16, height: 16, borderRadius: 8,
-        backgroundColor: "#111827", marginLeft: -8,
-    },
-    scaleEnds: { flexDirection: "row", justifyContent: "space-between", direction: "ltr" },
-    scaleEnd: { fontFamily: "Rubik_800ExtraBold", fontSize: 12 },
-    resultBody: {
-        fontFamily: "Rubik_400Regular", fontSize: 14, lineHeight: 22,
-        color: "#4B5563", textAlign: "right", marginTop: 8,
-    },
-    primary: {
-        backgroundColor: "#22C55E", borderRadius: 999, paddingVertical: 14,
-        alignItems: "center", marginTop: 10,
-    },
-    primaryText: { fontFamily: "Rubik_800ExtraBold", fontSize: 15, color: "#04310F" },
-    secondaryText: {
-        fontFamily: "Rubik_500Medium", fontSize: 13, color: "#9CA3AF",
-        textAlign: "center", paddingVertical: 10,
-    },
+    kicker: { ...TYPE.label, textAlign: "right" },
+    resultTitle: { ...TYPE.display, textAlign: "right" },
+    body: { ...TYPE.body, fontSize: 14, lineHeight: 22, textAlign: "right" },
 });
