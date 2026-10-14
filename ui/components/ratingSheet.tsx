@@ -8,11 +8,13 @@ import { Toast } from "toastify-react-native";
 
 const RIGHT = "#C0392F";
 const LEFT = "#2B5EA7";
-// The left's end on the left of the screen and the right's on the right, whatever
-// direction the page around it runs in: the scale is a map, not a line of Hebrew.
+// The right's end on the left of the screen and the left's on the right - as the
+// right's page lies to the left of a story in the feed and its name stands on the
+// left above the two pages elsewhere - whatever direction the page around it runs in.
 const MAP = { flexDirection: "row", direction: "ltr" } as const;
 // The slider takes a starting value of 0 for none at all and starts at its minimum
-// instead, so it runs 0..10 and the middle is 5.
+// instead, so it runs 0..10 and the middle is 5; its low end, at the left, is the
+// right's.
 const MID = 5;
 
 interface RatingSheetProps {
@@ -129,8 +131,8 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 				</Text>
 
 				<View style={[styles.ends, MAP]}>
-					<Text style={[styles.end, { color: LEFT }]}>שמאל</Text>
 					<Text style={[styles.end, { color: RIGHT }]}>ימין</Text>
+					<Text style={[styles.end, { color: LEFT }]}>שמאל</Text>
 				</View>
 				<View style={MAP}>
 					<Slider
@@ -138,12 +140,12 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 						minimumValue={0}
 						maximumValue={2 * MID}
 						step={1}
-						value={val + MID}
-						onValueChange={(v) => setVal(Math.round(v) - MID)}
-						minimumTrackTintColor={LEFT}
-						maximumTrackTintColor={RIGHT}
+						value={MID - val}
+						onValueChange={(v) => setVal(MID - Math.round(v))}
+						minimumTrackTintColor={RIGHT}
+						maximumTrackTintColor={LEFT}
 						thumbTintColor={ink}
-						accessibilityLabel="משמאל לימין"
+						accessibilityLabel="מימין לשמאל"
 					/>
 				</View>
 

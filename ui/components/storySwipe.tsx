@@ -17,9 +17,19 @@ type Page = Side | "card";
 // left's to its right, so a finger moving right brings in the right and a finger
 // moving left the left. The phone lays a row out right to left, so there they are
 // put down the other way round to land in the same places.
-const PHYS: Page[] = ["right", "card", "left"];
-const ORDER: Page[] = I18nManager.isRTL ? [...PHYS].reverse() : PHYS;
-const xIndex = (page: Page) => PHYS.indexOf(page);
+//
+// Resting on a side, the story has only that side and itself: the other side is
+// not there at all until the story is back in the middle. A swipe back from a side
+// ends at the story - at the end of the row, where it gives a little and stops -
+// and nothing of the other side shows past it; going on to the other side is a
+// swipe of its own.
+type Span = "all" | Side;
+const PAGES: Record<Span, Page[]> = {
+    all: ["right", "card", "left"],
+    right: ["right", "card"],
+    left: ["card", "left"],
+};
+const laidOut = (pages: Page[]) => (I18nManager.isRTL ? [...pages].reverse() : pages);
 
 // One page at a time. The web build snaps with the browser's own scroll snapping,
 // and every page is a stop, so a quick flick from one side goes back to the story
@@ -28,10 +38,13 @@ const WEB = Platform.OS === "web";
 const SNAP_ROW = (WEB ? { scrollSnapType: "x mandatory" } : {}) as ViewStyle;
 const SNAP_PAGE = (WEB ? { scrollSnapAlign: "start", scrollSnapStop: "always" } : {}) as ViewStyle;
 
-// how long the story rests on a side before it opens, and how it opens and closes
-const SETTLE_MS = 100;
-const GROW_MS = 280;
-const SHRINK_MS = 150;
+// When the scroll has stopped, and how long the story rests on a side before the
+// page opens - long enough for the opening to be seen happening - and how it opens
+// and closes.
+const SETTLE_MS = 120;
+const OPEN_AFTER_MS = 1000;
+const GROW_MS = 420;
+const SHRINK_MS = 160;
 const LABEL: Record<Side, string> = { right: "ימין", left: "שמאל" };
 // At the story's size a page holds its head, the summary and the outlets' names: the
 // summary gets the lines that are left (SUMMARY_LINE each) once the rest is set.
@@ -64,11 +77,12 @@ type Props = {
  * always was; swiped right it gives way to the right's page, in red - how the right
  * told the story, in the AI's summary of its headlines, and which outlets they came
  * from - and swiped left to the left's, in blue. While it moves, a page is the
- * story's own size. A tenth of a second after it comes to rest on one, the page
- * opens to the headlines themselves, each of them a way into the article.
+ * story's own size. A second after it comes to rest on one, the page opens to the
+ * headlines themselves, each of them a way into the article.
  *
  * A touch on the card goes to the side more of its headlines fell on, and a coin
- * when they are level - so neither side is the one always met first.
+ * when they are level - so neither side is the one always met first - and the next
+ * touch, back on the card, to the other side.
  */
 export default function StorySwipe({ data, right, left, missing, readerBloc, open,
     onOpened, onClosed, onOpenArticle, children }: Props) {
@@ -92,8 +106,22 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
     const page = useRef<Page>("card");
     const x = useRef(0);
     const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const opening = useRef<ReturnType<typeof setTimeout> | null>(null);
     const how = useRef<"swipe" | "tap">("swipe");
-    useEffect(() => () => { if (settle.current) clearTimeout(settle.current); }, []);
+    // a finger on the row: a scroll that has stopped under it is not done
+    const touching = useRef(false);
+    // the side last visited, so the next touch on the card goes to the other one
+    const lastSide = useRef<Side | null>(null);
+    // which pages there are - for drawing, and for the handlers between renders
+    const [span, setSpanState] = useState<Span>("all");
+    const spanNow = useRef<Span>("all");
+    const setSpan = (next: Span) => { spanNow.current = next; setSpanState(next); };
+    // a page to go to once the pages for it are there
+    const pendingGo = useRef<Page | null>(null);
+    useEffect(() => () => {
+        if (settle.current) clearTimeout(settle.current);
+        if (opening.current) clearTimeout(opening.current);
+    }, []);
 
     // the summaries are asked for once a side is looked at, not for every story
     const [looked, setLooked] = useState(false);
@@ -104,8 +132,16 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
         const w = Math.round(e.nativeEvent.layout.width);
         if (w && w !== width) setWidth(w);
     };
-    const xOf = (p: Page) => xIndex(p) * width;
-    const go = (p: Page, animated = true) => scroller.current?.scrollTo({ x: xOf(p), animated });
+    const xOf = (p: Page) => Math.max(0, PAGES[spanNow.current].indexOf(p)) * width;
+    const go = (p: Page, animated = true) => {
+        // the other side is not there while the story rests on one: put it back first
+        if (!PAGES[spanNow.current].includes(p)) {
+            pendingGo.current = p;
+            setSpan("all");
+            return;
+        }
+        scroller.current?.scrollTo({ x: xOf(p), animated });
+    };
 
     // the story starts in the middle, before it is first painted
     const place = () => {
@@ -115,6 +151,18 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
     };
     useLayoutEffect(place);
 
+    // A page coming or going moves the others along the row: the story is set back
+    // where the reader was, before it is painted, and then goes on where it was sent.
+    useLayoutEffect(() => {
+        if (!placed.current || !width) return;
+        scroller.current?.scrollTo({ x: xOf(page.current), animated: false });
+        x.current = xOf(page.current);
+        const target = pendingGo.current;
+        pendingGo.current = null;
+        if (target) requestAnimationFrame(() => go(target));
+        // the pages changing is what this answers
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [span]);
     const shrink = (then?: () => void) => {
         shrinking.current = true;
         Animated.timing(grow, {
@@ -141,28 +189,58 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
 
     // where the scroll came to rest
     const rested = () => {
-        const nearest = PHYS.reduce((a, b) => (Math.abs(x.current - xOf(b)) < Math.abs(x.current - xOf(a)) ? b : a));
-        if (Math.abs(x.current - xOf(nearest)) > 3) return;      // still on its way
+        const pages = PAGES[spanNow.current];
+        const nearest = pages.reduce((a, b) => (Math.abs(x.current - xOf(b)) < Math.abs(x.current - xOf(a)) ? b : a));
+        if (Math.abs(x.current - xOf(nearest)) > 3) {
+            // stopped between two pages with no finger on it - a browser's snapping
+            // can leave it so - it goes on to the nearer one
+            if (!touching.current) go(nearest);
+            return;
+        }
         const was = page.current;
         page.current = nearest;
         if (nearest === "card") {
-            if (was !== "card") onClosed?.();
+            if (was !== "card") {
+                setSpan("all");
+                onClosed?.();
+            }
             return;
         }
-        if (grownNow.current !== nearest && items[nearest].length > 0) open_(nearest);
-        if (was === "card") onOpened?.();
+        // arrived on a side: the other side goes, and a second later the page opens -
+        // or opens again, after a nudge that came back to the same side
+        if (nearest !== was) {
+            setSpan(nearest);
+            lastSide.current = nearest;
+            if (was === "card") onOpened?.();
+        }
+        const shut = grownNow.current !== nearest || shrinking.current;
+        if (shut && !opening.current && items[nearest].length > 0) {
+            const side = nearest;
+            opening.current = setTimeout(() => {
+                opening.current = null;
+                if (page.current === side) open_(side);
+            }, OPEN_AFTER_MS);
+        }
         how.current = "swipe";
+    };
+    const restLater = () => {
+        if (settle.current) clearTimeout(settle.current);
+        settle.current = setTimeout(rested, SETTLE_MS);
     };
 
     const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         x.current = e.nativeEvent.contentOffset.x;
         if (!placed.current) return;
         if (!looked && Math.abs(x.current - xOf("card")) > 4) setLooked(true);
-        // on the move, an open page goes back to the story's size
+        // on the move, an open page goes back to the story's size, and one about to
+        // open stays as it is
+        if (Math.abs(x.current - xOf(page.current)) > 6 && opening.current) {
+            clearTimeout(opening.current);
+            opening.current = null;
+        }
         const opened = grownNow.current;
         if (opened && !shrinking.current && Math.abs(x.current - xOf(opened)) > 6) shrink();
-        if (settle.current) clearTimeout(settle.current);
-        settle.current = setTimeout(rested, SETTLE_MS);
+        restLater();
     };
 
     // the feed opens a story when it is touched, or asked for from elsewhere, and
@@ -172,9 +250,12 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
         if (open && page.current === "card") {
             how.current = "tap";
             setLooked(true);
+            // the side not seen last, or, the first time, the side more headlines
+            // fell on - and an empty side only if there is nothing on the other
             const counts = { right: right.length, left: left.length };
-            const side = firstSide(counts.right, counts.left);
-            go(counts[side] > 0 ? side : side === "right" ? "left" : "right");
+            const other = (s: Side): Side => (s === "right" ? "left" : "right");
+            const side = lastSide.current ? other(lastSide.current) : firstSide(counts.right, counts.left);
+            go(counts[side] > 0 || counts[other(side)] === 0 ? side : other(side));
         } else if (!open && page.current !== "card") {
             if (grownNow.current) shrink(() => go("card")); else go("card");
         }
@@ -260,9 +341,12 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
                     onScroll={onScroll}
                     scrollEventThrottle={16}
                     onContentSizeChange={place}
+                    onTouchStart={() => { touching.current = true; }}
+                    onTouchEnd={() => { touching.current = false; restLater(); }}
+                    onTouchCancel={() => { touching.current = false; restLater(); }}
                     style={[styles.scroller, SNAP_ROW]}
                 >
-                    {ORDER.map((p) => p === "card" ? (
+                    {laidOut(PAGES[span]).map((p) => p === "card" ? (
                         <View key="card" style={[styles.card, { width }, SNAP_PAGE]}
                             onLayout={(e) => {
                                 const h = Math.round(e.nativeEvent.layout.height);
