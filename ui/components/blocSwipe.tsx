@@ -7,9 +7,14 @@ import { I18nManager, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent
 
 export type Side = "right" | "left";
 
-// The phone lays the app out right to left and the web build does not: the pages
-// are put in the order that sets the right's page on the right of the screen.
-const ORDER: Side[] = I18nManager.isRTL ? ["right", "left"] : ["left", "right"];
+// One rule for every swipe in the app: a finger moving right brings in the right,
+// moving left the left - so the right's page lies to the left of the left's, as it
+// does beside a story in the feed. The phone lays a row out right to left and the
+// web build does not, so the pages are put down in the order that lands them there,
+// and the two names above them stand over their own pages.
+const PHYS: Side[] = ["right", "left"];      // left to right on the screen
+const ORDER: Side[] = I18nManager.isRTL ? [...PHYS].reverse() : PHYS;
+const OVER_PAGES = I18nManager.isRTL ? "row-reverse" : "row";
 const LABEL: Record<Side, string> = { right: "ימין", left: "שמאל" };
 // The pages' grounds. The dark theme's inks are light, to read on a dark page, and
 // white words on them would not; its pages keep the day's deeper red and blue.
@@ -41,8 +46,9 @@ type Props = {
 /**
  * The right and the left as two pages side by side, swiped between, each on its
  * own colour - red for the right, blue for the left - so which one is on screen is
- * never in doubt. Above them the two names, which can be touched as well as swiped
- * to, the one showing filled in.
+ * never in doubt: a finger moving right brings in the right. Above them the two
+ * names, each over its own page, which can be touched as well as swiped to, the
+ * one showing filled in.
  */
 export default function BlocSwipe({ right, left, rightCount, leftCount, start, rightNote, leftNote, onSide }: Props) {
     const t = useTheme();
@@ -57,7 +63,7 @@ export default function BlocSwipe({ right, left, rightCount, leftCount, start, r
     const ink: Record<Side, string> = { right: t.right, left: t.left };
     const ground = t.name === "negative" ? DEEP : ink;
 
-    const xOf = (s: Side) => ORDER.indexOf(s) * width;
+    const xOf = (s: Side) => PHYS.indexOf(s) * width;
     const go = (s: Side, animated: boolean) => {
         scroller.current?.scrollTo({ x: xOf(s), animated });
     };
@@ -75,7 +81,7 @@ export default function BlocSwipe({ right, left, rightCount, leftCount, start, r
 
     const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         if (!width) return;
-        const page = ORDER[Math.max(0, Math.min(1, Math.round(e.nativeEvent.contentOffset.x / width)))];
+        const page = PHYS[Math.max(0, Math.min(1, Math.round(e.nativeEvent.contentOffset.x / width)))];
         if (page !== side) {
             setSide(page);
             onSide?.(page);
@@ -91,8 +97,9 @@ export default function BlocSwipe({ right, left, rightCount, leftCount, start, r
 
     return (
         <View style={styles.wrap} onLayout={onLayout}>
-            <View style={[styles.tabs, { backgroundColor: t.surfaceAlt }]} accessibilityRole="tablist">
-                {(["right", "left"] as Side[]).map((s) => {
+            <View style={[styles.tabs, { flexDirection: OVER_PAGES, backgroundColor: t.surfaceAlt }]}
+                accessibilityRole="tablist">
+                {PHYS.map((s) => {
                     const on = side === s;
                     const note = s === "right" ? rightNote : leftNote;
                     return (
@@ -123,8 +130,7 @@ export default function BlocSwipe({ right, left, rightCount, leftCount, start, r
 
 const styles = StyleSheet.create({
     wrap: { width: "100%", gap: 8 },
-    // the right's name on the right, as the pages are
-    tabs: { flexDirection: "row-reverse", borderRadius: 999, padding: 3, gap: 3 },
+    tabs: { borderRadius: 999, padding: 3, gap: 3 },
     tab: { flex: 1, borderRadius: 999, paddingVertical: 6, alignItems: "center" },
     tabText: { ...TYPE.label, fontSize: 13.5 },
     scroller: { borderRadius: 14 },

@@ -13,13 +13,13 @@ export type CompanyItem =  {
 export type Bloc = "right" | "left" | "center" | "unknown";
 
 /**
- * The side a headline is shown on. The feed says, from the headline itself; a feed
- * built before headlines had sides does not, and then it is the outlet's bloc.
- * null: on neither side - a headline that leans to neither, or an outlet with no
- * known bloc.
+ * The side a headline is shown on: right or left, never in between. The feed says,
+ * from the headline itself; a feed built before headlines had sides, or one that
+ * still says "neutral" from when there was a middle, does not, and then it is the
+ * outlet's bloc. null only for an outlet with no known bloc.
  */
 export const sideOf = (item: NewsItem, positions: Record<string, SitePosition>): "right" | "left" | null => {
-	if (item.side !== undefined) return item.side === "right" || item.side === "left" ? item.side : null;
+	if (item.side === "right" || item.side === "left") return item.side;
 	const bloc = positions[item.source]?.bloc;
 	return bloc === "right" || bloc === "left" ? bloc : null;
 };
@@ -106,7 +106,8 @@ export type NewsItem = {
 	 *  the model's reading of it, and the readers' once enough have answered */
 	stance?: number | null;
 	/** the side it is shown on - its own, or its outlet's for a headline nothing has
-	 *  placed. Absent from a feed built before headlines had sides. */
+	 *  placed. Absent from a feed built before headlines had sides; "neutral" only in
+	 *  one built while there was a middle. */
 	side?: "right" | "left" | "neutral" | null;
 	/** the story's AI summaries, one per bloc and one across them ("all"). The
 	 *  server writes them before the feed is built and puts them on a story's first

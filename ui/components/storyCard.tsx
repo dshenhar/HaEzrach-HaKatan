@@ -149,8 +149,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     // left-wing paper's level report of it is still the left covering it.
     const missedMine = missedByMine(sources, myOutlets);
     // the headlines by the side each fell on, for the pages beside the card
-    const bySide = { right: [] as NewsItem[], left: [] as NewsItem[], neutral: [] as NewsItem[] };
-    data.forEach((d) => bySide[sideOf(d, positions) ?? "neutral"].push(d));
+    const bySide = { right: [] as NewsItem[], left: [] as NewsItem[] };
+    data.forEach((d) => { const s = sideOf(d, positions); if (s) bySide[s].push(d); });
     // A story on one of the issues opens to its sides, beside the card, and the card
     // itself stays as it is; general news opens inside the card.
     const folded = !open || polar;
@@ -317,7 +317,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     );
     // a story on one of the issues has its two sides beside it
     const body = polar ? (
-                <StorySwipe data={data} right={bySide.right} left={bySide.left} neutral={bySide.neutral}
+                <StorySwipe data={data} right={bySide.right} left={bySide.left}
                     missing={missing} readerBloc={readerBloc} open={open}
                     onOpened={onOpened} onClosed={onClosed} onOpenArticle={handleOpenArticle}>
                     {card}
