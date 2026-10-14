@@ -1,4 +1,4 @@
-import { NewsItem, Bloc, SitePosition, getBlocSummary, storySummaries } from '@/state/engagement';
+import { NewsItem, SitePosition, getBlocSummary, sideOf, storySummaries } from '@/state/engagement';
 import { track } from '@/state/analytics';
 import { TYPE } from '@/state/craft';
 import { useTheme } from '@/state/theme';
@@ -43,8 +43,10 @@ type Props = {
 
 /**
  * A story on one of the issues the country argues over, as its two sides: the
- * right's telling and the left's, each a page of its own colour, swiped between.
- * It opens on the side more outlets told it from, and on a coin when they are level.
+ * headlines that fell on the right and those that fell on the left, each a page of
+ * its own colour, swiped between. It opens on the side with more of them, and on a
+ * coin when they are level. A headline is on the side its own words put it on -
+ * the model's reading, and the readers' - whatever its outlet usually is.
  *
  * Each page leads with a line on how that side told it - written by the server
  * before anyone asked - and under it every outlet of that side with its own
@@ -54,10 +56,8 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
     const t = useTheme();
     const { right, left, unaligned } = useMemo(() => {
         const buckets: Record<string, NewsItem[]> = { right: [], left: [], unaligned: [] };
-        data.forEach((item) => {
-            const bloc: Bloc = positions[item.source]?.bloc ?? "unknown";
-            buckets[bloc === "right" || bloc === "left" ? bloc : "unaligned"].push(item);
-        });
+        // each headline on the side it fell on, not its outlet's
+        data.forEach((item) => buckets[sideOf(item, positions) ?? "unaligned"].push(item));
         return { right: buckets.right, left: buckets.left, unaligned: buckets.unaligned };
     }, [data, positions]);
     const wanted = useMemo(() => (["right", "left"] as Side[])
@@ -108,8 +108,8 @@ const BlocView = ({ data, positions, onOpenArticle }: Props) => {
             {unaligned.length > 0 && (
                 <View style={[styles.unaligned, { backgroundColor: t.surface }]}>
                     <Text style={[styles.unalignedTitle, { color: t.text }]}>
-                        {unaligned.length === 1 ? "גוף אחד שלא נכנס לאף צד"
-                            : `${unaligned.length} גופים שלא נכנסו לאף צד`}
+                        {unaligned.length === 1 ? "כותרת אחת שלא נוטה לאף צד"
+                            : `${unaligned.length} כותרות שלא נוטות לאף צד`}
                     </Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         {unaligned.map((item) => (

@@ -24,7 +24,8 @@ import hot_topics
 from gpt_models import OTHER, TAG_MODEL, OpenAIUnavailable, classify, embed, same_event
 from scraping import article_key, fetch_entries, has_arabic, parse_entry, translate_to_hebrew
 from store import db
-from store.positions import overall, positions_for_topic
+from store.positions import GENERAL_ID, overall, positions_for_topic
+from store.stance import COUNTER, article_side, fold, placed, score as stance_score
 from store.taxonomy import GENERAL_SECTION, SECTION_HINTS, SECTIONS
 from store.summaries import (ALL, BLOCS, GEMINI_API_KEY, SUMMARY_MAX_PER_CYCLE,
                             SUMMARY_MIN_GAP, SUMMARY_WINDOW, QuotaExhausted,
@@ -502,13 +503,15 @@ def tag(articles: list[dict], topics: list[dict], corrections: list[dict]) -> in
         return 0
     catalogue = {t["name"]: t.get("description") or t["name"]
                  for t in topics if t["name"] != GENERAL_TOPIC}
+    poles = {t["name"]: (t.get("pole_right") or "", t.get("pole_left") or "")
+             for t in topics if t["name"] != GENERAL_TOPIC}
     ids = {t["name"]: t["id"] for t in topics}
     sections = {SECTIONS[key]: hint for key, hint in SECTION_HINTS.items()}
     examples = [(c["header"], OTHER if c["topic"] == GENERAL_TOPIC else c["topic"])
                 for c in sorted(corrections, key=lambda c: c.get("created_at") or 0)[-CORRECTION_EXAMPLES:]
                 if c.get("header")]
     answers = classify([(a["id"], f"{a['header']}\n{a['subheader']}") for a in articles],
-                       catalogue, sections, examples)
+                       catalogue, sections, examples, poles)
     tagged = 0
     for article in articles:
         answer = answers.get(article["id"])
@@ -519,6 +522,8 @@ def tag(articles: list[dict], topics: list[dict], corrections: list[dict]) -> in
         article["topic_id"] = ids.get(name, ids.get(GENERAL_TOPIC))
         article["section"] = answer.get("section") or GENERAL_SECTION
         article["topic_model"] = TAG_MODEL
+        # where the headline falls on its issue's axis; general news has none
+        article["stance"] = answer.get("stance") if name != GENERAL_TOPIC else None
         tagged += name != GENERAL_TOPIC
     return tagged
 
@@ -586,7 +591,8 @@ def write_summaries(stories: list[dict] | None = None) -> None:
     writer = db.Writer()
     for story in stories:
         rows = [{"header": a["header"], "subheader": a.get("subheader"),
-                 "site_id": str(a["site_id"])} for a in story.get("articles", [])]
+                 "site_id": str(a["site_id"]), "stance": a.get("stance"), "feel": a.get("feel")}
+                for a in story.get("articles", [])]
         if len(rows) < 2:
             continue
         have = story.get("summaries") or {}
@@ -629,6 +635,11 @@ def feed_stories() -> list[dict]:
     return stories
 
 
+# where a headline nothing has placed stands in the choice of a story's face: behind
+# every placed one but the furthest out
+SCALE_FACE = 4.5
+
+
 def build_feed(stories: list[dict] | None = None) -> list[list]:
     """The feed the app reads, as one document, and what was written to it."""
     stories = stories if stories is not None else feed_stories()
@@ -638,7 +649,9 @@ def build_feed(stories: list[dict] | None = None) -> list[list]:
     for topic_id, doc in states.items():
         for site_id, value in positions_for_topic(doc).items():
             positions[(topic_id, site_id)] = value
-    site_bias = {site_id: info["bias"] for site_id, info in overall(states).items()}
+    scored = overall(states)
+    site_bias = {site_id: info["bias"] for site_id, info in scored.items()}
+    blocs = {site_id: info["bloc"] for site_id, info in scored.items()}
     # general news has no axis, so an outlet's place on a story about none of the
     # topics is where it stands overall
     general_id = next((t["id"] for t in db.all_topics() if t["name"] == GENERAL_TOPIC), None)
@@ -653,18 +666,21 @@ def build_feed(stories: list[dict] | None = None) -> list[list]:
             topic_id = str(article.get("topic_id"))
             outlet = (site_bias.get(site_id, 0.0) if topic_id == general_id
                       else positions.get((topic_id, site_id), site_bias.get(site_id, 0.0)))
-            rating = article.get("rating") or {}
-            rated = rating.get("s", 0.0) / rating["w"] if rating.get("w") else None
+            # where the headline falls - the model's reading and the readers' - and
+            # the side it is shown on, its outlet's for one nothing has placed
+            own = stance_score(article.get("stance"), article.get("feel"))
             items.append({
                 "id": f"{story['id']}-{article['id']}",
                 "title": article["header"],
                 "source": article.get("site", ""),
                 "time": article["created_at"].isoformat(),
                 "summary": article.get("subheader") or "",
-                # the reader's own verdict where there is one, otherwise where the
+                # the headline's own place where there is one, otherwise where the
                 # outlet stands on this topic. Never a random number, as it was.
-                "biasScore": round(rated if rated is not None else outlet, 2),
+                "biasScore": round(own if own is not None else outlet, 2),
                 "siteBiasScore": round(outlet, 2),
+                "stance": own,
+                "side": placed(article, blocs),
                 "topic": topic,
                 "section": section,
                 # kept for the app's older field name; a section is what it means now
@@ -673,9 +689,12 @@ def build_feed(stories: list[dict] | None = None) -> list[list]:
                 "groupId": story["id"],
                 "language": article.get("language", "he"),
             })
-        items.sort(key=lambda x: x["biasScore"])
-        # the face of a story must be an original Hebrew headline, never a translation
-        items.sort(key=lambda x: x.get("language", "he") != "he")
+        # The face of a story is its most level headline - the one leaning least
+        # either way, the earliest of those - and it must be an original Hebrew one,
+        # never a translation. It used to be whichever leaned furthest left.
+        items.sort(key=lambda x: (x.get("language", "he") != "he",
+                                  abs(x["stance"]) if x["stance"] is not None else SCALE_FACE,
+                                  x["time"]))
         # The summaries are written in the pass before this one is built, so they
         # travel with the story and the app shows them without asking for each one.
         # They ride on the first item only: the app reads a story as a plain list of
@@ -690,6 +709,49 @@ def build_feed(stories: list[dict] | None = None) -> list[list]:
 
 
 # ---- cleanup -----------------------------------------------------------------
+
+def count_sides(snaps: list) -> None:
+    """Count where each leaving article fell - right, left or neither - on its
+    outlet's entry for its issue (stance.py). An article is counted once, as it is
+    deleted, when the readers have had their day with it and its side is final.
+
+    The story is marked in the same batch as the counters it added to, so a pass
+    that dies between the counting and the deleting does not count it again.
+    """
+    tally: dict[tuple[str, str], dict[str, int]] = {}
+    counted = []
+    for snap in snaps:
+        story = snap.to_dict() or {}
+        if story.get("sides_counted"):
+            continue
+        counted.append(snap.reference)
+        for article in story.get("articles", []):
+            topic_id = str(article.get("topic_id") or "")
+            if not topic_id or topic_id == GENERAL_ID:
+                continue
+            which = article_side(article)
+            if which is None:
+                continue
+            add = tally.setdefault((topic_id, str(article["site_id"])), {})
+            add[COUNTER[which]] = add.get(COUNTER[which], 0) + 1
+    if not counted:
+        return
+    now = db.now()
+    by_topic: dict[str, dict] = {}
+    for (topic_id, site_id), add in tally.items():
+        by_topic.setdefault(topic_id, {})[site_id] = add
+    writer = db.Writer()
+    for topic_id, sites in by_topic.items():
+        stored = (db.topic_state_ref(topic_id).get().to_dict() or {}).get("sites") or {}
+        writer.set(db.topic_state_ref(topic_id),
+                   {"sites": {site_id: fold(stored.get(site_id) or {}, add, now)
+                              for site_id, add in sites.items()}}, merge=True)
+    for ref in counted:
+        writer.set(ref, {"sides_counted": True}, merge=True)
+    writer.flush()
+    print(f"sides:   {sum(sum(a.values()) for a in tally.values())} headlines counted "
+          f"on {len(tally)} outlet-issue pairs")
+
 
 def cleanup() -> None:
     """Drop the vectors of stories nothing can join, then the stories past retention."""
@@ -710,10 +772,12 @@ def cleanup() -> None:
     if stripped:
         print(f"cleanup: dropped the vectors of {stripped} stories")
 
-    old = db.client().collection("stories") \
-        .where(filter=db.firestore.FieldFilter("created_at", "<",
-                                               db.now() - timedelta(hours=RETENTION_HOURS))) \
-        .order_by("created_at").limit(RETENTION_MAX).stream()
+    old = list(db.client().collection("stories")
+               .where(filter=db.firestore.FieldFilter("created_at", "<",
+                                                      db.now() - timedelta(hours=RETENTION_HOURS)))
+               .order_by("created_at").limit(RETENTION_MAX).stream())
+    # what the headlines taught about their outlets is kept before they go
+    count_sides(old)
     writer = db.Writer()
     stories = articles = 0
     for snap in old:
@@ -754,7 +818,8 @@ def retag() -> None:
                 writer.set(db.client().collection("articles").document(str(article["id"])),
                            {"topic": article.get("topic"), "topic_id": article.get("topic_id"),
                             "section": article.get("section"),
-                            "topic_model": article.get("topic_model")}, merge=True)
+                            "topic_model": article.get("topic_model"),
+                            "stance": article.get("stance")}, merge=True)
         writer.flush()
         print(f"  {min(start + 20, len(stories))}/{len(stories)} stories")
     print(f"{tagged} articles are about one of the issues")

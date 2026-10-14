@@ -8,7 +8,7 @@ import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
 import RatingSheet from "./ratingSheet";
-import { fetchArticles, getSitePositions, getTopics, isRatable, loadFeed, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
+import { fetchArticles, getSitePositions, getTopics, isRatable, loadFeed, mergeClusters, NewsItem, sideOf, SitePosition } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
 import { ELEVATION, glass, SWELL, TYPE } from "@/state/craft";
@@ -144,19 +144,19 @@ export default function NewsFeed() {
 	const clusterTime = (cluster: NewsItem[]) =>
 		Math.min(...cluster.map((a) => new Date(a.time).getTime()).filter((n) => !Number.isNaN(n)));
 
-	/** how much of a story's coverage came from the bloc the reader is NOT in */
+	/** how much of a story's coverage fell on the side the reader is NOT on */
 	const otherBlocShare = (cluster: NewsItem[]) => {
 		if (!profile) return 0;
 		const other = profile.bloc === "right" ? "left" : "right";
-		const known = cluster.filter((a) => positions[a.source]?.bloc);
+		const known = cluster.filter((a) => sideOf(a, positions));
 		if (known.length === 0) return 0;
-		return known.filter((a) => positions[a.source]?.bloc === other).length / known.length;
+		return known.filter((a) => sideOf(a, positions) === other).length / known.length;
 	};
 
 	/** who told a story: the two counts the ring draws and the bloc filter reads */
 	const split = (cluster: NewsItem[]) => ({
-		right: cluster.filter((a) => positions[a.source]?.bloc === "right").length,
-		left: cluster.filter((a) => positions[a.source]?.bloc === "left").length,
+		right: cluster.filter((a) => sideOf(a, positions) === "right").length,
+		left: cluster.filter((a) => sideOf(a, positions) === "left").length,
 	});
 
 	const sortedArticles = useMemo(() => {

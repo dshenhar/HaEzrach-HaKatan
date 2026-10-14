@@ -3,7 +3,17 @@ import { Modal, View, Text, StyleSheet, Pressable, Animated, Easing, TouchableOp
 import Slider from "@react-native-community/slider";
 import { isRatable, saveRating, NewsItem, RatingEvent } from "@/state/engagement";
 import { track } from "@/state/analytics";
+import { TYPE } from "@/state/craft";
 import { Toast } from "toastify-react-native";
+
+const RIGHT = "#C0392F";
+const LEFT = "#2B5EA7";
+// The left's end on the left of the screen and the right's on the right, whatever
+// direction the page around it runs in: the scale is a map, not a line of Hebrew.
+const MAP = { flexDirection: "row", direction: "ltr" } as const;
+// The slider takes a starting value of 0 for none at all and starts at its minimum
+// instead, so it runs 0..10 and the middle is 5.
+const MID = 5;
 
 interface RatingSheetProps {
 	open: boolean;
@@ -11,6 +21,22 @@ interface RatingSheetProps {
 	ratingTarget: NewsItem | null;
 }
 
+/** what a place on the scale says, in words: "נוטה די ימינה" */
+const reading = (value: number) => {
+	if (value === 0) return "באמצע";
+	const much = Math.abs(value) >= 5 ? "מאוד " : Math.abs(value) >= 3 ? "די " : "קצת ";
+	return `נוטה ${much}${value > 0 ? "ימינה" : "שמאלה"}`;
+};
+
+/**
+ * Asked as a reader comes back from an article: how right or left did it feel?
+ *
+ * Every headline on one of the issues is placed by the model on that issue's axis;
+ * this is the readers' half. The model's reading stands until enough of them have
+ * answered, and then they can move the headline to the other side - and with it,
+ * over time, the outlet. One scale for every issue, left to right, so no issue's
+ * "for" and "against" can be read backwards.
+ */
 export default function RatingSheet({ open, onOpenChange, ratingTarget }: RatingSheetProps) {
 	const [val, setVal] = useState(0);
 	const slideAnim = React.useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = visible
@@ -24,15 +50,15 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 			createdAt: Date.now()
 		}
 		saveRating(rate);
-		track("rating_submitted", { topic: rate.topic, value: rate.value, blind: false });
+		track("rating_submitted", { topic: rate.topic, value: rate.value, blind: false, kind: "feel" });
 		Toast.show({
 			type: "default",
-			text1: "vote sent!",
+			text1: "תודה, נשמר",
 			position: "bottom",
 			visibilityTime: 2000,
 			backgroundColor: "white",
-			textColor: "#1d417eff",
-			progressBarColor: "#1d417eff",
+			textColor: "#111827",
+			progressBarColor: "#111827",
 			closeIcon: undefined,
 			closeIconFamily: undefined,
 			closeIconSize: 0,
@@ -80,6 +106,8 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 		setVal(0);
 	}
 
+	const ink = val === 0 ? "#6B7280" : val > 0 ? RIGHT : LEFT;
+
 	return (
 		<Modal
 			visible={asked}
@@ -95,39 +123,46 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 
 			{/* Sliding sheet */}
 			<Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-				<View style={styles.header}>
-					<Text style={styles.title} numberOfLines={2}>
-					דרגו: עד כמה הכתבה של {ratingTarget ? ratingTarget.source : "error"} בעד/נגד הנושא {ratingTarget ? ratingTarget.topic : "error"}?
-					</Text>
+				<Text style={styles.title}>איך הכתבה הרגישה לך?</Text>
+				<Text style={styles.subtitle} numberOfLines={2}>
+					{ratingTarget ? `${ratingTarget.source} · ${ratingTarget.topic}` : ""}
+				</Text>
+
+				<View style={[styles.ends, MAP]}>
+					<Text style={[styles.end, { color: LEFT }]}>שמאל</Text>
+					<Text style={[styles.end, { color: RIGHT }]}>ימין</Text>
+				</View>
+				<View style={MAP}>
+					<Slider
+						style={styles.slider}
+						minimumValue={0}
+						maximumValue={2 * MID}
+						step={1}
+						value={val + MID}
+						onValueChange={(v) => setVal(Math.round(v) - MID)}
+						minimumTrackTintColor={LEFT}
+						maximumTrackTintColor={RIGHT}
+						thumbTintColor={ink}
+						accessibilityLabel="משמאל לימין"
+					/>
 				</View>
 
-				<Text style={styles.subtitle}>-5 = נגד חזק, 0 = ניטרלי, 5 = בעד חזק</Text>
-
-				<Slider
-					minimumValue={-5}
-					maximumValue={5}
-					step={1}
-					value={val}
-					onValueChange={setVal}
-					minimumTrackTintColor="#2563eb"
-					maximumTrackTintColor="#ef0606ff"
-				/>
-
-				<Text style={styles.value}>{val}</Text>
+				<Text style={[styles.value, { color: ink }]}>{reading(val)}</Text>
 
 				<View style={styles.buttonsWrapper}>
 					<TouchableOpacity
-						onPress={handleClose}
-						style={[styles.button, styles.cancel]}
-					>
-					<Text style={styles.cancelText}>ביטול</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity
 						onPress={handleSubmit}
 						style={[styles.button, styles.confirm]}
+						accessibilityRole="button"
 					>
-					<Text style={styles.confirmText}>שמור דירוג</Text>
+					<Text style={styles.confirmText}>שליחה</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						onPress={handleClose}
+						style={[styles.button, styles.cancel]}
+						accessibilityRole="button"
+					>
+					<Text style={styles.cancelText}>דילוג</Text>
 					</TouchableOpacity>
 				</View>
 			</Animated.View>
@@ -138,72 +173,41 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 const styles = StyleSheet.create({
 	overlay: {
 		flex: 1,
-		backgroundColor: "rgba(0,0,0,0.45)",
+		backgroundColor: "rgba(17,24,39,0.35)",
 	},
 	sheet: {
 		position: "absolute",
 		bottom: 0,
 		width: "100%",
+		maxWidth: 560,
+		alignSelf: "center",
 		padding: 20,
-		paddingBottom: 40,
+		paddingBottom: 36,
+		gap: 6,
 		backgroundColor: "#fff",
-		borderTopLeftRadius: 16,
-		borderTopRightRadius: 16,
-		shadowColor: "#000",
-		shadowOpacity: 0.1,
-		shadowRadius: 10,
-		elevation: 10,
-		direction: "rtl",
+		borderTopLeftRadius: 24,
+		borderTopRightRadius: 24,
 	},
-	header: {
-		marginBottom: 10,
-	},
-	title: {
-		fontFamily: "Rubik_700Bold",
-		fontSize: 15,
-		fontWeight: "700",
-		textAlign: "right",
-	},
-	subtitle: {
-		fontFamily: "Rubik_400Regular",
-		marginTop: 4,
-		marginBottom: 12,
-		fontSize: 13,
-		color: "#6b7280",
-		textAlign: "right",
-	},
-	value: {
-		fontFamily: "Rubik_700Bold",
-		marginTop: 12,
-		textAlign: "center",
-		fontSize: 22,
-		fontWeight: "700",
-	},
+	title: { ...TYPE.title, color: "#111827", textAlign: "right" },
+	subtitle: { ...TYPE.caption, color: "#6B7280", textAlign: "right", marginBottom: 10 },
+	ends: { justifyContent: "space-between", paddingHorizontal: 4 },
+	slider: { flex: 1, height: 36 },
+	end: { ...TYPE.label },
+	value: { ...TYPE.label, fontSize: 15, textAlign: "center", marginTop: 6 },
+	// the send on the right, where a Hebrew reader's eye ends the line
 	buttonsWrapper: {
-		flexDirection: "row",
-		justifyContent: "flex-end",
-		gap: 12,
-		marginTop: 20,
+		flexDirection: "row-reverse",
+		gap: 10,
+		marginTop: 16,
 	},
 	button: {
-		paddingVertical: 10,
-		paddingHorizontal: 18,
-		borderRadius: 10,
+		flex: 1,
+		paddingVertical: 12,
+		borderRadius: 999,
+		alignItems: "center",
 	},
-	cancel: {
-		backgroundColor: "#e5e7eb",
-	},
-	cancelText: {
-		fontFamily: "Rubik_700Bold",
-		color: "#111827",
-		fontWeight: "600",
-	},
-	confirm: {
-		backgroundColor: "#2563eb",
-	},
-	confirmText: {
-		fontFamily: "Rubik_700Bold",
-		color: "#fff",
-		fontWeight: "600",
-	},
+	cancel: { backgroundColor: "#F4F4F3" },
+	cancelText: { fontFamily: "Rubik_700Bold", fontSize: 14, color: "#111827" },
+	confirm: { backgroundColor: "#111827" },
+	confirmText: { fontFamily: "Rubik_700Bold", fontSize: 14, color: "#FFFFFF" },
 });

@@ -1,4 +1,4 @@
-import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, SitePosition } from '@/state/engagement';
+import { GENERAL_TOPIC, isRatable, NewsItem, saveWatch, setClusterTopic, sideOf, SitePosition } from '@/state/engagement';
 import { BLIND_INK, blindLabel, blindTo } from '@/state/blindspot';
 import { SETTLE, SWELL, TYPE } from '@/state/craft';
 import Press from './press';
@@ -132,8 +132,8 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     // sides; general news has none, and is told as one.
     const polar = !!shownTopic && shownTopic !== GENERAL_TOPIC;
     // how the coverage split, which is what the ring draws
-    const rightCount = data.filter((d) => positions[d.source]?.bloc === "right").length;
-    const leftCount = data.filter((d) => positions[d.source]?.bloc === "left").length;
+    const rightCount = data.filter((d) => sideOf(d, positions) === "right").length;
+    const leftCount = data.filter((d) => sideOf(d, positions) === "left").length;
     // Who did not tell this story. It is a count rather than a judgement, which is
     // why it can sit on a closed card in plain words: four outlets on one side ran
     // it and nobody on the other did, and a reader can check that in a minute.
@@ -157,6 +157,7 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
         // from the user property, so no two facts about a person travel together.
         track("article_opened", {
             outlet_bloc: positions[item.source]?.bloc ?? "unknown",
+            side: sideOf(item, positions) ?? "none",
             topic: item.topic, section: item.section,
             outlets: data.length, mode: polar ? "bloc" : "general",
         });

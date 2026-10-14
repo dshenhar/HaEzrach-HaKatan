@@ -263,12 +263,12 @@ const PersonalArea = ({ open, onClose, profile, onRetakeQuestionnaire }: Props) 
                         onPress={eraseRatings} disabled={erasing}>
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.rowTitle, { color: t.text }]}>
-                                {erased === null ? "מחיקת הדירוגים שלי" : "הדירוגים נמחקו"}
+                                {erased === null ? "מחיקת התשובות שלי" : "התשובות נמחקו"}
                             </Text>
                             <Text style={[styles.rowNote, { color: t.textMuted }]}>
                                 {erased === null
-                                    ? "מוחק מהשרת את כל מה שדירגת ואת המזהה של המכשיר"
-                                    : `${erased} דירוגים הוסרו. מה שהם לימדו את המפה הוא מספר שאינו מצביע על אף אחד, והוא דועך מעצמו.`}
+                                    ? "מוחק מהשרת את כל מה שענית על כתבות ואת המזהה של המכשיר"
+                                    : `${erased === 1 ? "תשובה אחת הוסרה" : `${erased} תשובות הוסרו`}. מה שהן לימדו את המפה הוא מספר שאינו מצביע על אף אחד, והוא דועך מעצמו.`}
                             </Text>
                         </View>
                         <Ionicons name={erased === null ? "trash-outline" : "checkmark"} size={18}
