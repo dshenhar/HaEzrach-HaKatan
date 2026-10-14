@@ -100,11 +100,11 @@ const styles = StyleSheet.create({
 
     progressTrack: { height: 4, backgroundColor: "#EEEDEA", borderRadius: 999, overflow: "hidden" },
     progressFill: { height: 4, backgroundColor: "#22C55E" },
-    counter: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
+    counter: { fontFamily: "Rubik_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
 
-    intro: { fontFamily: "Heebo_500Medium", fontSize: 13, color: "#6B7280", textAlign: "right" },
+    intro: { fontFamily: "Rubik_500Medium", fontSize: 13, color: "#6B7280", textAlign: "right" },
     statement: {
-        fontFamily: "Heebo_800ExtraBold", fontSize: 23, lineHeight: 32,
+        fontFamily: "Rubik_800ExtraBold", fontSize: 23, lineHeight: 32,
         color: "#111827", textAlign: "right", marginBottom: 8,
     },
 
@@ -113,11 +113,11 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: "#E3E3E1", borderRadius: 12,
         paddingVertical: 13, paddingHorizontal: 16, backgroundColor: "#FAFAF9",
     },
-    optionText: { fontFamily: "Heebo_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
+    optionText: { fontFamily: "Rubik_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
 
     result: { flex: 1, padding: 22, gap: 12, justifyContent: "center" },
-    resultKicker: { fontFamily: "Heebo_500Medium", fontSize: 12, color: "#9CA3AF", textAlign: "right" },
-    resultTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 28, color: "#111827", textAlign: "right" },
+    resultKicker: { fontFamily: "Rubik_500Medium", fontSize: 12, color: "#9CA3AF", textAlign: "right" },
+    resultTitle: { fontFamily: "Rubik_800ExtraBold", fontSize: 28, color: "#111827", textAlign: "right" },
     scaleBar: {
         height: 8, borderRadius: 999, marginTop: 10,
         backgroundColor: "#E3E3E1", justifyContent: "center",
@@ -127,18 +127,18 @@ const styles = StyleSheet.create({
         backgroundColor: "#111827", marginLeft: -8,
     },
     scaleEnds: { flexDirection: "row", justifyContent: "space-between", direction: "ltr" },
-    scaleEnd: { fontFamily: "Heebo_800ExtraBold", fontSize: 12 },
+    scaleEnd: { fontFamily: "Rubik_800ExtraBold", fontSize: 12 },
     resultBody: {
-        fontFamily: "Heebo_400Regular", fontSize: 14, lineHeight: 22,
+        fontFamily: "Rubik_400Regular", fontSize: 14, lineHeight: 22,
         color: "#4B5563", textAlign: "right", marginTop: 8,
     },
     primary: {
         backgroundColor: "#22C55E", borderRadius: 999, paddingVertical: 14,
         alignItems: "center", marginTop: 10,
     },
-    primaryText: { fontFamily: "Heebo_800ExtraBold", fontSize: 15, color: "#04310F" },
+    primaryText: { fontFamily: "Rubik_800ExtraBold", fontSize: 15, color: "#04310F" },
     secondaryText: {
-        fontFamily: "Heebo_500Medium", fontSize: 13, color: "#9CA3AF",
+        fontFamily: "Rubik_500Medium", fontSize: 13, color: "#9CA3AF",
         textAlign: "center", paddingVertical: 10,
     },
 });

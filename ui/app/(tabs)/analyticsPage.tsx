@@ -297,32 +297,32 @@ export default function AnalyticsPage() {
 const styles = StyleSheet.create({
 	// inside the page's own padding, which adds the other 16 at the sides
 	invite: { paddingHorizontal: 8, paddingTop: 32, paddingBottom: 12, gap: 12 },
-	inviteTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 22, color: "#111827", textAlign: "right" },
+	inviteTitle: { fontFamily: "Rubik_800ExtraBold", fontSize: 22, color: "#111827", textAlign: "right" },
 	inviteBody: {
-		fontFamily: "Heebo_400Regular", fontSize: 14, lineHeight: 21,
+		fontFamily: "Rubik_400Regular", fontSize: 14, lineHeight: 21,
 		color: "#6B7280", textAlign: "right",
 	},
 	inviteRow: { flexDirection: RTL_ROW as any, alignItems: "center", gap: 12, marginTop: 6 },
 	inviteButton: { backgroundColor: "#DDA01E", borderRadius: 12, paddingVertical: 13, paddingHorizontal: 20 },
-	inviteButtonText: { fontFamily: "Heebo_800ExtraBold", fontSize: 15, color: "#FFFFFF" },
+	inviteButtonText: { fontFamily: "Rubik_800ExtraBold", fontSize: 15, color: "#FFFFFF" },
 	hint: {
-		fontFamily: "Heebo_400Regular", fontSize: 12.5, lineHeight: 19, color: "#6B7280",
+		fontFamily: "Rubik_400Regular", fontSize: 12.5, lineHeight: 19, color: "#6B7280",
 		textAlign: "right", backgroundColor: "#F4F4F3", borderRadius: 10, padding: 11,
 	},
 
 	container: { flex: 1, backgroundColor: "#f8f8f8ff" },
 	// room for the bar to float over without covering the last card
 	scroll: { padding: 16, gap: 12, paddingBottom: 96 },
-	title: { fontFamily: "Heebo_800ExtraBold", fontSize: 26, color: "#111827", textAlign: "right" },
-	subtitle: { fontFamily: "Heebo_400Regular", fontSize: 14, color: "#6B7280", textAlign: "right", marginBottom: 4 },
-	sectionTitle: { fontFamily: "Heebo_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right", marginTop: 8 },
+	title: { fontFamily: "Rubik_800ExtraBold", fontSize: 26, color: "#111827", textAlign: "right" },
+	subtitle: { fontFamily: "Rubik_400Regular", fontSize: 14, color: "#6B7280", textAlign: "right", marginBottom: 4 },
+	sectionTitle: { fontFamily: "Rubik_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right", marginTop: 8 },
 
 	card: { backgroundColor: "#fff", borderRadius: 12, padding: 14, gap: 9 },
-	cardTitle: { fontFamily: "Heebo_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
+	cardTitle: { fontFamily: "Rubik_700Bold", fontSize: 14, color: "#111827", textAlign: "right" },
 	bigRow: { flexDirection: RTL_ROW, alignItems: "baseline", gap: 10 },
-	big: { fontFamily: "Heebo_800ExtraBold", fontSize: 34, color: "#111827" },
-	note: { fontFamily: "Heebo_400Regular", fontSize: 12, lineHeight: 18, color: "#6B7280", textAlign: "right", flex: 1 },
-	footnote: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
+	big: { fontFamily: "Rubik_800ExtraBold", fontSize: 34, color: "#111827" },
+	note: { fontFamily: "Rubik_400Regular", fontSize: 12, lineHeight: 18, color: "#6B7280", textAlign: "right", flex: 1 },
+	footnote: { fontFamily: "Rubik_500Medium", fontSize: 11, color: "#9CA3AF", textAlign: "right" },
 
 	// the bars fill from the right
 	track: { flexDirection: RTL_ROW, height: 10, borderRadius: 999, backgroundColor: "#EEEDEA", overflow: "hidden" },
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
 
 	// centred like the circles below, so each label sits over its own circle
 	legend: { flexDirection: RTL_ROW, justifyContent: "center", gap: 44 },
-	legendItem: { fontFamily: "Heebo_700Bold", fontSize: 11 },
+	legendItem: { fontFamily: "Rubik_700Bold", fontSize: 11 },
 
 	cardHead: { flexDirection: RTL_ROW, alignItems: "center", justifyContent: "space-between" },
 	row: {
@@ -338,12 +338,12 @@ const styles = StyleSheet.create({
 		flexDirection: RTL_ROW, justifyContent: "space-between", alignItems: "center", gap: 14,
 		borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEEDEA", paddingVertical: 6,
 	},
-	rowLabel: { fontFamily: "Heebo_400Regular", fontSize: 13, color: "#111827", textAlign: "right", flex: 1 },
-	rowValue: { fontFamily: "Heebo_800ExtraBold", fontSize: 12 },
+	rowLabel: { fontFamily: "Rubik_400Regular", fontSize: 13, color: "#111827", textAlign: "right", flex: 1 },
+	rowValue: { fontFamily: "Rubik_800ExtraBold", fontSize: 12 },
 
 	bubbles: { flexDirection: RTL_ROW, alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 6 },
 	bubble: { alignItems: "center", justifyContent: "center" },
-	bubbleText: { fontFamily: "Heebo_800ExtraBold", fontSize: 13, color: "#fff" },
+	bubbleText: { fontFamily: "Rubik_800ExtraBold", fontSize: 13, color: "#fff" },
 
 	avatars: { flexDirection: RTL_ROW, flexWrap: "wrap", gap: 8 },
 	avatar: {
@@ -351,15 +351,15 @@ const styles = StyleSheet.create({
 		alignItems: "center", justifyContent: "center", padding: 3,
 	},
 	avatarSm: { width: 30, height: 30, borderRadius: 15 },
-	avatarText: { fontFamily: "Heebo_700Bold", fontSize: 8, color: "#fff", textAlign: "center", lineHeight: 10 },
+	avatarText: { fontFamily: "Rubik_700Bold", fontSize: 8, color: "#fff", textAlign: "center", lineHeight: 10 },
 
 	missed: {
 		backgroundColor: "#F4F4F3", borderRadius: 10, padding: 10, gap: 6, marginTop: 2,
 	},
 	missedHead: { flexDirection: RTL_ROW, alignItems: "center", gap: 8 },
-	missedTitle: { fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 18, color: "#111827", textAlign: "right" },
+	missedTitle: { fontFamily: "Rubik_700Bold", fontSize: 13, lineHeight: 18, color: "#111827", textAlign: "right" },
 
 	chips: { flexDirection: RTL_ROW, flexWrap: "wrap", gap: 6 },
 	chip: { borderWidth: 1, borderColor: "#E3E3E1", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-	chipText: { fontFamily: "Heebo_500Medium", fontSize: 11, color: "#111827" },
+	chipText: { fontFamily: "Rubik_500Medium", fontSize: 11, color: "#111827" },
 });

@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	title: {
-		fontFamily: "Heebo_700Bold",
+		fontFamily: "Rubik_700Bold",
 		fontSize: 16,
 		fontWeight: "600",
 	},
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
 		padding: 6,
 	},
 	externalText: {
-		fontFamily: "Heebo_400Regular",
+		fontFamily: "Rubik_400Regular",
 		fontSize: 14,
 	},
 	webviewContainer: {

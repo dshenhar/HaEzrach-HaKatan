@@ -1,10 +1,10 @@
 import {
-	Heebo_400Regular,
-	Heebo_500Medium,
-	Heebo_700Bold,
-	Heebo_800ExtraBold,
+	Rubik_400Regular,
+	Rubik_500Medium,
+	Rubik_700Bold,
+	Rubik_800ExtraBold,
 	useFonts,
-} from '@expo-google-fonts/heebo';
+} from '@expo-google-fonts/rubik';
 import AccessibilityBar from '@/components/accessibilityBar';
 import { ConsentProvider } from '@/state/consent';
 import { rememberBloc, track, trackScreen } from '@/state/analytics';
@@ -38,10 +38,10 @@ const PHONE_WIDTH = 420;
 
 export default function RootLayout() {
 	const [loaded, fontError] = useFonts({
-		Heebo_400Regular,
-		Heebo_500Medium,
-		Heebo_700Bold,
-		Heebo_800ExtraBold,
+		Rubik_400Regular,
+		Rubik_500Medium,
+		Rubik_700Bold,
+		Rubik_800ExtraBold,
 	});
 
 	const [profile, setProfile] = useState<ReaderProfile | null>(null);

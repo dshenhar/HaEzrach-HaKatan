@@ -293,23 +293,23 @@ const styles = StyleSheet.create({
     body: { padding: 18, gap: 10, paddingBottom: 32 },
 
     head: { flexDirection: "row-reverse", alignItems: "center", gap: 12, marginBottom: 6 },
-    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 22, textAlign: "right" },
-    sub: { fontFamily: "Heebo_500Medium", fontSize: 12, textAlign: "right" },
+    title: { fontFamily: "Rubik_800ExtraBold", fontSize: 22, textAlign: "right" },
+    sub: { fontFamily: "Rubik_500Medium", fontSize: 12, textAlign: "right" },
 
-    section: { fontFamily: "Heebo_700Bold", fontSize: 11, letterSpacing: 0.6, textAlign: "right", marginTop: 8 },
+    section: { fontFamily: "Rubik_700Bold", fontSize: 11, letterSpacing: 0.6, textAlign: "right", marginTop: 8 },
     row: { flexDirection: "row-reverse", alignItems: "center", gap: 12, borderRadius: 12, padding: 13 },
-    rowTitle: { fontFamily: "Heebo_700Bold", fontSize: 14, textAlign: "right" },
-    rowNote: { fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17, textAlign: "right", marginTop: 2 },
+    rowTitle: { fontFamily: "Rubik_700Bold", fontSize: 14, textAlign: "right" },
+    rowNote: { fontFamily: "Rubik_400Regular", fontSize: 11.5, lineHeight: 17, textAlign: "right", marginTop: 2 },
 
     codeRow: { borderRadius: 12, padding: 13, gap: 8 },
     codeLine: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
     // 16, as every field in the app: below it iPhone's Safari zooms in on a touch
     codeInput: {
         flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-        fontFamily: "Heebo_500Medium", fontSize: 16, textAlign: "right",
+        fontFamily: "Rubik_500Medium", fontSize: 16, textAlign: "right",
     },
     codeButton: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
-    codeButtonText: { fontFamily: "Heebo_700Bold", fontSize: 14 },
+    codeButtonText: { fontFamily: "Rubik_700Bold", fontSize: 14 },
 
     positions: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13 },
     // the issue at the right where the reading starts, the score at the far left in
@@ -319,8 +319,8 @@ const styles = StyleSheet.create({
         flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center",
         gap: 14, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    posTopic: { fontFamily: "Heebo_400Regular", fontSize: 13, flex: 1, textAlign: "right" },
-    posScore: { fontFamily: "Heebo_800ExtraBold", fontSize: 12 },
+    posTopic: { fontFamily: "Rubik_400Regular", fontSize: 13, flex: 1, textAlign: "right" },
+    posScore: { fontFamily: "Rubik_800ExtraBold", fontSize: 12 },
 
-    close: { fontFamily: "Heebo_500Medium", fontSize: 13, textAlign: "center", paddingVertical: 14 },
+    close: { fontFamily: "Rubik_500Medium", fontSize: 13, textAlign: "center", paddingVertical: 14 },
 });

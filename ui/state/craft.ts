@@ -48,14 +48,14 @@ export const elevation = (dark: boolean) => (dark ? ELEVATION_DARK : ELEVATION);
  * leading here is a little tighter than the same scale in Latin would want.
  */
 export const TYPE = {
-    display: { fontSize: 30, lineHeight: 34, letterSpacing: -0.66, fontFamily: "Heebo_800ExtraBold" },
-    title:   { fontSize: 20, lineHeight: 25, letterSpacing: -0.3, fontFamily: "Heebo_800ExtraBold" },
-    brand:   { fontSize: 21, lineHeight: 23, letterSpacing: -0.4, fontFamily: "Heebo_800ExtraBold" },
-    headline:{ fontSize: 14.5, lineHeight: 20, letterSpacing: -0.08, fontFamily: "Heebo_700Bold" },
-    body:    { fontSize: 13, lineHeight: 20, letterSpacing: 0, fontFamily: "Heebo_400Regular" },
-    caption: { fontSize: 11.5, lineHeight: 16, letterSpacing: 0.05, fontFamily: "Heebo_400Regular" },
-    label:   { fontSize: 12.5, lineHeight: 17, letterSpacing: 0.05, fontFamily: "Heebo_700Bold" },
-    micro:   { fontSize: 10.5, lineHeight: 14, letterSpacing: 0.14, fontFamily: "Heebo_700Bold" },
+    display: { fontSize: 30, lineHeight: 34, letterSpacing: -0.66, fontFamily: "Rubik_800ExtraBold" },
+    title:   { fontSize: 20, lineHeight: 25, letterSpacing: -0.3, fontFamily: "Rubik_800ExtraBold" },
+    brand:   { fontSize: 21, lineHeight: 23, letterSpacing: -0.4, fontFamily: "Rubik_800ExtraBold" },
+    headline:{ fontSize: 14.5, lineHeight: 20, letterSpacing: -0.08, fontFamily: "Rubik_700Bold" },
+    body:    { fontSize: 13, lineHeight: 20, letterSpacing: 0, fontFamily: "Rubik_400Regular" },
+    caption: { fontSize: 11.5, lineHeight: 16, letterSpacing: 0.05, fontFamily: "Rubik_400Regular" },
+    label:   { fontSize: 12.5, lineHeight: 17, letterSpacing: 0.05, fontFamily: "Rubik_700Bold" },
+    micro:   { fontSize: 10.5, lineHeight: 14, letterSpacing: 0.14, fontFamily: "Rubik_700Bold" },
 } as const;
 
 // ---------------------------------------------------------------- motion

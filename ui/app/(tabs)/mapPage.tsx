@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     // the floating tab bar stands on the foot of every screen
     body: { paddingHorizontal: 16, paddingTop: PAD_TOP, paddingBottom: 110, gap: GAP },
     // the same title the feed and the analytics page start with
-    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 23, color: "#111827", textAlign: "right" },
+    title: { fontFamily: "Rubik_800ExtraBold", fontSize: 23, color: "#111827", textAlign: "right" },
     divider: { alignItems: "center", gap: 10, marginTop: 8 },
     dividerText: { ...TYPE.label, fontSize: 14, color: "#111827" },
     rule: { flex: 1, height: 1, backgroundColor: "#D9D8D4" },

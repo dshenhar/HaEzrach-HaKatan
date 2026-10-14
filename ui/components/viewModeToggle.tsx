@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     },
     segCompact: { paddingVertical: 8, gap: 5 },
     segText: {
-        fontFamily: "Heebo_700Bold", fontSize: 13.5, letterSpacing: -0.1, flexShrink: 0,
+        fontFamily: "Rubik_700Bold", fontSize: 13.5, letterSpacing: -0.1, flexShrink: 0,
     },
     segTextCompact: { fontSize: 12.5, letterSpacing: 0 },
 });

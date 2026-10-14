@@ -203,21 +203,21 @@ const styles = StyleSheet.create({
     // 16 and not less: iPhone's Safari zooms into a field set smaller, and stays
     // zoomed in after it, with the results under the reader's thumb half off screen
     input: {
-        flex: 1, height: "100%", fontFamily: "Heebo_500Medium", fontSize: 16,
+        flex: 1, height: "100%", fontFamily: "Rubik_500Medium", fontSize: 16,
         textAlign: "right", writingDirection: "rtl", paddingVertical: 0,
     },
     count: { ...TYPE.caption, textAlign: "right", paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 },
     scroll: { flex: 1 },
     list: { paddingHorizontal: 14, paddingBottom: 18, gap: 8 },
-    label: { fontFamily: "Heebo_700Bold", fontSize: 11, textAlign: "right", marginTop: 8, marginBottom: -2 },
+    label: { fontFamily: "Rubik_700Bold", fontSize: 11, textAlign: "right", marginTop: 8, marginBottom: -2 },
     row: { alignItems: "center", gap: 12, padding: 12, borderRadius: 14, borderWidth: 1 },
     storyRow: { alignItems: "stretch", gap: 4 },
     rowText: { flex: 1, gap: 3 },
     title: { ...TYPE.label, fontSize: 15, lineHeight: 21, textAlign: "right" },
     sub: { ...TYPE.caption, lineHeight: 18, textAlign: "right" },
-    hit: { fontFamily: "Heebo_800ExtraBold", textDecorationLine: "underline" },
+    hit: { fontFamily: "Rubik_800ExtraBold", textDecorationLine: "underline" },
     thumb: { width: 52, height: 52, borderRadius: 10, backgroundColor: "#EFEEEA" },
     meta: { alignItems: "center", gap: 8 },
-    section: { fontFamily: "Heebo_700Bold", fontSize: 11 },
+    section: { fontFamily: "Rubik_700Bold", fontSize: 11 },
     outlets: { ...TYPE.caption, fontSize: 11 },
 });

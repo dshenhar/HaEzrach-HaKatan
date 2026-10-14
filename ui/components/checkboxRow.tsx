@@ -55,6 +55,6 @@ const styles = StyleSheet.create({
     },
     checkboxOn: { backgroundColor: "#111827", borderColor: "#111827" },
     checkboxFull: { opacity: 0.45 },
-    label: { fontFamily: "Heebo_500Medium", fontSize: 13, color: "#111827" },
-    labelOn: { fontFamily: "Heebo_700Bold", color: "#fff" }
+    label: { fontFamily: "Rubik_500Medium", fontSize: 13, color: "#111827" },
+    labelOn: { fontFamily: "Rubik_700Bold", color: "#fff" }
 })

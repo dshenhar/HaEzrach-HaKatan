@@ -159,13 +159,13 @@ const styles = StyleSheet.create({
 		marginBottom: 10,
 	},
 	title: {
-		fontFamily: "Heebo_700Bold",
+		fontFamily: "Rubik_700Bold",
 		fontSize: 15,
 		fontWeight: "700",
 		textAlign: "right",
 	},
 	subtitle: {
-		fontFamily: "Heebo_400Regular",
+		fontFamily: "Rubik_400Regular",
 		marginTop: 4,
 		marginBottom: 12,
 		fontSize: 13,
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
 		textAlign: "right",
 	},
 	value: {
-		fontFamily: "Heebo_700Bold",
+		fontFamily: "Rubik_700Bold",
 		marginTop: 12,
 		textAlign: "center",
 		fontSize: 22,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
 		backgroundColor: "#e5e7eb",
 	},
 	cancelText: {
-		fontFamily: "Heebo_700Bold",
+		fontFamily: "Rubik_700Bold",
 		color: "#111827",
 		fontWeight: "600",
 	},
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
 		backgroundColor: "#2563eb",
 	},
 	confirmText: {
-		fontFamily: "Heebo_700Bold",
+		fontFamily: "Rubik_700Bold",
 		color: "#fff",
 		fontWeight: "600",
 	},

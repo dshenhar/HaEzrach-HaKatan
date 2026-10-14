@@ -223,21 +223,21 @@ const styles = StyleSheet.create({
 	},
 	// the strip is Hebrew: the dismiss control sits on the physical left of the card
 	bannerCloseEdge: { left: 0 },
-	bannerButtonText: { fontFamily: "Heebo_800ExtraBold", fontSize: 13 },
+	bannerButtonText: { fontFamily: "Rubik_800ExtraBold", fontSize: 13 },
 
 	section: {
-		fontFamily: "Heebo_700Bold", fontSize: 11, letterSpacing: 0.6,
+		fontFamily: "Rubik_700Bold", fontSize: 11, letterSpacing: 0.6,
 		textAlign: "right", marginTop: 8,
 	},
 	row: { alignItems: "center", gap: 12, borderRadius: 12, padding: 13 },
-	rowTitle: { fontFamily: "Heebo_700Bold", fontSize: 14, textAlign: "right" },
+	rowTitle: { fontFamily: "Rubik_700Bold", fontSize: 14, textAlign: "right" },
 	inline: { borderWidth: 1, borderRadius: 12, padding: 13 },
 
 	modal: { justifyContent: "center", alignItems: "center", margin: 20 },
 	card: { width: "100%", maxWidth: 360, borderRadius: 18, borderWidth: 1, padding: 20, gap: 14 },
-	title: { fontFamily: "Heebo_800ExtraBold", fontSize: 21, textAlign: "right" },
+	title: { fontFamily: "Rubik_800ExtraBold", fontSize: 21, textAlign: "right" },
 	steps: { gap: 10 },
 	step: { alignItems: "center", gap: 8 },
-	stepText: { fontFamily: "Heebo_400Regular", fontSize: 14, lineHeight: 20, textAlign: "right" },
-	close: { fontFamily: "Heebo_500Medium", fontSize: 13, textAlign: "center", paddingTop: 2 },
+	stepText: { fontFamily: "Rubik_400Regular", fontSize: 14, lineHeight: 20, textAlign: "right" },
+	close: { fontFamily: "Rubik_500Medium", fontSize: 13, textAlign: "center", paddingTop: 2 },
 });

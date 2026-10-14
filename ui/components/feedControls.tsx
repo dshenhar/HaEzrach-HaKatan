@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     },
     // the panel's two halves, each said once and quietly
     panelLabel: {
-        fontFamily: "Heebo_700Bold", fontSize: 10.5, textAlign: "right",
+        fontFamily: "Rubik_700Bold", fontSize: 10.5, textAlign: "right",
         paddingHorizontal: 16, marginBottom: -3,
     },
     strip: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingHorizontal: 16 },
@@ -249,14 +249,14 @@ const styles = StyleSheet.create({
     // not a shape drawn in outline
     edged: { flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1 },
     dot: { width: 7, height: 7, borderRadius: 4 },
-    chipText: { fontFamily: "Heebo_500Medium", fontSize: 12, letterSpacing: 0.05 },
-    chipOn: { color: "#FFFFFF", fontFamily: "Heebo_700Bold" },
+    chipText: { fontFamily: "Rubik_500Medium", fontSize: 12, letterSpacing: 0.05 },
+    chipOn: { color: "#FFFFFF", fontFamily: "Rubik_700Bold" },
     searchRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingHorizontal: 16 },
     searchField: { flex: 1 },
     go: { height: 40, borderRadius: 999, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
-    goText: { fontFamily: "Heebo_700Bold", fontSize: 14 },
+    goText: { fontFamily: "Rubik_700Bold", fontSize: 14 },
     note: {
-        fontFamily: "Heebo_500Medium", fontSize: 11, lineHeight: 16,
+        fontFamily: "Rubik_500Medium", fontSize: 11, lineHeight: 16,
         textAlign: "right", paddingHorizontal: 16, marginTop: -2,
     },
 });

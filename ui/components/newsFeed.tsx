@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
 		...glass(false), borderWidth: 1, boxShadow: ELEVATION.float,
 	},
-	freshText: { fontFamily: "Heebo_700Bold", fontSize: 12.5 },
+	freshText: { fontFamily: "Rubik_700Bold", fontSize: 12.5 },
 
 	container: { 
 		flex: 1, 
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
 		width: "100%"
 	},
 	devBar: { width: "100%", paddingVertical: 5, alignItems: "center" },
-	devBarText: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#04310F" },
+	devBarText: { fontFamily: "Rubik_700Bold", fontSize: 11, color: "#04310F" },
 	headerTop: {
 		// right to left: the i, the logo, the personal area - the two icons are the
 		// same size, so space-between centres the logo; the direction keeps that order
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
 	brandWords: { alignItems: "flex-end" },
 	brandTop: { ...TYPE.brand },
 	brandBottom: {
-		fontFamily: "Heebo_700Bold", fontSize: 13, lineHeight: 15, letterSpacing: 0.08,
+		fontFamily: "Rubik_700Bold", fontSize: 13, lineHeight: 15, letterSpacing: 0.08,
 	},
 	scrollView: {
 		width: "100%",
