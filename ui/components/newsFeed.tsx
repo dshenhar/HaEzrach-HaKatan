@@ -8,7 +8,7 @@ import WelcomeGuide from "./welcomeGuide";
 import GuideBackdrop from "./guideBackdrop";
 import StoryCard from "./storyCard";
 import RatingSheet from "./ratingSheet";
-import { fetchArticles, getSitePositions, getTopics, loadFeed, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
+import { fetchArticles, getSitePositions, getTopics, isRatable, loadFeed, mergeClusters, NewsItem, SitePosition } from "@/state/engagement";
 import { track } from "@/state/analytics";
 import { orderSections } from "@/state/sections";
 import { ELEVATION, glass, SWELL, TYPE } from "@/state/craft";
@@ -165,6 +165,8 @@ export default function NewsFeed() {
 		// knows, and this is where a reader goes looking for it.
 		if (blocFilter !== "all") {
 			list = list.filter((cluster) => {
+				// general news has no sides, so it is in none of these
+				if (!isRatable(cluster[0])) return false;
 				const { right, left } = split(cluster);
 				if (blocFilter === "both") return right > 0 && left > 0;
 				if (blocFilter === "blind") {

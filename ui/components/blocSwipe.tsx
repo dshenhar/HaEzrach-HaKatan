@@ -11,6 +11,9 @@ export type Side = "right" | "left";
 // are put in the order that sets the right's page on the right of the screen.
 const ORDER: Side[] = I18nManager.isRTL ? ["right", "left"] : ["left", "right"];
 const LABEL: Record<Side, string> = { right: "ימין", left: "שמאל" };
+// The pages' grounds. The dark theme's inks are light, to read on a dark page, and
+// white words on them would not; its pages keep the day's deeper red and blue.
+const DEEP: Record<Side, string> = { right: "#C0392F", left: "#2B5EA7" };
 
 /**
  * The side to open on: the one more sources stand behind, and a coin when they are
@@ -52,6 +55,7 @@ export default function BlocSwipe({ right, left, rightCount, leftCount, start, r
     const scroller = useRef<ScrollView>(null);
     const placed = useRef(false);
     const ink: Record<Side, string> = { right: t.right, left: t.left };
+    const ground = t.name === "negative" ? DEEP : ink;
 
     const xOf = (s: Side) => ORDER.indexOf(s) * width;
     const go = (s: Side, animated: boolean) => {
@@ -79,7 +83,7 @@ export default function BlocSwipe({ right, left, rightCount, leftCount, start, r
     };
 
     const page = (s: Side) => (
-        <View key={s} style={[styles.page, { width: width || undefined, backgroundColor: ink[s] }]}
+        <View key={s} style={[styles.page, { width: width || undefined, backgroundColor: ground[s] }]}
             accessibilityLabel={LABEL[s]}>
             {s === "right" ? right : left}
         </View>
@@ -92,7 +96,7 @@ export default function BlocSwipe({ right, left, rightCount, leftCount, start, r
                     const on = side === s;
                     const note = s === "right" ? rightNote : leftNote;
                     return (
-                        <Press key={s} style={[styles.tab, on && { backgroundColor: ink[s] }]}
+                        <Press key={s} style={[styles.tab, on && { backgroundColor: ground[s] }]}
                             onPress={() => { go(s, true); setSide(s); onSide?.(s); }}
                             accessibilityRole="tab" accessibilityState={{ selected: on }}>
                             <Text style={[styles.tabText, { color: on ? "#FFFFFF" : ink[s] }]}>
@@ -124,5 +128,7 @@ const styles = StyleSheet.create({
     tab: { flex: 1, borderRadius: 999, paddingVertical: 6, alignItems: "center" },
     tabText: { ...TYPE.label, fontSize: 13.5 },
     scroller: { borderRadius: 14 },
-    page: { borderRadius: 14, padding: 14 },
+    // as tall as the taller of the two: the web build wraps each page of a paging
+    // scroller in a box of its own, which the row stretches and the page fills
+    page: { borderRadius: 14, padding: 14, flexGrow: 1 },
 });

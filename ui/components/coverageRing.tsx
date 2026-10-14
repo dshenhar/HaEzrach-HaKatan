@@ -25,9 +25,17 @@ const R = (SIZE - STROKE) / 2;
 const C = 2 * Math.PI * R;
 const DRAW_MS = 750;
 
-type Props = { right: number; left: number; rightInk: string; leftInk: string; text: string };
+type Props = {
+    right: number; left: number; rightInk: string; leftInk: string; text: string;
+    /** general news: no sides to draw, only how many told it, in one grey ring */
+    plain?: boolean;
+};
 
-export default function CoverageRing({ right, left, rightInk, leftInk, text }: Props) {
+const PLAIN = "#9CA3AF";
+
+export default function CoverageRing({ right: r, left: l, rightInk, leftInk, text, plain }: Props) {
+    const right = plain ? 0 : r;
+    const left = plain ? 1 : l;
     const total = right + left;
     const rightLen = total ? C * (right / total) : 0;
     const still = useStillness();
@@ -47,7 +55,8 @@ export default function CoverageRing({ right, left, rightInk, leftInk, text }: P
 
     return (
         <View style={styles.wrap}
-            accessibilityLabel={`${total} גופים סיקרו, ${right} מימין ו-${left} משמאל`}>
+            accessibilityLabel={plain ? `${text} גופים סיקרו`
+                : `${total} גופים סיקרו, ${right} מימין ו-${left} משמאל`}>
             <Svg width={SIZE} height={SIZE}>
                 {/* rotated so the drawing starts at twelve rather than at three */}
                 <Arc
@@ -58,7 +67,7 @@ export default function CoverageRing({ right, left, rightInk, leftInk, text }: P
                 />
                 <Arc
                     cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none"
-                    stroke={leftInk} strokeWidth={STROKE} opacity={0.45}
+                    stroke={plain ? PLAIN : leftInk} strokeWidth={STROKE} opacity={0.45}
                     strokeDashoffset={-rightLen}
                     transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
                     animatedProps={leftArc}
