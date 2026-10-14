@@ -102,18 +102,18 @@ export default function BlindSurvey() {
                         {revealed === null ? (
                             <>
                                 <View style={styles.axis}>
-                                    <Text style={[styles.pole, { color: RIGHT }]}>{item.poles.right}</Text>
                                     <Text style={[styles.pole, { color: LEFT }]}>{item.poles.left}</Text>
+                                    <Text style={[styles.pole, { color: RIGHT }]}>{item.poles.right}</Text>
                                 </View>
                                 <View style={styles.map}>
                                     {/* 0..10 with 5 in the middle: the slider takes a
                                         starting 0 for none and jumps to its minimum. Its
-                                        low end, at the left, is the right's pole. */}
+                                        low end, at the left, is the left's pole. */}
                                     <Slider
                                         style={styles.slider}
                                         minimumValue={0} maximumValue={10} step={1}
-                                        value={5 - value} onValueChange={(v) => setValue(5 - Math.round(v))}
-                                        minimumTrackTintColor={RIGHT} maximumTrackTintColor={LEFT}
+                                        value={value + 5} onValueChange={(v) => setValue(Math.round(v) - 5)}
+                                        minimumTrackTintColor={LEFT} maximumTrackTintColor={RIGHT}
                                         thumbTintColor={ink}
                                     />
                                 </View>
@@ -172,8 +172,8 @@ const styles = StyleSheet.create({
     topic: { fontFamily: "Rubik_700Bold", fontSize: 11, textAlign: "right" },
     headline: { fontFamily: "Rubik_700Bold", fontSize: 17, lineHeight: 24, textAlign: "right" },
     standfirst: { fontFamily: "Rubik_400Regular", fontSize: 13, lineHeight: 20, textAlign: "right" },
-    // the right pole at the left end of the track and the left pole at the right
-    // end, as everywhere in the app the right stands to the left of the left
+    // the left pole at the left end of the track and the right pole at the right end,
+    // as everywhere in the app
     axis: { flexDirection: "row", direction: "ltr", justifyContent: "space-between", marginTop: 6 },
     map: { flexDirection: "row", direction: "ltr" },
     slider: { flex: 1, height: 36 },

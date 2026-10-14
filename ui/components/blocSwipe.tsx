@@ -7,12 +7,12 @@ import { I18nManager, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent
 
 export type Side = "right" | "left";
 
-// One rule for every swipe in the app: a finger moving right brings in the right,
-// moving left the left - so the right's page lies to the left of the left's, as it
-// does beside a story in the feed. The phone lays a row out right to left and the
-// web build does not, so the pages are put down in the order that lands them there,
-// and the two names above them stand over their own pages.
-const PHYS: Side[] = ["right", "left"];      // left to right on the screen
+// One rule for every swipe in the app: the right on the right of the screen and the
+// left on its left - a finger moving left brings in the right, moving right the
+// left, as beside a story in the feed. The phone lays a row out right to left and
+// the web build does not, so the pages are put down in the order that lands them
+// there, and the two names above them stand over their own pages.
+const PHYS: Side[] = ["left", "right"];      // left to right on the screen
 const ORDER: Side[] = I18nManager.isRTL ? [...PHYS].reverse() : PHYS;
 const OVER_PAGES = I18nManager.isRTL ? "row-reverse" : "row";
 const LABEL: Record<Side, string> = { right: "ימין", left: "שמאל" };
@@ -46,9 +46,9 @@ type Props = {
 /**
  * The right and the left as two pages side by side, swiped between, each on its
  * own colour - red for the right, blue for the left - so which one is on screen is
- * never in doubt: a finger moving right brings in the right. Above them the two
- * names, each over its own page, which can be touched as well as swiped to, the
- * one showing filled in.
+ * never in doubt: the right's page on the right. Above them the two names, each
+ * over its own page, which can be touched as well as swiped to, the one showing
+ * filled in.
  */
 export default function BlocSwipe({ right, left, rightCount, leftCount, start, rightNote, leftNote, onSide }: Props) {
     const t = useTheme();
