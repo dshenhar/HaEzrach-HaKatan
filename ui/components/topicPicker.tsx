@@ -55,13 +55,13 @@ const styles = StyleSheet.create({
     sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "82%", paddingTop: 8 },
     grabber: { width: 40, height: 4, borderRadius: 999, alignSelf: "center", marginBottom: 8 },
     head: { paddingHorizontal: 18, gap: 4, paddingBottom: 10 },
-    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 19, textAlign: "right" },
-    headline: { fontFamily: "Heebo_400Regular", fontSize: 12, lineHeight: 17, textAlign: "right" },
+    title: { fontFamily: "Rubik_800ExtraBold", fontSize: 19, textAlign: "right" },
+    headline: { fontFamily: "Rubik_400Regular", fontSize: 12, lineHeight: 17, textAlign: "right" },
     list: { paddingHorizontal: 18, paddingBottom: 10, gap: 6 },
     row: {
         flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center",
         borderWidth: 1, borderRadius: 10, paddingVertical: 11, paddingHorizontal: 13,
     },
-    rowText: { fontFamily: "Heebo_500Medium", fontSize: 14, textAlign: "right" },
-    close: { fontFamily: "Heebo_500Medium", fontSize: 13, textAlign: "center", paddingVertical: 14 },
+    rowText: { fontFamily: "Rubik_500Medium", fontSize: 14, textAlign: "right" },
+    close: { fontFamily: "Rubik_500Medium", fontSize: 13, textAlign: "center", paddingVertical: 14 },
 });

@@ -152,9 +152,9 @@ const styles = StyleSheet.create({
     col: { flex: 1, borderRadius: 10, padding: 11, gap: 7 },
     colOpen: { borderWidth: 1, borderColor: "rgba(17,24,39,0.10)" },
     colHead: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "baseline" },
-    colLabel: { fontFamily: "Heebo_800ExtraBold", fontSize: 13.5, letterSpacing: -0.1 },
+    colLabel: { fontFamily: "Rubik_800ExtraBold", fontSize: 13.5, letterSpacing: -0.1 },
     colCount: {
-        fontFamily: "Heebo_700Bold", fontSize: 11, letterSpacing: 0.1, color: "#6B7280",
+        fontFamily: "Rubik_700Bold", fontSize: 11, letterSpacing: 0.1, color: "#6B7280",
         fontVariant: ["tabular-nums"],
     },
 
@@ -165,36 +165,36 @@ const styles = StyleSheet.create({
         boxShadow: ELEVATION.rest,
     },
     aiLabel: {
-        fontFamily: "Heebo_700Bold", fontSize: 9.5, letterSpacing: 0.3,
+        fontFamily: "Rubik_700Bold", fontSize: 9.5, letterSpacing: 0.3,
         color: "#9A9A95", textAlign: "right",
     },
     aiText: {
-        fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17,
+        fontFamily: "Rubik_400Regular", fontSize: 11.5, lineHeight: 17,
         color: "#111827", textAlign: "right",
     },
-    aiWaiting: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#9A9A95", textAlign: "right" },
+    aiWaiting: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#9A9A95", textAlign: "right" },
 
     outletBlock: { gap: 2 },
     outletRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
     dot: { width: 7, height: 7, borderRadius: 4 },
     outlet: {
-        fontFamily: "Heebo_700Bold", fontSize: 11.5, letterSpacing: 0.05,
+        fontFamily: "Rubik_700Bold", fontSize: 11.5, letterSpacing: 0.05,
         flex: 1, textAlign: "right",
     },
     headline: {
-        fontFamily: "Heebo_400Regular", fontSize: 11.5, lineHeight: 17,
+        fontFamily: "Rubik_400Regular", fontSize: 11.5, lineHeight: 17,
         letterSpacing: 0.05, color: "#111827", textAlign: "right", paddingRight: 13,
     },
-    empty: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#6B7280", lineHeight: 16 },
+    empty: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#6B7280", lineHeight: 16 },
 
     unaligned: { backgroundColor: "#F4F4F3", borderRadius: 10, padding: 11, marginTop: 8, gap: 7 },
     unalignedTitle: {
-        fontFamily: "Heebo_700Bold", fontSize: 12, color: "#111827", textAlign: "right",
+        fontFamily: "Rubik_700Bold", fontSize: 12, color: "#111827", textAlign: "right",
     },
-    unalignedNote: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#6B7280", textAlign: "right" },
+    unalignedNote: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#6B7280", textAlign: "right" },
     pill: {
         backgroundColor: "#fff", borderRadius: 999, borderWidth: 1, borderColor: "#E3E3E1",
         paddingHorizontal: 11, paddingVertical: 5, marginLeft: 6,
     },
-    pillText: { fontFamily: "Heebo_700Bold", fontSize: 11, color: "#111827" },
+    pillText: { fontFamily: "Rubik_700Bold", fontSize: 11, color: "#111827" },
 });

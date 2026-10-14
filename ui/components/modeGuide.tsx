@@ -195,10 +195,10 @@ const styles = StyleSheet.create({
         gap: 4,
         boxShadow: ELEVATION.sheet,
     },
-    title: { fontFamily: 'Heebo_800ExtraBold', fontSize: 16, textAlign: 'right' },
-    body: { fontFamily: 'Heebo_400Regular', fontSize: 13, lineHeight: 19, textAlign: 'right' },
+    title: { fontFamily: 'Rubik_800ExtraBold', fontSize: 16, textAlign: 'right' },
+    body: { fontFamily: 'Rubik_400Regular', fontSize: 13, lineHeight: 19, textAlign: 'right' },
     action: { borderRadius: 11, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
-    actionText: { fontFamily: 'Heebo_800ExtraBold', fontSize: 14 },
+    actionText: { fontFamily: 'Rubik_800ExtraBold', fontSize: 14 },
     // a square turned 45deg, bordered on the two sides that show below the bubble
     tail: {
         position: 'absolute',

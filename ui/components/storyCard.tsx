@@ -375,10 +375,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 7, paddingVertical: 2, marginTop: -1, marginBottom: 1,
     },
     blindDot: { width: 6, height: 6, borderRadius: 3 },
-    blindText: { fontFamily: "Heebo_700Bold", fontSize: 10.5, letterSpacing: 0.1 },
+    blindText: { fontFamily: "Rubik_700Bold", fontSize: 10.5, letterSpacing: 0.1 },
     title: { flex: 1, ...TYPE.headline, color: "#111827", textAlign: "right" },
     time: {
-        fontFamily: "Heebo_500Medium", fontSize: 11.5, letterSpacing: 0.1,
+        fontFamily: "Rubik_500Medium", fontSize: 11.5, letterSpacing: 0.1,
         color: "#9CA3AF", lineHeight: 20, fontVariant: ["tabular-nums"],
     },
     metaRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, marginTop: 6 },
@@ -389,15 +389,15 @@ const styles = StyleSheet.create({
         maxWidth: 132, flexShrink: 0, marginTop: 1,
     },
     topicText: {
-        fontFamily: "Heebo_500Medium", fontSize: 10.5, lineHeight: 14,
+        fontFamily: "Rubik_500Medium", fontSize: 10.5, lineHeight: 14,
         letterSpacing: 0.08, textAlign: "center",
     },
     mergeBtn: {
         borderWidth: 1, borderStyle: "dashed", borderRadius: 8,
         paddingVertical: 6, alignItems: "center", marginTop: 8,
     },
-    mergeText: { fontFamily: "Heebo_500Medium", fontSize: 11 },
+    mergeText: { fontFamily: "Rubik_500Medium", fontSize: 11 },
     sources: { ...TYPE.caption, flex: 1, color: "#6B7280", textAlign: "right" },
     count: {
- fontFamily: "Heebo_700Bold", fontSize: 11, color: "#6B7280", fontWeight: "600" },
+ fontFamily: "Rubik_700Bold", fontSize: 11, color: "#6B7280", fontWeight: "600" },
 });

@@ -117,7 +117,7 @@ export default CompanyCard
 const styles = StyleSheet.create({
     // these two were the last strings in the app left to the system font, which in
     // Hebrew is a different face altogether rather than a different weight
-    moreText: { fontFamily: "Heebo_500Medium", fontSize: 12, color: "#111827" },
+    moreText: { fontFamily: "Rubik_500Medium", fontSize: 12, color: "#111827" },
     companyCard: {
         // height: "100%",
         alignItems: "center",
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     headerText: {
-        fontFamily: "Heebo_700Bold",
+        fontFamily: "Rubik_700Bold",
         fontSize: 20,
         // fontWeight: "bold",
     },
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     articleText: {
-        fontFamily: "Heebo_400Regular",
+        fontFamily: "Rubik_400Regular",
         padding: 10, 
         fontSize: 15, 
         textAlign: "right",

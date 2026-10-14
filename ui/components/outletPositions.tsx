@@ -154,7 +154,7 @@ export default function OutletPositions() {
 
 const styles = StyleSheet.create({
     wrap: { gap: 10, marginTop: 8 },
-    title: { fontFamily: "Heebo_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right" },
+    title: { fontFamily: "Rubik_800ExtraBold", fontSize: 19, color: "#111827", textAlign: "right" },
     rail: { alignItems: "center", gap: 8 },
     circle: {
         width: 48, height: 48, borderRadius: 24,
@@ -162,12 +162,12 @@ const styles = StyleSheet.create({
     },
     // the open side wears a ring, so it reads as pressed while its strip is out
     circleOn: { borderWidth: 3, borderColor: "#FFFFFF", boxShadow: "0 0 0 2px #111827" },
-    circleText: { fontFamily: "Heebo_800ExtraBold", fontSize: 12.5, color: "#FFFFFF" },
+    circleText: { fontFamily: "Rubik_800ExtraBold", fontSize: 12.5, color: "#FFFFFF" },
     middle: { flex: 1, minHeight: 40, justifyContent: "center", overflow: "hidden" },
     strip: { alignItems: "center", gap: 6, paddingVertical: 4 },
     outlet: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
-    outletText: { fontFamily: "Heebo_700Bold", fontSize: 12 },
-    hint: { fontFamily: "Heebo_400Regular", fontSize: 12, color: "#9CA3AF", textAlign: "center" },
+    outletText: { fontFamily: "Rubik_700Bold", fontSize: 12 },
+    hint: { fontFamily: "Rubik_400Regular", fontSize: 12, color: "#9CA3AF", textAlign: "center" },
     // the embedded window: a fixed height, scrolled from inside
     panel: { height: PANEL_HEIGHT, borderRadius: 14, overflow: "hidden" },
     detail: { marginHorizontal: 0 },

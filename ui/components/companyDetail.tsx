@@ -31,7 +31,7 @@ const CompanyDetail = ({ source, setDetailSource } : { source: string, setDetail
                             <Text style={styles.topicName}>{rank.topic}</Text>
                             <RateBar rate={(rank.bias * 10) + 50} showPrecents={true} style={styles.rateBar} />
                         </View>
-                    )) : <Text style={{ fontFamily: "Heebo_400Regular", fontSize: 13 }}>טוען…</Text>
+                    )) : <Text style={{ fontFamily: "Rubik_400Regular", fontSize: 13 }}>טוען…</Text>
                 }
             </ScrollView>
         </View>
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     companyName: {
-        fontFamily: "Heebo_700Bold",
+        fontFamily: "Rubik_700Bold",
         fontSize: 30,
         textAlign: "right",
         fontWeight: "bold",
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
         paddingTop: 20,
     },
     topicName: {
-        fontFamily: "Heebo_400Regular",
+        fontFamily: "Rubik_400Regular",
         fontSize: 18,
         textAlign: "right",
         paddingRight: 20,

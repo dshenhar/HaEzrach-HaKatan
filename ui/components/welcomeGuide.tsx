@@ -162,8 +162,8 @@ const styles = StyleSheet.create({
         gap: 8,
         boxShadow: ELEVATION.sheet,
     },
-    title: { fontFamily: 'Heebo_800ExtraBold', fontSize: 20, textAlign: 'right' },
-    body: { fontFamily: 'Heebo_400Regular', fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
+    title: { fontFamily: 'Rubik_800ExtraBold', fontSize: 20, textAlign: 'right' },
+    body: { fontFamily: 'Rubik_400Regular', fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
     // a square turned 45deg, bordered on the two sides that show above the bubble
     tail: {
         position: 'absolute',

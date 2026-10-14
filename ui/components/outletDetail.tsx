@@ -94,25 +94,25 @@ export default OutletDetail;
 const styles = StyleSheet.create({
     panel: { flex: 1, backgroundColor: "#fff", borderRadius: 14, marginHorizontal: 16, padding: 14, gap: 8 },
     head: { flexDirection: "row-reverse", alignItems: "baseline", justifyContent: "space-between" },
-    name: { fontFamily: "Heebo_800ExtraBold", fontSize: 17, color: "#111827" },
+    name: { fontFamily: "Rubik_800ExtraBold", fontSize: 17, color: "#111827" },
     nameRule: { height: 3, width: 26, borderRadius: 999, backgroundColor: "#DDA01E", marginTop: 3 },
-    hint: { fontFamily: "Heebo_400Regular", fontSize: 11, color: "#9CA3AF" },
+    hint: { fontFamily: "Rubik_400Regular", fontSize: 11, color: "#9CA3AF" },
     headLinks: {
         flexDirection: "row-reverse", alignItems: "center",
         justifyContent: "space-between", marginTop: -2,
     },
     how: {
-        fontFamily: "Heebo_700Bold", fontSize: 11, color: "#6B7280",
+        fontFamily: "Rubik_700Bold", fontSize: 11, color: "#6B7280",
         textDecorationLine: "underline",
     },
-    basis: { fontFamily: "Heebo_400Regular", fontSize: 10, color: "#9CA3AF", textAlign: "right" },
+    basis: { fontFamily: "Rubik_400Regular", fontSize: 10, color: "#9CA3AF", textAlign: "right" },
     scroll: { flex: 1 },
     scrollBody: { gap: 11, paddingBottom: 6 },
 
     row: { gap: 4 },
     rowHead: { flexDirection: "row-reverse", justifyContent: "space-between", gap: 10 },
-    topic: { fontFamily: "Heebo_500Medium", fontSize: 12.5, color: "#111827", flex: 1, textAlign: "right" },
-    stance: { fontFamily: "Heebo_700Bold", fontSize: 11, maxWidth: 130 },
+    topic: { fontFamily: "Rubik_500Medium", fontSize: 12.5, color: "#111827", flex: 1, textAlign: "right" },
+    stance: { fontFamily: "Rubik_700Bold", fontSize: 11, maxWidth: 130 },
     // a bar that grows out from the centre, so the direction is the message
     track: { height: 7, borderRadius: 999, backgroundColor: "#F0EFEC", overflow: "hidden" },
     midline: { position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, backgroundColor: "#DAD8D2" },

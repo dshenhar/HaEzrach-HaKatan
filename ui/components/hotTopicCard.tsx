@@ -38,6 +38,10 @@ const FLOAT = css<ViewStyle>({ float: "left", clear: "left", marginRight: 14, ma
 const SPACER = css<ViewStyle>({ float: "left", width: 0 });
 const BLOCK = css<ViewStyle>({ display: "block", alignContent: "normal" });
 const LINE = css<TextStyle>({ display: "block" });
+// Justified, Rubik's kerning is taken by Chrome for room to stretch a line into, and
+// it opens gaps inside words ("ח וקי"); without the kerning the lines stretch
+// between words only, as they should.
+const JUSTIFIED = css<TextStyle>({ fontKerning: "none" });
 const SNUG = css<ViewStyle>({ width: "fit-content", marginLeft: "auto" });
 
 const ASPECTS = [
@@ -120,7 +124,7 @@ export default function HotTopicCard({ topic, today, open, focused, onToggle, on
                 </View>
             )}
             <Text style={[styles.title, LINE]}>{topic.title}</Text>
-            {!!topic.one_line && <Text style={[styles.oneLine, LINE]}>{topic.one_line}</Text>}
+            {!!topic.one_line && <Text style={[styles.oneLine, LINE, JUSTIFIED]}>{topic.one_line}</Text>}
         </>
     );
 
@@ -159,7 +163,7 @@ export default function HotTopicCard({ topic, today, open, focused, onToggle, on
                             <Animated.View style={[styles.facts, BLOCK]}
                                 entering={still ? undefined : FADE_IN} exiting={still ? undefined : FADE_OUT}>
                                 <Text style={[styles.label, LINE]}>הפרטים</Text>
-                                <Text style={[styles.summary, LINE]}>{topic.summary}</Text>
+                                <Text style={[styles.summary, LINE, JUSTIFIED]}>{topic.summary}</Text>
                             </Animated.View>
                         )}
                     </View>
@@ -187,8 +191,8 @@ export default function HotTopicCard({ topic, today, open, focused, onToggle, on
                             <View key={key} style={styles.aspect}>
                                 <Text style={styles.aspectLabel}>{label}</Text>
                                 <View style={[styles.row, { flexDirection: FROM_RIGHT }]}>
-                                    <Text style={[styles.cell, { backgroundColor: RIGHT_SOFT }]}>{topic.right?.[key]}</Text>
-                                    <Text style={[styles.cell, { backgroundColor: LEFT_SOFT }]}>{topic.left?.[key]}</Text>
+                                    <Text style={[styles.cell, JUSTIFIED, { backgroundColor: RIGHT_SOFT }]}>{topic.right?.[key]}</Text>
+                                    <Text style={[styles.cell, JUSTIFIED, { backgroundColor: LEFT_SOFT }]}>{topic.left?.[key]}</Text>
                                 </View>
                             </View>
                         ))}

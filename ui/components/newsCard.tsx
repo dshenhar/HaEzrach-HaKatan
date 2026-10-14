@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 	},
 	title: {
-		fontFamily: "Heebo_700Bold",
+		fontFamily: "Rubik_700Bold",
 		marginTop: 8,
 		fontSize: 18,
 		fontWeight: "600",
@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
 		marginHorizontal: 4,
 	},
 	source: {
-		fontFamily: "Heebo_400Regular",
+		fontFamily: "Rubik_400Regular",
 		fontSize: 12,
 		color: "#111827",
 	},
 	time: {
-		fontFamily: "Heebo_400Regular",
+		fontFamily: "Rubik_400Regular",
 		fontSize: 12,
 		color: "#6b7280",
 		marginLeft: 4,
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
 		marginLeft: 4,
 	},
 	badgeText: {
-		fontFamily: "Heebo_400Regular",
+		fontFamily: "Rubik_400Regular",
 		fontSize: 12,
 		color: "#6b7280",
 	},
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
 		paddingVertical: 6,
 	},
 	readText: {
-		fontFamily: "Heebo_400Regular",
+		fontFamily: "Rubik_400Regular",
 		color: "#fff",
 		fontSize: 12,
 		marginLeft: 4,
