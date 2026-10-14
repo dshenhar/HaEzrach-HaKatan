@@ -11,7 +11,8 @@ import { useDevMode, useTheme } from '@/state/theme';
 import { track } from '@/state/analytics';
 import TopicPicker from './topicPicker';
 import { ArticleViewer } from './articleViewer';
-import BlocView, { AllView } from './blocView';
+import { AllView } from './blocView';
+import StorySwipe from './storySwipe';
 import Animated, { Easing, FadeIn, FadeOut, LinearTransition, useAnimatedStyle,
     useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -56,6 +57,9 @@ type Props = {
     readerBloc?: string | null;
     /** the outlets the reader says they read */
     myOutlets?: string[];
+    /** a story on one of the issues was swiped to a side, or back to itself */
+    onOpened?: () => void;
+    onClosed?: () => void;
 }
 
 /**
@@ -64,7 +68,7 @@ type Props = {
  */
 const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                     topics = [], mergeArmed, onArmMerge, open, onToggle,
-                    focused = false, onMeasure, readerBloc, myOutlets }: Props) => {
+                    focused = false, onMeasure, readerBloc, myOutlets, onOpened, onClosed }: Props) => {
     const [viewerItem, setViewerItem] = useState<NewsItem | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [topic, setTopic] = useState<string>("");
@@ -144,6 +148,12 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     // headlines: "the left did not cover this" counts the outlets of each bloc, and a
     // left-wing paper's level report of it is still the left covering it.
     const missedMine = missedByMine(sources, myOutlets);
+    // the headlines by the side each fell on, for the pages beside the card
+    const bySide = { right: [] as NewsItem[], left: [] as NewsItem[], neutral: [] as NewsItem[] };
+    data.forEach((d) => bySide[sideOf(d, positions) ?? "neutral"].push(d));
+    // A story on one of the issues opens to its sides, beside the card, and the card
+    // itself stays as it is; general news opens inside the card.
+    const folded = !open || polar;
     const missing = polar ? blindTo({
         right: data.filter((d) => positions[d.source]?.bloc === "right").length,
         left: data.filter((d) => positions[d.source]?.bloc === "left").length,
@@ -207,26 +217,9 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     // card unable to open any further article.
     const handleViewerClosed = () => { if (asking.current) setRatingOpen(true); };
 
-    return (
-        <Animated.View ref={box} layout={glide} style={styles.wrap}
-            onLayout={(e) => onMeasure?.(e.nativeEvent.layout.height)}>
-        <Animated.View style={swell}>
-            {/* The story wears its section as a tab at its top left corner - the same
-                colour the filter strip uses, so the feed can be read by colour before it
-                is read by word. Closed the tab is tucked behind the card and points up;
-                opening the card flips the same tab inside it, hanging down off the top
-                edge, so it reads as the one label following the story it belongs to. */}
-            {!open && !!section && (
-                <View style={styles.tabRow}>
-                    <View style={[styles.tab, { backgroundColor: tint.fill }]}>
-                        <Text style={[styles.tabText, { color: tint.label }]} numberOfLines={1}>{section}</Text>
-                    </View>
-                </View>
-            )}
-            {/* no border and no shadow: a story is told from the white page by its
-                ground alone, a shade greyer, open or folded */}
+    const card = (
             <View style={[styles.card, { backgroundColor: t.surfaceAlt }]}>
-            {open && !!section && (
+            {!folded && !!section && (
                 <Animated.View style={styles.tabRowIn}
                     entering={still ? undefined : FADE_IN} exiting={still ? undefined : FADE_OUT}>
                     <View style={[styles.tab, styles.tabDown, { backgroundColor: tint.fill }]}>
@@ -272,16 +265,16 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                         <CoverageRing right={rightCount} left={leftCount} plain={!polar}
                             rightInk={t.right} leftInk={t.left} text={String(data.length)} />
                         <Text style={[styles.title, { color: t.text }]}
-                            numberOfLines={open ? undefined : 3}>{lead.title}</Text>
+                            numberOfLines={folded ? 3 : undefined}>{lead.title}</Text>
                     </View>
                 </View>
-                {!open && (
+                {folded && (
                     <View style={styles.metaRow}>
                         <Text style={[styles.sources, { color: t.textMuted }]} numberOfLines={1}>{sources.join(" · ")}</Text>
                     </View>
                 )}
 
-                {dev && !open && (
+                {dev && folded && (
                     <TouchableOpacity
                         style={[styles.mergeBtn, { borderColor: mergeArmed ? t.right : t.line }]}
                         onPress={() => onArmMerge?.(lead.groupId ?? "", lead.title)}
@@ -293,15 +286,11 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                 )}
             </Press>
 
-            {open && (
+            {!folded && (
                 <Animated.View entering={still ? undefined : FADE_IN}
                     exiting={still ? undefined : FADE_OUT}>
-                    {/* the story's own headline above, its telling below: by its two
-                        sides, or, on general news, by every outlet at once */}
-                    {polar
-                        ? <BlocView data={data} positions={positions} onOpenArticle={handleOpenArticle}
-                            missing={missing} readerBloc={readerBloc} />
-                        : <AllView data={data} onOpenArticle={handleOpenArticle} />}
+                    {/* general news: the story's own headline above, every outlet's below */}
+                    <AllView data={data} onOpenArticle={handleOpenArticle} />
                 </Animated.View>
             )}
 
@@ -325,6 +314,35 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
                 topic={viewerItem?.topic || ''}
             />
             </View>
+    );
+    // a story on one of the issues has its two sides beside it
+    const body = polar ? (
+                <StorySwipe data={data} right={bySide.right} left={bySide.left} neutral={bySide.neutral}
+                    missing={missing} readerBloc={readerBloc} open={open}
+                    onOpened={onOpened} onClosed={onClosed} onOpenArticle={handleOpenArticle}>
+                    {card}
+                </StorySwipe>
+                ) : card;
+
+    return (
+        <Animated.View ref={box} layout={glide} style={styles.wrap}
+            onLayout={(e) => onMeasure?.(e.nativeEvent.layout.height)}>
+        <Animated.View style={swell}>
+            {/* The story wears its section as a tab at its top left corner - the same
+                colour the filter strip uses, so the feed can be read by colour before it
+                is read by word. Closed the tab is tucked behind the card and points up;
+                opening the card flips the same tab inside it, hanging down off the top
+                edge, so it reads as the one label following the story it belongs to. */}
+            {folded && !!section && (
+                <View style={styles.tabRow}>
+                    <View style={[styles.tab, { backgroundColor: tint.fill }]}>
+                        <Text style={[styles.tabText, { color: tint.label }]} numberOfLines={1}>{section}</Text>
+                    </View>
+                </View>
+            )}
+            {/* no border and no shadow: a story is told from the white page by its
+                ground alone, a shade greyer, open or folded */}
+            {body}
         </Animated.View>
         </Animated.View>
     );

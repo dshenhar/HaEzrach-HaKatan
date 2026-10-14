@@ -361,6 +361,26 @@ export default function NewsFeed() {
 		});
 	});
 
+	// A story on one of the issues opens by being swiped to a side, and closes by
+	// being swiped back: it becomes the one open story, and the story open before it
+	// goes back to itself.
+	const sideOpened = useStable((key: string) => {
+		setOpenStory((current) => {
+			if (current === key) return current;
+			leaveStory(current);
+			track("story_opened", { how: "swipe", ...shapeOf(key) });
+			openedAt.current = Date.now();
+			return key;
+		});
+	});
+	const sideClosed = useStable((key: string) => {
+		setOpenStory((current) => {
+			if (current !== key) return current;
+			leaveStory(current);
+			return null;
+		});
+	});
+
 	// A hot topic's link or a search result asks for a story: it opens here and is
 	// brought into view. The request waits for the stories to load, reloads them once
 	// if the story is not among them, and clears the filters if they are what hides it.
@@ -417,10 +437,14 @@ export default function NewsFeed() {
 
 	// one lasting pair of callbacks per story, so that scrolling past one story does
 	// not re-render the fifty others
-	const bound = useRef<Record<string, { toggle: () => void; measure: (h: number) => void }>>({});
+	const bound = useRef<Record<string, {
+		toggle: () => void; measure: (h: number) => void; opened: () => void; closed: () => void;
+	}>>({});
 	const handlers = (key: string) => (bound.current[key] ||= {
 		toggle: () => toggleStory(key),
 		measure: (h: number) => measure(key, h),
+		opened: () => sideOpened(key),
+		closed: () => sideClosed(key),
 	});
 	const armMerge = useStable((id: string | number, title: string) => handleArmMerge(id, title));
 
@@ -570,6 +594,8 @@ export default function NewsFeed() {
 						readerBloc={profile?.bloc}
 						myOutlets={mine}
 						onMeasure={bind.measure}
+						onOpened={bind.opened}
+						onClosed={bind.closed}
 						onToggle={bind.toggle} />
 					);
 				})}
@@ -635,9 +661,9 @@ export default function NewsFeed() {
 					) : tourStepName === "bloc" ? (
 						<ModeGuide key="bloc" mode="bloc"
 							title="ימין ושמאל"
-							body={"בסיפור על אחת המחלוקות, כל כותרת עומדת בצד שהמילים שלה שמות אותה: ימין באדום, "
-								+ "שמאל בכחול. החליקו בין הצדדים כדי לראות איך כל צד סיפר את אותו אירוע. "
-								+ "חדשות כלליות, בלי צדדים, מוצגות כרשימה אחת."}
+							body={"החליקו כתבה ימינה כדי לראות איך הימין סיפר אותה, באדום, ושמאלה בשביל השמאל, "
+								+ "בכחול. רגע אחרי שעוצרים על צד, נפתחות הכותרות עצמן. "
+								+ "חדשות כלליות, בלי צדדים, נפתחות בלחיצה כרשימה אחת."}
 							onDone={() => advanceTour(tourStep)} />
 					) : null}
 				</View>
