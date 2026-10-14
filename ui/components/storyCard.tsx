@@ -133,15 +133,21 @@ const StoryCard = ({ data, positions, setRatingOpen, setRatingTarget,
     // A story on one of the issues the country argues over is told as its two
     // sides; general news has none, and is told as one.
     const polar = !!shownTopic && shownTopic !== GENERAL_TOPIC;
-    // how the coverage split, which is what the ring draws
+    // how the headlines split between the sides, which is what the ring draws
     const rightCount = data.filter((d) => sideOf(d, positions) === "right").length;
     const leftCount = data.filter((d) => sideOf(d, positions) === "left").length;
     // Who did not tell this story. On the closed card it is the reader's own
     // blindspot - none of the outlets they read ran it - which is a count anyone can
     // check in a minute. Which side did not tell it is said inside the story, beside
     // the two sides.
+    // Who covered a story is a fact about outlets, how they told it a fact about
+    // headlines: "the left did not cover this" counts the outlets of each bloc, and a
+    // left-wing paper's level report of it is still the left covering it.
     const missedMine = missedByMine(sources, myOutlets);
-    const missing = polar ? blindTo({ right: rightCount, left: leftCount }) : null;
+    const missing = polar ? blindTo({
+        right: data.filter((d) => positions[d.source]?.bloc === "right").length,
+        left: data.filter((d) => positions[d.source]?.bloc === "left").length,
+    }) : null;
     const dark = t.name === "negative";
     const tint = sectionTint(section, dark);
 
