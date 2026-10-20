@@ -38,6 +38,13 @@ const OPEN_AFTER_MS = 1000;
 const GROW_MS = 420;
 const SHRINK_MS = 160;
 const LABEL: Record<Side, string> = { right: "ימין", left: "שמאל" };
+// General news has no sides: either way the finger goes, the page that comes in is
+// every outlet's, on a grey as plain as the story's ring
+const ALL_LABEL = "כל הגופים";
+const ALL_GROUND = "#4E5562";
+// a touch on the card does not turn it: the card leans a little each way, showing
+// what is at its edges, to say that it is swiped
+const NUDGE = 22;
 // At the story's size a page holds its head, the summary and the outlets' names: the
 // summary gets the lines that are left (SUMMARY_LINE each) once the rest is set.
 const SUMMARY_LINE = 18;
@@ -61,6 +68,10 @@ type Props = {
     left: NewsItem[];
     /** the side whose outlets did not cover it at all, when the other side's did */
     missing: Side | null;
+    /** general news: both pages are every outlet's, `right` and `left` the same list */
+    general?: boolean;
+    /** set to the card's lean, for a touch on the card to call */
+    nudgeRef?: React.RefObject<(() => void) | null>;
     readerBloc?: string | null;
     /** the feed's one open story: true asks for a side, false for the story itself */
     open: boolean;
@@ -73,23 +84,26 @@ type Props = {
 };
 
 /**
- * A story on one of the issues, with its two sides beside it. The card is as it
- * always was; a finger moving left brings in the right's page from the right edge,
- * in red - how the right told the story, in the AI's summary of its headlines, and
- * which outlets they came from - and a finger moving right brings in the left's,
- * in blue, from the left edge. While it moves, a page is the story's own size. A
- * second after it comes to rest on one, the page opens to the headlines
- * themselves, each of them a way into the article.
+ * A story with its pages beside it. The card is as it always was; on one of the
+ * issues a finger moving left brings in the right's page from the right edge, in
+ * red - how the right told the story, in a point of view drawn from its headlines,
+ * and which outlets they came from - and a finger moving right brings in the left's,
+ * in blue, from the left edge. General news has every outlet's page, in grey, on
+ * both sides. While it moves, a page is the story's own size. A second after it
+ * comes to rest on one, the page opens to the headlines themselves, each of them a
+ * way into the article.
  *
- * A touch on the card goes to the side more of its headlines fell on, and a coin
- * when they are level - so neither side is the one always met first - and the next
- * touch, back on the card, to the other side.
+ * Only the finger turns the card. A touch leans it a little each way and back, so
+ * the pages at its edges show and say how to reach them. A story asked for from
+ * elsewhere - a hot topic, a search - opens on the side more of its headlines fell
+ * on, and a coin when they are level.
  */
-export default function StorySwipe({ data, right, left, missing, readerBloc, open,
+export default function StorySwipe({ data, right, left, missing, general = false, nudgeRef, readerBloc, open,
     onOpened, onClosed, onOpenArticle, children }: Props) {
     const t = useTheme();
     const still = useStillness();
-    const ground = t.name === "negative" ? DEEP : { right: t.right, left: t.left };
+    const ground = general ? { right: ALL_GROUND, left: ALL_GROUND }
+        : t.name === "negative" ? DEEP : { right: t.right, left: t.left };
     const items: Record<Side, NewsItem[]> = { right, left };
 
     const [width, setWidth] = useState(0);
@@ -104,14 +118,15 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
     const [grow] = useState(() => new Animated.Value(0));
     // the summaries are asked for once a side is looked at, not for every story
     const [looked, setLooked] = useState(false);
-    const wanted: Which[] = looked ? (["right", "left"] as Side[]).filter((s) => items[s].length > 0) : [];
+    const wanted: Which[] = !looked ? [] : general ? ["all"]
+        : (["right", "left"] as Side[]).filter((s) => items[s].length > 0);
     const summary = useSummaries(data, wanted);
 
     // What the handlers need between renders. They are kept up to date in an effect
     // after every render, and read only when a finger moves or a timer fires.
     const live = useRef({
         width: 0, page: "card" as Page, grown: null as Side | null, shrinking: false,
-        lastSide: null as Side | null, how: "swipe" as "swipe" | "tap",
+        nudging: false, how: "swipe" as "swipe" | "asked",
         opening: null as ReturnType<typeof setTimeout> | null, from: 0,
         items, onOpened, onClosed, still,
     });
@@ -157,7 +172,7 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
         Animated.timing(grow, {
             toValue: 1, duration: l.still ? 0 : GROW_MS, easing: Easing.out(Easing.cubic), useNativeDriver: false,
         }).start();
-        track("story_side_opened", { side, headlines: l.items[side].length, how: l.how });
+        track("story_side_opened", { side: general ? "all" : side, headlines: l.items[side].length, how: l.how });
     };
     const holdOpening = () => {
         const l = live.current;
@@ -175,10 +190,7 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
             if (was !== "card") l.onClosed?.();
             return;
         }
-        if (was !== page) {
-            l.lastSide = page;
-            if (was === "card") l.onOpened?.();
-        }
+        if (was !== page && was === "card") l.onOpened?.();
         // a second later the page opens - or opens again, after a nudge that came
         // back to the same side
         const shut = l.grown !== page || l.shrinking;
@@ -211,6 +223,27 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
     // the latest go, for the handlers made once
     const goNow = useRef(go);
     useEffect(() => { goNow.current = go; });
+
+    // a touch on the card: it leans toward the right's page, then the left's, and
+    // settles - nothing turns, and a finger that comes down meanwhile takes over
+    const nudge = () => {
+        const l = live.current;
+        if (!l.width || l.page !== "card" || l.nudging || l.still) return;
+        const rest = restOf("card", l.width);
+        const to = (by: number, ms: number) => Animated.timing(shift, {
+            toValue: rest + by, duration: ms, easing: Easing.inOut(Easing.quad), useNativeDriver: false,
+        });
+        l.nudging = true;
+        setLooked(true);
+        Animated.sequence([to(-NUDGE, 170), to(NUDGE * 0.7, 240), to(0, 200)])
+            .start(() => { l.nudging = false; });
+        track("story_nudged", { general });
+    };
+    useEffect(() => {
+        if (!nudgeRef) return;
+        nudgeRef.current = nudge;
+        return () => { nudgeRef.current = null; };
+    });
 
     // Made once. Its handlers read `live` and `goNow` when a finger moves, never while
     // drawing; the compiler's rule cannot tell a handler from the render around it.
@@ -252,18 +285,18 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
         onPanResponderTerminate: () => goNow.current(live.current.page),
     }));
 
-    // the feed opens a story when it is touched, or asked for from elsewhere, and
-    // closes it when another one opens
+    // the feed opens a story asked for from elsewhere, and closes it when another
+    // one opens
     useEffect(() => {
         const l = live.current;
         if (!width) return;
         if (open && l.page === "card") {
-            l.how = "tap";
-            // the side not seen last, or, the first time, the side more headlines
-            // fell on - and an empty side only if there is nothing on the other
+            l.how = "asked";
+            // the side more headlines fell on - and an empty side only if there is
+            // nothing on the other
             const counts = { right: right.length, left: left.length };
             const other = (s: Side): Side => (s === "right" ? "left" : "right");
-            const side = l.lastSide ? other(l.lastSide) : firstSide(counts.right, counts.left);
+            const side = firstSide(counts.right, counts.left);
             go(counts[side] > 0 || counts[other(side)] === 0 ? side : other(side));
         } else if (!open && l.page !== "card") {
             go("card");
@@ -277,7 +310,8 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
     const panel = (side: Side) => {
         const list = items[side];
         const other: Side = side === "right" ? "left" : "right";
-        const line = summary(side);
+        const name = general ? ALL_LABEL : LABEL[side];
+        const line = summary(general ? "all" : side);
         const full = grown === side;
         const lines = Math.max(1, Math.floor((cardH - PAGE_FRAME) / SUMMARY_LINE));
         const height = !cardH ? undefined : grown === side
@@ -289,20 +323,23 @@ export default function StorySwipe({ data, right, left, missing, readerBloc, ope
             <Animated.View key={side}
                 style={[styles.panel, { width, height, backgroundColor: ground[side], opacity: hidden ? 0 : 1 }]}
                 accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? "no-hide-descendants" : "auto"}
-                accessibilityLabel={`${LABEL[side]}, ${list.length} כותרות`}>
+                accessibilityLabel={`${name}, ${list.length} כותרות`}>
                 <View style={styles.body} onLayout={(e) => {
                     const h = Math.ceil(e.nativeEvent.layout.height);
                     if (h !== fullH[side]) setFullH((current) => ({ ...current, [side]: h }));
                 }}>
                     <View style={styles.head}>
                         <Text style={styles.label}>
-                            {LABEL[side]} · {list.length === 1 ? "כותרת אחת" : `${list.length} כותרות`}
+                            {name} · {list.length === 1 ? "כותרת אחת" : `${list.length} כותרות`}
                         </Text>
                         <View style={styles.moves}>
-                            <Press onPress={() => go(other)} style={styles.move} hitSlop={6}
-                                accessibilityRole="button" accessibilityLabel={`לצד של ה${LABEL[other]}`}>
-                                <Text style={styles.moveText}>ל{LABEL[other]}</Text>
-                            </Press>
+                            {/* general news has the same page on both sides: only the way back */}
+                            {!general && (
+                                <Press onPress={() => go(other)} style={styles.move} hitSlop={6}
+                                    accessibilityRole="button" accessibilityLabel={`לצד של ה${LABEL[other]}`}>
+                                    <Text style={styles.moveText}>ל{LABEL[other]}</Text>
+                                </Press>
+                            )}
                             <Press onPress={() => go("card")} style={styles.move} hitSlop={6}
                                 accessibilityRole="button" accessibilityLabel="חזרה לכתבה">
                                 <Text style={styles.moveText}>✕</Text>
