@@ -354,17 +354,7 @@ export default function NewsFeed() {
 		}
 	});
 
-	const toggleStory = useStable((key: string) => {
-		setOpenStory((current) => {
-			leaveStory(current);
-			if (current === key) return null;
-			track("story_opened", { how: "tap", ...shapeOf(key) });
-			openedAt.current = Date.now();
-			return key;
-		});
-	});
-
-	// A story on one of the issues opens by being swiped to a side, and closes by
+	// A story opens by being swiped to its pages - never by a touch - and closes by
 	// being swiped back: it becomes the one open story, and the story open before it
 	// goes back to itself.
 	const sideOpened = useStable((key: string) => {
@@ -441,10 +431,9 @@ export default function NewsFeed() {
 	// one lasting pair of callbacks per story, so that scrolling past one story does
 	// not re-render the fifty others
 	const bound = useRef<Record<string, {
-		toggle: () => void; measure: (h: number) => void; opened: () => void; closed: () => void;
+		measure: (h: number) => void; opened: () => void; closed: () => void;
 	}>>({});
 	const handlers = (key: string) => (bound.current[key] ||= {
-		toggle: () => toggleStory(key),
 		measure: (h: number) => measure(key, h),
 		opened: () => sideOpened(key),
 		closed: () => sideClosed(key),
@@ -600,8 +589,7 @@ export default function NewsFeed() {
 						myOutlets={mine}
 						onMeasure={bind.measure}
 						onOpened={bind.opened}
-						onClosed={bind.closed}
-						onToggle={bind.toggle} />
+						onClosed={bind.closed} />
 					);
 				})}
 				</View>
@@ -674,9 +662,9 @@ export default function NewsFeed() {
 					) : tourStepName === "kinds" ? (
 						<ModeGuide key="kinds" mode="bloc"
 							title="שני סוגים של חדשות"
-							body={"חדשות כלליות - תאונה, מזג אוויר, ספורט - הן בלי צדדים: כל הגופים ברשימה "
-								+ "אחת. כתבה על אחת המחלוקות בין ימין לשמאל מסומנת בטבעת אדומה וכחולה, "
-								+ "ואותה מחליקים לצדדים."}
+							body={"חדשות כלליות - תאונה, מזג אוויר, ספורט - הן בלי צדדים: החלקה לאיזה צד "
+								+ "שתרצו מביאה את כל הגופים ברשימה אחת, באפור. כתבה על אחת המחלוקות בין ימין "
+								+ "לשמאל מסומנת בטבעת אדומה וכחולה, והחלקה מביאה צד: ימין באדום, שמאל בכחול."}
 							demo={<KindsDemo />}
 							onDone={() => advanceTour(tourStep)} />
 					) : null}

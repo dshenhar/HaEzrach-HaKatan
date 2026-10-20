@@ -11,6 +11,7 @@ import { Animated, Easing, LayoutChangeEvent, StyleSheet, Text, View } from 'rea
 const LTR_ROW = { flexDirection: "row", direction: "ltr" } as const;
 const RED = "#C0392F";
 const BLUE = "#2B5EA7";
+const GREY = "#4E5562";
 const EXAMPLE = "הכנסת אישרה את החוק בקריאה ראשונה";
 
 /** a line of text, drawn as a bar: the demo shows the shape of a story, not one */
@@ -138,10 +139,11 @@ export function SwipeDemo() {
 }
 
 /**
- * The two kinds of story side by side: general news, with a grey ring and no sides,
- * which a touch opens as one list; and a story on one of the issues the country is
- * split on, with a red and blue ring, which swipes to its two sides - it nudges
- * either way to say so, its sides showing at its edges.
+ * The two kinds of story side by side, both of them swiped: general news, with a
+ * grey ring and no sides, swipes either way to every outlet in one list, grey; and
+ * a story on one of the issues the country is split on, with a red and blue ring,
+ * swipes to its two sides. Each nudges either way to say so, what it swipes to
+ * showing at its edges.
  */
 export function KindsDemo() {
     const t = useTheme();
@@ -162,8 +164,14 @@ export function KindsDemo() {
         <View style={styles.kinds}>
             <View style={styles.kind}>
                 <Text style={[styles.kindTitle, { color: t.text }]}>חדשות כלליות</Text>
-                <Story title="נבחרת ישראל עלתה לשלב הבא" plain />
-                <Text style={[styles.kindNote, { color: t.textMuted }]}>בלי צדדים · לחיצה פותחת</Text>
+                <View style={styles.nudgeFrame}>
+                    <View style={[styles.edge, styles.edgeLeft, { backgroundColor: GREY }]} />
+                    <View style={[styles.edge, styles.edgeRight, { backgroundColor: GREY }]} />
+                    <Animated.View style={{ transform: [{ translateX: nudge.interpolate({ inputRange: [-1, 1], outputRange: [-16, 16] }) }] }}>
+                        <Story title="נבחרת ישראל עלתה לשלב הבא" plain />
+                    </Animated.View>
+                </View>
+                <Text style={[styles.kindNote, { color: t.textMuted }]}>כל הגופים · מחליקים</Text>
             </View>
             <View style={styles.kind}>
                 <Text style={[styles.kindTitle, { color: t.text }]}>סוגיה במחלוקת</Text>

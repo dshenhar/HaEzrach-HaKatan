@@ -1,9 +1,5 @@
 import { NewsItem, getBlocSummary, storySummaries } from '@/state/engagement';
-import { TYPE } from '@/state/craft';
-import { useTheme } from '@/state/theme';
-import Press from './press';
-import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
 
 export type Which = "right" | "left" | "all";
 
@@ -31,54 +27,3 @@ export function useSummaries(data: NewsItem[], wanted: Which[]) {
     }, [storyId, missing]);
     return (which: Which) => carried[which] ?? fetched[which];
 }
-
-type Props = {
-    data: NewsItem[];
-    onOpenArticle: (item: NewsItem) => void;
-}
-
-/**
- * General news - a storm, a road accident, a rescued dog - has no two sides to be
- * told from, so it is not split into any: one line on the story as every outlet
- * told it, and under it each outlet with its own headline.
- */
-export const AllView = ({ data, onOpenArticle }: Props) => {
-    const t = useTheme();
-    const summary = useSummaries(data, ["all"]);
-    const line = summary("all");
-    return (
-        <View style={[styles.wrap, styles.page]}>
-            {line ? (
-                <View style={[styles.summary, styles.summaryPlain, { backgroundColor: t.surface }]}>
-                    <Text style={[styles.summaryLabel, { color: t.textMuted }]}>נקודת מבט</Text>
-                    <Text style={[styles.summaryText, { color: t.text }]}>{line}</Text>
-                </View>
-            ) : line === undefined ? (
-                <Text style={[styles.waiting, { color: t.textMuted }]}>מכין סיכום…</Text>
-            ) : null}
-            {data.map((item) => (
-                <Press key={item.id} onPress={() => onOpenArticle(item)} scale={0.98}
-                    style={[styles.outlet, { backgroundColor: t.surface }]} accessibilityRole="link"
-                    accessibilityLabel={`${item.source}: ${item.title}`}>
-                    <Text style={[styles.outletName, { color: t.text }]} numberOfLines={1}>{item.source}</Text>
-                    <Text style={[styles.outletTitle, { color: t.text }]} numberOfLines={3}>{item.title}</Text>
-                </Press>
-            ))}
-        </View>
-    );
-};
-
-
-// general news is set on the card's own ground, its slips white
-const styles = StyleSheet.create({
-    wrap: { marginTop: 10, gap: 8 },
-    page: { gap: 8 },
-    summary: { gap: 3 },
-    summaryPlain: { borderRadius: 10, padding: 11 },
-    summaryLabel: { ...TYPE.micro, textAlign: "right" },
-    summaryText: { ...TYPE.body, fontSize: 14, lineHeight: 21, textAlign: "right" },
-    waiting: { ...TYPE.caption, textAlign: "right" },
-    outlet: { borderRadius: 10, padding: 10, gap: 2 },
-    outletName: { ...TYPE.label, textAlign: "right" },
-    outletTitle: { ...TYPE.body, textAlign: "right" },
-});
