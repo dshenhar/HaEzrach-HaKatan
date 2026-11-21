@@ -4,8 +4,8 @@
               column stays as it is. Stories are grouped by these.
   topics      gpt-5.6-luna, answering in a JSON schema whose only allowed values
               are the topic names, so it cannot invent a topic or misspell one -
-              and, in the same answer, where the headline falls on its issue's
-              axis (store/stance.py).
+              and, in the same answer, how far the headline itself leans on its
+              issue's axis (store/stance.py).
   light work  gpt-6-luna, at about half the price: whether two stories the
               embeddings put close together are one event (same_event), the
               translation of Arabic items, and the one-line summaries. Tried side
@@ -42,10 +42,10 @@ TAG_BATCH = 20
 
 # what the model answers for an article that is about none of the topics - most news
 OTHER = "אחר"
-# where a headline falls on its issue's axis: +5 the pole the right holds, -5 the
-# left's. No 0: the owner wants every headline on one side or the other, so the
-# model chooses even a slight lean (1 or -1)
-STANCES = [s for s in range(-5, 6) if s != 0]
+# how far a headline's own words lean on its issue's axis: +5 the pole the right
+# holds, -5 the left's, 0 for none. It moves the headline from its outlet's side,
+# and only 4 or 5 against the outlet carries it over (store/stance.py)
+LEANS = list(range(-5, 6))
 
 
 class OpenAIUnavailable(Exception):
@@ -114,12 +114,16 @@ def _instructions(topics: dict[str, str], sections: dict[str, str],
         "זה המצב ברוב החדשות: פלילים, תאונות, מזג אוויר, ספורט, בריאות ורוב חדשות העולם.",
         "אזכור אגבי אינו מספיק - הסוגיה צריכה להיות מה שהכתבה עוסקת בו.",
         "",
-        "3. נטייה - מספר שלם מ-5- עד 5, בלי 0: לאיזה מהקטבים של הסוגיה שבחרת הכותרת והתקציר, "
-        "כפי שהם כתובים, נוטים, ועד כמה. 5 הוא הקוטב שאחרי \"+5\" בסוגיה, 5- הקוטב שאחרי \"-5\".",
-        "   אין אמצע. גם דיווח שנראה עובדתי בוחר מה להבליט, את מי לצטט ובאיזה אור, ובאילו מילים - "
-        "בחר את הצד שאליו הוא נוטה, ולנטייה קלה תן 1 או 1-.",
+        "3. נטייה - מספר שלם מ-5- עד 5: האם הכותרת והתקציר עצמם, כפי שהם כתובים, מביעים עמדה "
+        "בסוגיה שבחרת, ולאיזה קוטב. 5 הוא הקוטב שאחרי \"+5\" בסוגיה, 5- הקוטב שאחרי \"-5\".",
+        "   0 - המצב הרגיל: דיווח על אירוע, החלטה, פעולה צבאית, הצבעה או דברים שמישהו אמר, בלשון "
+        "עניינית - גם כשהאירוע עצמו משרת צד אחד. אירוע אינו עמדה, וציטוט של מישהו אינו עמדת הכותב.",
+        "   1 או 2 (או 1-, 2-) - מסגור קל: מילים טעונות, הבלטה של צד אחד.",
+        "   3 (או 3-) - מסגור ברור לטובת קוטב אחד.",
+        "   4 או 5 (או 4-, 5-) - רק כשהכותרת עצמה, בלשון הכותב, טוענת בעד עמדת קוטב אחד או נגד "
+        "הקוטב השני. במקרה של ספק, תן מספר נמוך יותר.",
         "   שפוט לפי הטקסט בלבד. אל תנחש לפי האתר או לפי מה שנהוג לחשוב עליו, ואל תביע עמדה משלך.",
-        f"   לכתבה שסוגייתה \"{OTHER}\" החזר 1; המספר לא ישמש.",
+        f"   לכתבה שסוגייתה \"{OTHER}\" החזר 0; המספר לא ישמש.",
     ]
     if examples:
         lines += ["", "תיקונים שעשה עורך אנושי. תייג כתבות דומות באותו אופן:"]
@@ -131,8 +135,8 @@ def classify(items: list[tuple[int, str]], topics: dict[str, str],
              sections: dict[str, str],
              examples: list[tuple[str, str]] | None = None,
              poles: dict[str, tuple[str, str]] | None = None) -> dict[int, dict]:
-    """Section, issue and stance per item id:
-    {"section": name, "topic": name or None, "stance": -5..5 or None}.
+    """Section, issue and lean per item id:
+    {"section": name, "topic": name or None, "lean": -5..5 or None}.
 
     topics and sections each map a name to a line saying what belongs in it, and
     poles an issue's name to the right's and the left's ends of its axis. The
@@ -147,11 +151,11 @@ def classify(items: list[tuple[int, str]], topics: dict[str, str],
         "properties": {"items": {"type": "array", "items": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["id", "section", "topic", "stance"],
+            "required": ["id", "section", "topic", "lean"],
             "properties": {"id": {"type": "integer"},
                            "section": {"type": "string", "enum": list(sections)},
                            "topic": {"type": "string", "enum": list(topics) + [OTHER]},
-                           "stance": {"type": "integer", "enum": STANCES}},
+                           "lean": {"type": "integer", "enum": LEANS}},
         }}},
     }
     out: dict[int, dict] = {}
@@ -172,11 +176,11 @@ def classify(items: list[tuple[int, str]], topics: dict[str, str],
         for row in json.loads(content).get("items", []):
             if row.get("id") in wanted:
                 topic = row.get("topic")
-                stance = row.get("stance")
+                lean = row.get("lean")
                 out[row["id"]] = {"section": row.get("section"),
                                   "topic": None if topic == OTHER else topic,
-                                  "stance": (max(-5, min(5, int(stance)))
-                                             if topic != OTHER and isinstance(stance, int) else None)}
+                                  "lean": (max(-5, min(5, int(lean)))
+                                           if topic != OTHER and isinstance(lean, int) else None)}
     return out
 
 

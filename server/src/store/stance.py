@@ -1,131 +1,87 @@
-"""Where a headline falls, and where an outlet stands because of its headlines.
+"""Where a headline falls: on its outlet's side, moved by what the headline says.
 
-An outlet used to be placed by hand - a benchmark per issue - and its bloc read off
-the average. Now every article that is about one of the issues is placed on that
-issue's own axis, from its headline and standfirst alone:
+The outlets are the base. Every outlet has a place on each issue, an editorial
+estimate written in advance from its public identity - ownership, founding purpose,
+declared line (db/initial_ranks.json) - and its bloc is the side those places
+average to (positions.py). A headline on one of the issues starts on its outlet's
+side, OUTLET_BASE out on the issue's axis of -5..5: +3 for a right-wing outlet, -3
+for a left-wing one.
 
-    the model   the tagging pass reads each one and gives it a stance, -5..5, where
-                +5 is the right's pole of the issue and -5 the left's. There is no
-                middle: it is asked for a side even when the lean is slight (1 or -1)
-    readers     at the end of an article a reader says how right or left it felt,
-                -5..5 on the same axis
+Then it is read on its own. The tagging pass gives every headline on an issue a
+lean, -5..5, from its headline and standfirst alone - never the article itself -
+for what the text says: 0 for a report of an event, however well the event suits
+one side; 1 to 3 for framing; 4 or 5 only where the headline itself argues one
+side's position. The lean is added to the base. A headline that says what its
+outlet's side says goes further out; one that leans the other way comes in; and
+only one that plainly argues the other side's position - a lean of 4 or 5 against
+its outlet - crosses over. A headline that comes to exactly 0 stays with its
+outlet: there is no middle.
 
-The model's reading is the article's score until MIN_VOTERS readers have said
-otherwise; from then the score is their mean with the model counted as
-MODEL_WEIGHT readers of its own. Enough readers can move a headline to the other
-side, a few cannot. These three numbers are the first guess, to be tuned once
-there are votes to tune them against.
+Readers: at the end of an article a reader says where it fell, -5..5 on the same
+axis. The reading above stands until MIN_VOTERS readers have answered; from then
+the score is their mean with the reading counted as MODEL_WEIGHT readers of its
+own. Enough readers can move a headline to the other side, a few cannot. Readers
+move headlines, not outlets.
 
-The side follows from the score's sign. There is no middle: a score of exactly
-zero - a headline read before the model was asked always to choose, or readers who
-cancel out - goes to the side of the outlet that published it.
-
-An outlet's place on an issue is where its headlines on it fell: when an article
-leaves the database, a day after it came, its final side is counted on the outlet's
-entry for its issue - right or left, never by its outlet's bloc, which would only
-count the outlet back to itself - in counters that halve every
-HALF_LIFE, so the place follows what the outlet publishes now. The share of right
-less the share of left, on the -5..5 scale, is the measured place. Until an outlet
-has enough headlines on an issue the old benchmark carries it, fading as they come:
-it is worth PRIOR_WEIGHT headlines.
+An outlet's place is its estimate, and its headlines do not move it. For five weeks
+from October 2026 they did - each headline placed by the model alone, its side
+counted on its outlet - and the places drifted wherever the model misread: reports
+of strikes read as support for the war put nearly every outlet to the right of it.
+Those counters are still on the topic states, and nothing reads them.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
 SCALE = 5.0
+# where a headline starts, out from the middle on its outlet's side
+OUTLET_BASE = 3.0
 
-# an article's score
-MODEL_WEIGHT = 5.0      # the model counts as this many readers
-MIN_VOTERS = 3          # fewer readers than this leave the model's reading alone
+# the readers
+MODEL_WEIGHT = 5.0      # the reading counts as this many readers
+MIN_VOTERS = 3          # fewer readers than this leave the reading alone
 
-# an outlet's place
-HALF_LIFE = timedelta(days=90)
-PRIOR_WEIGHT = 10.0     # the benchmark is worth this many headlines
-
-# "c" counted the headlines that leaned to neither while there was a middle; none
-# are counted now, and those already counted fade with the rest
-COUNTER = {"right": "r", "left": "l"}
+_SIGN = {"right": 1.0, "left": -1.0}
 
 
-def score(stance: float | None, feel: dict | None) -> float | None:
-    """An article's place on its issue's axis: the model's reading, and the readers'
-    once there are enough of them. None when there is neither."""
+def reading(lean: float | None, bloc: str | None) -> float | None:
+    """A headline's place before any reader: its outlet's side, moved by its own
+    lean. None for a headline with neither - an outlet in no bloc, and no lean."""
+    base = OUTLET_BASE * _SIGN.get(bloc or "", 0.0)
+    if lean is None and not base:
+        return None
+    return max(-SCALE, min(SCALE, base + float(lean or 0)))
+
+
+def score(lean: float | None, feel: dict | None, bloc: str | None) -> float | None:
+    """A headline's place on its issue's axis: the reading, and the readers' once
+    there are enough of them. None when there is neither."""
+    model = reading(lean, bloc)
     feel = feel or {}
     n = int(feel.get("n", 0))
     total = float(feel.get("s", 0.0))
-    if stance is None:
+    if model is None:
         return round(total / n, 2) if n >= MIN_VOTERS else None
     if n < MIN_VOTERS:
-        return float(stance)
-    return round((MODEL_WEIGHT * float(stance) + total) / (MODEL_WEIGHT + n), 2)
+        return model
+    return round((MODEL_WEIGHT * model + total) / (MODEL_WEIGHT + n), 2)
 
 
 def side(value: float | None) -> str | None:
-    """right or left - or None for an article nothing has placed, or placed at zero."""
+    """right or left - or None for nothing placed, or placed at zero."""
     if value is None or value == 0:
         return None
     return "right" if value > 0 else "left"
 
 
-def article_side(article: dict) -> str | None:
-    return side(score(article.get("stance"), article.get("feel")))
-
-
 def placed(article: dict, blocs: dict[str, str]) -> str | None:
-    """The side an article is shown on: its own, or - for one nothing has placed,
-    or placed at zero - its outlet's. Right or left, never in between."""
-    own = article_side(article)
+    """The side a headline on one of the issues is shown on: its own score's, and
+    its outlet's when that comes to zero. Right or left, never in between."""
+    bloc = blocs.get(str(article.get("site_id")))
+    own = side(score(article.get("lean"), article.get("feel"), bloc))
     if own is not None:
         return own
-    bloc = blocs.get(str(article.get("site_id")))
     return bloc if bloc in ("right", "left") else None
 
 
-def _aware(at: datetime | None) -> datetime | None:
-    if at is not None and at.tzinfo is None:
-        return at.replace(tzinfo=timezone.utc)
-    return at
-
-
-def _decayed(entry: dict, now: datetime) -> tuple[float, float, float]:
-    """An outlet's counters on an issue as they stand now."""
-    r, l, c = (float(entry.get(k, 0.0)) for k in ("r", "l", "c"))
-    counted = _aware(entry.get("counted"))
-    if counted is None:
-        return r, l, c
-    age = (now - counted).total_seconds()
-    factor = 0.5 ** (age / HALF_LIFE.total_seconds()) if age > 0 else 1.0
-    return r * factor, l * factor, c * factor
-
-
-def fold(entry: dict, add: dict[str, int], now: datetime | None = None) -> dict:
-    """The counters with a pass's headlines added - the fields to merge into the entry."""
-    now = now or datetime.now(timezone.utc)
-    r, l, c = _decayed(entry, now)
-    return {"r": round(r + add.get("r", 0), 4), "l": round(l + add.get("l", 0), 4),
-            "c": round(c + add.get("c", 0), 4), "counted": now}
-
-
-def headlines(entry: dict, now: datetime | None = None) -> float:
-    """How many headlines, faded, an outlet's place on an issue stands on."""
-    return sum(_decayed(entry or {}, now or datetime.now(timezone.utc)))
-
-
-def outlet_position(entry: dict | None, now: datetime | None = None) -> float:
-    """Where an outlet stands on an issue: its headlines, with the benchmark for the
-    ones it does not have yet."""
-    entry = entry or {}
-    prior = float(entry.get("prior", 0.0))
-    r, l, c = _decayed(entry, now or datetime.now(timezone.utc))
-    n = r + l + c
-    if n <= 0:
-        return round(prior, 3)
-    measured = SCALE * (r - l) / n
-    return round((PRIOR_WEIGHT * prior + n * measured) / (PRIOR_WEIGHT + n), 3)
-
-
-def confidence(entry: dict | None, now: datetime | None = None) -> float:
-    """0..1: how much of the place is measured rather than estimated."""
-    n = headlines(entry or {}, now)
-    return round(n / (n + PRIOR_WEIGHT), 2)
+def outlet_position(entry: dict | None) -> float:
+    """Where an outlet stands on an issue: its estimate."""
+    return round(float((entry or {}).get("prior", 0.0)), 3)

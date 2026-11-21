@@ -1,9 +1,9 @@
 """Where every outlet stands, read off the topic states.
 
-The map asks for one topic, the analytics page and the bloc view ask for the
-outlet overall. Both are the same numbers: each outlet's entry on a topic's state
-holds the counters of where its headlines fell and the benchmark for until there
-are enough of them (stance.py), and this turns them into positions.
+The map asks for one topic, the analytics page and the feed ask for the outlet
+overall. Both are the same numbers: each outlet's entry on a topic's state holds
+its estimate on that issue (stance.py), and this turns them into positions - and
+the bloc each outlet's headlines start from.
 """
 from __future__ import annotations
 

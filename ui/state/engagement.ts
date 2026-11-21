@@ -33,12 +33,8 @@ export type SitePosition = {
 
 export type CompanyDetailType = {
 	topic: string;
+	/** the outlet's estimate on this topic, -5..5 */
 	bias: number;
-	/** how many of this outlet's articles on this topic anyone has rated */
-	rated_count?: number;
-	article_count?: number;
-	/** 0..1, and it is raters/20 - how far the number has moved off its estimate */
-	confidence?: number;
 }
 
 /** A headline with the masthead taken off it, for the blind survey. */

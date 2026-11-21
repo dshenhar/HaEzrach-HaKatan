@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from store import db, weather
 from store.positions import overall, positions_for_topic
-from store.stance import confidence, headlines, score, side
+from store.stance import score, side
 from store.summaries import (GEMINI_API_KEY, GEMINI_MODEL, SIDES, articles_for,
                              prompt as summary_prompt)
 from store.taxonomy import SECTIONS
@@ -151,12 +151,8 @@ def get_ranks(topic: str):
         entry = entries.get(site_id, {})
         results.append({
             "source": site["name"],
+            # the outlet's estimate on this issue (store/stance.py)
             "bias": positions.get(site_id, round(float(entry.get("prior", 0.0)), 3)),
-            # how many headlines, faded, its place stands on, and how much of the
-            # place they make up rather than the benchmark
-            "article_count": round(headlines(entry)),
-            "rated_count": round(headlines(entry)),
-            "confidence": confidence(entry),
             "latest_article_header": (entry.get("latest") or {}).get("header", ""),
         })
     return results
@@ -177,9 +173,6 @@ def get_ranks_by_site(site: str):
         results.append({
             "topic": names[topic_id],
             "bias": positions_for_topic(state).get(match["id"], 0.0),
-            "article_count": round(headlines(entry)),
-            "rated_count": round(headlines(entry)),
-            "confidence": confidence(entry),
         })
     return results
 
@@ -272,13 +265,14 @@ def add_feel(article_id: str, feel: FeelRequest, request: Request):
     own score (store/stance.py). One answer per reader and article: a second one
     replaces the first.
 
-    Nothing about the outlet changes here. An outlet learns where its headlines
-    fell when they leave the database, a day on, with their sides final - so a
-    reader moves a headline, and only enough of them move an outlet.
+    Nothing about the outlet changes here: readers move headlines, and an outlet's
+    place is its estimate.
     """
     voter = voter_id(request)
     article_id = _article_id(article_id)
     client = db.client()
+    # a headline starts from its outlet's side (store/stance.py)
+    blocs = {site_id: info["bloc"] for site_id, info in overall(db.all_topic_states()).items()}
     article_ref = client.collection("articles").document(article_id)
     answer_ref = db.feel_ref(article_id, voter)
     value = max(-5, min(5, int(feel.value)))
@@ -295,11 +289,12 @@ def add_feel(article_id: str, feel: FeelRequest, request: Request):
         story_snap = story_ref.get(transaction=tx) if story_ref else None
 
         source = article.get("site", "")
+        bloc = blocs.get(str(article.get("site_id")))
         previous = answer_snap.to_dict() if answer_snap.exists else None
         tally = dict(article.get("feel") or {"n": 0, "s": 0})
         if previous:
             if previous.get("value") == value:
-                own = score(article.get("stance"), tally)
+                own = score(article.get("lean"), tally, bloc)
                 return {"status": "no_change", "source": source, "side": side(own)}
             tally["s"] = int(tally.get("s", 0)) + value - int(previous.get("value", 0))
         else:
@@ -317,7 +312,7 @@ def add_feel(article_id: str, feel: FeelRequest, request: Request):
                 if str(entry.get("id")) == article_id:
                     entry["feel"] = tally
             tx.set(story_ref, {"articles": articles}, merge=True)
-        own = score(article.get("stance"), tally)
+        own = score(article.get("lean"), tally, bloc)
         # the name comes back with the answer, which is the whole of the blind
         # survey: you learn whose article it was only once you have committed
         return {"source": source, "score": own, "side": side(own), "readers": tally["n"]}
@@ -400,7 +395,7 @@ async def get_bloc_summary(story_id: str, bloc: str):
 
     blocs = {site_id: info["bloc"] for site_id, info in overall(db.all_topic_states()).items()}
     rows = [{"header": a["header"], "subheader": a.get("subheader"),
-             "site_id": str(a["site_id"]), "stance": a.get("stance"), "feel": a.get("feel")}
+             "site_id": str(a["site_id"]), "lean": a.get("lean"), "feel": a.get("feel")}
             for a in story.get("articles", [])]
     articles = articles_for(rows, blocs, bloc)
     if not articles:
@@ -452,11 +447,11 @@ def set_story_topic(story_id: str, fix: TopicFix):
         article["topic"] = topic["name"]
         article["topic_id"] = topic["id"]
         article["topic_model"] = "human"
-        # its stance was read on the old issue's axis, which is not this one's
-        article["stance"] = None
+        # its lean was read on the old issue's axis, which is not this one's
+        article["lean"] = None
         writer.set(db.client().collection("articles").document(str(article["id"])),
                    {"topic": topic["name"], "topic_id": topic["id"], "topic_model": "human",
-                    "stance": None},
+                    "lean": None},
                    merge=True)
     writer.set(db.client().collection("stories").document(str(story_id)),
                {"topic": topic["name"], "articles": story["articles"]}, merge=True)
