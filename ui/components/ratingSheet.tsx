@@ -123,7 +123,7 @@ export default function RatingSheet({ open, onOpenChange, ratingTarget }: Rating
 			<Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
 				<Text style={styles.title}>{scale.question}</Text>
 				<Text style={styles.subtitle} numberOfLines={2}>
-					{ratingTarget ? `${ratingTarget.source} · ${scale.about}` : ""}
+					{ratingTarget ? [ratingTarget.source, scale.detail].filter(Boolean).join(" · ") : ""}
 				</Text>
 
 				<View style={[styles.ends, MAP]}>

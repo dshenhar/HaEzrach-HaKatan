@@ -41,10 +41,10 @@ const ISSUES: Record<string, IssueStance> = {
 };
 
 export type Scale = {
-    /** the question over the scale */
+    /** the question over the scale, with what it is about: "הכתבה בעד או נגד: הקואליציה" */
     question: string;
-    /** what the question is about, under it */
-    about: string;
+    /** said under the question after the outlet's name, where the question does not say it */
+    detail: string | null;
     /** the words at the scale's ends, the left's end and the right's */
     leftEnd: string;
     rightEnd: string;
@@ -53,6 +53,9 @@ export type Scale = {
     /** the scale's name for a screen reader */
     spoken: string;
 };
+
+/** a subject this long or shorter fits on the question's own line, even on a small phone */
+const SHARES_A_LINE = 14;
 
 const degree = (value: number) => (Math.abs(value) >= 5 ? "מאוד" : Math.abs(value) >= 3 ? "די" : "קצת");
 
@@ -64,7 +67,7 @@ export function scaleFor(topic: string): Scale {
     if (!issue) {
         return {
             question: "איך הכתבה הרגישה לך?",
-            about: topic,
+            detail: topic,
             leftEnd: "שמאל",
             rightEnd: "ימין",
             reading: (v) => (v === 0 ? "באמצע" : `נוטה ${degree(v)} ${v > 0 ? "ימינה" : "שמאלה"}`),
@@ -73,8 +76,11 @@ export function scaleFor(topic: string): Scale {
     }
     const word = (side: "right" | "left") => (issue.pro === side ? "בעד" : "נגד");
     return {
-        question: "הכתבה בעד או נגד?",
-        about: issue.about,
+        // what it is for or against is in the question itself, where it cannot be
+        // missed - on a line of its own when it is too long to share one, rather
+        // than leaving its last word alone on the next
+        question: `הכתבה בעד או נגד:${issue.about.length > SHARES_A_LINE ? "\n" : " "}${issue.about}`,
+        detail: null,
         leftEnd: word("left"),
         rightEnd: word("right"),
         reading: (v) => {
