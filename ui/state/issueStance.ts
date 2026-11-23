@@ -11,8 +11,10 @@
  *
  * `about` is what one is for or against, said as the issue's own proposition where
  * its name is not one ("מלחמה וטרור" is a field, "המשך הלחימה" a position); `pro`
- * is the side that is for it. Political coverage has no proposition - it is a
- * reading of which camp a story helps - and keeps right and left.
+ * is the side that is for it. Political coverage is a reading of which camp a story
+ * helps, and is asked as for or against the coalition: the issue's right pole is
+ * "strengthens the coalition" (store/taxonomy.py), so "for" stands on the right
+ * for as long as the coalition is the right's.
  */
 type IssueStance = { about: string; pro: "right" | "left" };
 
@@ -35,6 +37,7 @@ const ISSUES: Record<string, IssueStance> = {
     "יוקר המחיה ומעורבות המדינה": { about: "מעורבות המדינה בכלכלה", pro: "left" },
     "קצבאות ורווחה": { about: "הרחבת הקצבאות", pro: "left" },
     "זכויות הקהילה הגאה": { about: "שוויון זכויות לקהילה הגאה", pro: "left" },
+    "סיקור פוליטי": { about: "הקואליציה", pro: "right" },
 };
 
 export type Scale = {
@@ -56,6 +59,8 @@ const degree = (value: number) => (Math.abs(value) >= 5 ? "מאוד" : Math.abs(
 /** the scale an article on this issue is placed on */
 export function scaleFor(topic: string): Scale {
     const issue = ISSUES[topic];
+    // every issue there is has its proposition above; one added later without one
+    // is asked right and left until it is given one
     if (!issue) {
         return {
             question: "איך הכתבה הרגישה לך?",

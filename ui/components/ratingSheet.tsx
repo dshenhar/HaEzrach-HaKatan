@@ -24,14 +24,14 @@ interface RatingSheetProps {
 }
 
 /**
- * Asked as a reader comes back from an article: was it for or against - against
- * what the issue is about, its "for" at the end of the side that is for it - or, on
- * political coverage, which has no for and against, how right or left it felt.
+ * Asked as a reader comes back from an article: was it for or against what its
+ * issue is about - political coverage included, for or against the coalition -
+ * with "for" at the end of the side that is for it (state/issueStance.ts).
  *
- * Every headline on one of the issues is placed by the model on that issue's axis;
- * this is the readers' half. The model's reading stands until enough of them have
- * answered, and then they can move the headline to the other side - and with it,
- * over time, the outlet. The answer is kept on the same axis either way, the
+ * Every headline on one of the issues starts on its outlet's side and is moved by
+ * its own words (server/src/store/stance.py); this is the readers' half. That
+ * reading stands until enough of them have answered, and then they can move the
+ * headline to the other side. The answer is kept on the same axis either way, the
  * right's end positive: the words change, the scale does not.
  */
 export default function RatingSheet({ open, onOpenChange, ratingTarget }: RatingSheetProps) {
